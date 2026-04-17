@@ -1,0 +1,103 @@
+import type { Candidate, SubmissionStage } from './types';
+
+export const ALL_CANDIDATES: Candidate[] = [
+  {
+    id: 'alice-johnson', name: 'Alice Johnson', role: 'Senior Frontend Engineer',
+    company: 'Acme Corp', location: 'San Francisco, CA',
+    skills: ['React', 'TypeScript', 'GraphQL', 'CSS'], score: 92, applied: '3 days ago',
+    email: 'alice.johnson@email.com', phone: '+1 415 555 0101',
+    linkedin: 'https://linkedin.com/in/alicejohnson', github: 'https://github.com/alicejohnson',
+  },
+  {
+    id: 'bob-martinez', name: 'Bob Martinez', role: 'Product Manager',
+    company: 'Bright Labs', location: 'New York, NY',
+    skills: ['Roadmapping', 'Agile', 'Jira', 'Analytics'], score: 78, applied: '1 day ago',
+    email: 'bob.martinez@email.com', phone: '+1 212 555 0188',
+    linkedin: 'https://linkedin.com/in/bobmartinez',
+  },
+  {
+    id: 'carol-chen', name: 'Carol Chen', role: 'UX Designer',
+    company: 'Orion Health', location: 'Austin, TX',
+    skills: ['Figma', 'User Research', 'Prototyping', 'Sketch'], score: 95, applied: '12 days ago',
+    email: 'carol.chen@email.com', phone: '+1 512 555 0234',
+    linkedin: 'https://linkedin.com/in/carolchen', github: 'https://github.com/carolchen',
+  },
+  {
+    id: 'david-kim', name: 'David Kim', role: 'Data Analyst',
+    company: 'Acme Corp', location: 'Remote',
+    skills: ['SQL', 'Python', 'Tableau', 'dbt'], score: 84, applied: '6 days ago',
+    email: 'david.kim@email.com', phone: '+1 310 555 0177',
+    linkedin: 'https://linkedin.com/in/davidkim', github: 'https://github.com/davidkim',
+  },
+  {
+    id: 'emily-ross', name: 'Emily Ross', role: 'Backend Engineer',
+    company: 'Nova Systems', location: 'Seattle, WA',
+    skills: ['Node.js', 'PostgreSQL', 'Docker', 'Kafka'], score: 71, applied: '2 days ago',
+    email: 'emily.ross@email.com',
+    linkedin: 'https://linkedin.com/in/emilyross', github: 'https://github.com/emilyross',
+  },
+  {
+    id: 'frank-liu', name: 'Frank Liu', role: 'DevOps Engineer',
+    company: 'Bright Labs', location: 'Chicago, IL',
+    skills: ['Kubernetes', 'Terraform', 'AWS', 'CI/CD'], score: 88, applied: '5 days ago',
+    email: 'frank.liu@email.com', phone: '+1 312 555 0312',
+    linkedin: 'https://linkedin.com/in/frankliu', github: 'https://github.com/frankliu',
+  },
+  {
+    id: 'grace-tang', name: 'Grace Tang', role: 'Product Manager',
+    company: 'Bright Labs', location: 'Austin, TX',
+    skills: ['Roadmapping', 'Agile', 'Analytics'], score: 85, applied: '7 days ago',
+    email: 'grace.tang@email.com', phone: '+1 512 555 0422',
+    linkedin: 'https://linkedin.com/in/gracetang',
+  },
+  {
+    id: 'lena-voss', name: 'Lena Voss', role: 'Senior Frontend Engineer',
+    company: 'Acme Corp', location: 'Remote',
+    skills: ['React', 'CSS', 'Accessibility'], score: 90, applied: '4 days ago',
+    email: 'lena.voss@email.com', phone: '+49 30 555 0188',
+    linkedin: 'https://linkedin.com/in/lenavoss', github: 'https://github.com/lenavoss',
+  },
+  {
+    id: 'mia-ortega', name: 'Mia Ortega', role: 'UX Designer',
+    company: 'Orion Health', location: 'Austin, TX',
+    skills: ['Figma', 'Adobe XD', 'Wireframing'], score: 81, applied: '9 days ago',
+    email: 'mia.ortega@email.com',
+    linkedin: 'https://linkedin.com/in/miaortega',
+  },
+  {
+    id: 'priya-nair', name: 'Priya Nair', role: 'Data Analyst',
+    company: 'Acme Corp', location: 'Remote',
+    skills: ['SQL', 'Python', 'Power BI'], score: 74, applied: '5 days ago',
+    email: 'priya.nair@email.com', phone: '+91 98 555 0101',
+    linkedin: 'https://linkedin.com/in/priyanair',
+  },
+  {
+    id: 'james-ford', name: 'James Ford', role: 'DevOps Engineer',
+    company: 'Nova Systems', location: 'Seattle, WA',
+    skills: ['Docker', 'AWS', 'Jenkins'], score: 69, applied: '8 days ago',
+    email: 'james.ford@email.com', phone: '+1 206 555 0303',
+    linkedin: 'https://linkedin.com/in/jamesford', github: 'https://github.com/jamesford',
+  },
+  {
+    id: 'tom-harrington', name: 'Tom Harrington', role: 'Product Manager',
+    company: 'Bright Labs', location: 'New York, NY',
+    skills: ['Jira', 'Analytics', 'Scrum'], score: 76, applied: '11 days ago',
+    email: 'tom.harrington@email.com', phone: '+1 646 555 0177',
+    linkedin: 'https://linkedin.com/in/tomharrington',
+  },
+];
+
+export const INITIAL_SUBMISSIONS: Record<string, SubmissionStage> = {
+  'alice-johnson':  'interview',
+  'bob-martinez':   'new',
+  'carol-chen':     'offer',
+  'david-kim':      'shortlisted',
+  'emily-ross':     'submitted_to_client',
+  'frank-liu':      'shortlisted',
+  'grace-tang':     'new',
+  'lena-voss':      'interview',
+  'mia-ortega':     'shortlisted',
+  'priya-nair':     'new',
+  'james-ford':     'new',
+  'tom-harrington': 'submitted_to_client',
+};
