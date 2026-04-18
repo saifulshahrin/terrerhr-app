@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CheckCircle2, Briefcase, MapPin, Users, Clock, Tag } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { createJob } from '../lib/jobs';
 
 const EXAMPLE_INPUT = `We're looking for a Senior Backend Engineer to join our platform team at Acme Corp. The role is based in San Francisco (hybrid) with a salary range of $160k–$200k. The candidate should have 5+ years of experience with Node.js, PostgreSQL, and cloud infrastructure (AWS preferred). They will own the design and implementation of core API services and work closely with product and frontend teams. Nice to have: experience with Kafka or similar message queue systems. Start date is flexible, targeting Q3 2026. Reporting to the VP of Engineering.`;
 
@@ -145,23 +145,13 @@ export default function JobIntake({ onNavigate }: Props) {
     setSaving(true);
     setSaveError(null);
 
-    const now = new Date().toISOString();
-    const { data, error } = await supabase.from('jobs').insert({
-      job_title: parsed.title,
-      company_name: parsed.company,
-      location: parsed.location,
-      source: 'manual_intake',
-      status: 'Open',
-      updated_at: now,
-    }).select('id').maybeSingle();
+     await createJob({
+  title: parsed.title,
+  company: parsed.company,
+  location: parsed.location,
+});
 
     setSaving(false);
-
-    if (error || !data) {
-      console.error('[JobIntake] insert error:', error);
-      setSaveError('Failed to save job. Please try again.');
-      return;
-    }
 
     onNavigate('jobs');
   };

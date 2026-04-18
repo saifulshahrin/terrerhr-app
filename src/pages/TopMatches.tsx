@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { CheckCircle, XCircle, UserCheck, Send, Eye, MapPin, Briefcase, ArrowLeft } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { getJobById } from '../lib/jobs';
 import { useStore } from '../store/StoreContext';
 import { useRole } from '../store/RoleContext';
 import type { Candidate } from '../store/types';
@@ -51,38 +51,70 @@ const avatarColors: string[] = [
   'bg-green-100 text-green-700',
 ];
 
-const STAGE_LABEL: Record<SubmissionStage, string> = {
-  new:                  'New',
-  shortlisted:          'Shortlisted',
-  ready_for_bd_review:  'BD Review',
-  submitted_to_client:  'Submitted',
-  interview:            'Interview',
-  offer:                'Offer',
+const STAGE_LABEL: Partial<Record<SubmissionStage, string>> = {
+  new: 'New',
+  shortlisted: 'Shortlisted',
+  ready_for_bd_review: 'BD Review',
+  submitted_to_client: 'Submitted',
+  interview: 'Interview',
+  offer: 'Offer',
 };
 
-const STAGE_STYLE: Record<SubmissionStage, string> = {
-  new:                  'bg-gray-100 text-gray-500',
-  shortlisted:          'bg-sky-50 text-sky-700',
-  ready_for_bd_review:  'bg-violet-50 text-violet-700',
-  submitted_to_client:  'bg-yellow-50 text-yellow-700',
-  interview:            'bg-amber-50 text-amber-700',
-  offer:                'bg-emerald-50 text-emerald-700',
+const STAGE_STYLE: Partial<Record<SubmissionStage, string>> = {
+  new: 'bg-gray-100 text-gray-500',
+  shortlisted: 'bg-sky-50 text-sky-700',
+  ready_for_bd_review: 'bg-violet-50 text-violet-700',
+  submitted_to_client: 'bg-yellow-50 text-yellow-700',
+  interview: 'bg-amber-50 text-amber-700',
+  offer: 'bg-emerald-50 text-emerald-700',
 };
 
 const matchConfig = (score: number) => {
-  if (score >= 90) return { bar: 'bg-emerald-500', text: 'text-emerald-600', bg: 'bg-emerald-50', ring: 'ring-emerald-200' };
-  if (score >= 75) return { bar: 'bg-sky-500',     text: 'text-sky-600',     bg: 'bg-sky-50',     ring: 'ring-sky-200' };
-  return               { bar: 'bg-amber-400',      text: 'text-amber-600',   bg: 'bg-amber-50',   ring: 'ring-amber-200' };
+  if (score >= 90) {
+    return {
+      bar: 'bg-emerald-500',
+      text: 'text-emerald-600',
+      bg: 'bg-emerald-50',
+      ring: 'ring-emerald-200',
+    };
+  }
+  if (score >= 75) {
+    return {
+      bar: 'bg-sky-500',
+      text: 'text-sky-600',
+      bg: 'bg-sky-50',
+      ring: 'ring-sky-200',
+    };
+  }
+  return {
+    bar: 'bg-amber-400',
+    text: 'text-amber-600',
+    bg: 'bg-amber-50',
+    ring: 'ring-amber-200',
+  };
 };
 
 const initials = (name: string) =>
-  name.split(' ').map(n => n[0]).join('').toUpperCase();
+  name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase();
 
 function looseMatch(a: string, b: string): boolean {
   if (!a || !b) return false;
-  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
-  const wordsA = normalize(a).split(/\s+/).filter(w => w.length > 2);
-  const wordsB = normalize(b).split(/\s+/).filter(w => w.length > 2);
+
+  const normalize = (s: string) =>
+    s.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+
+  const wordsA = normalize(a)
+    .split(/\s+/)
+    .filter(w => w.length > 2);
+
+  const wordsB = normalize(b)
+    .split(/\s+/)
+    .filter(w => w.length > 2);
+
   return wordsA.some(wa => wordsB.some(wb => wa.includes(wb) || wb.includes(wa)));
 }
 
@@ -122,7 +154,9 @@ function rankCandidates(
 export default function TopMatches({ jobId, onNavigate }: Props) {
   const { candidates, getStage, shortlist, sendToBdReview } = useStore();
   const { role } = useRole();
+
   const canRecruit = role === 'recruiter' || role === 'admin' || role === null;
+
   const [job, setJob] = useState<Job | null>(null);
   const [loadingJob, setLoadingJob] = useState(!!jobId);
   const [busy, setBusy] = useState<Record<string, boolean>>({});
@@ -145,32 +179,38 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
       setLoadingJob(false);
       return;
     }
+
     setLoadingJob(true);
 
     const candidateIds = candidates.map(c => c.id);
 
     Promise.all([
-      supabase
-        .from('jobs')
-        .select('id, job_title, company_name, location, status')
-        .eq('id', jobId)
-        .maybeSingle(),
+      getJobById(jobId),
       fetchAssessmentsForJob(jobId),
       fetchJobRequirements(jobId),
       fetchCandidateSkills(candidateIds),
-    ]).then(([{ data, error }, assessments, requirements, skillRows]) => {
-      if (!error && data && (data as Job).id === jobId) setJob(data as Job);
+    ])
+      .then(([jobData, assessments, requirements, skillRows]) => {
+        if (jobData && (jobData as Job).id === jobId) {
+          setJob(jobData as Job);
+        }
 
-      const loaded: Record<string, TerrerAIReview> = {};
-      for (const row of assessments) {
-        const key = `${row.candidate_id}-${row.job_id}`;
-        loaded[key] = rowToReview(row);
-      }
-      setReviews(loaded);
-      setJobRequirements(requirements);
-      setSkillMap(buildCandidateSkillMap(skillRows));
-      setLoadingJob(false);
-    });
+        const loaded: Record<string, TerrerAIReview> = {};
+        for (const row of assessments) {
+          const key = `${row.candidate_id}-${row.job_id}`;
+          loaded[key] = rowToReview(row);
+        }
+
+        setReviews(loaded);
+        setJobRequirements(requirements);
+        setSkillMap(buildCandidateSkillMap(skillRows));
+      })
+      .catch(err => {
+        console.error('[TopMatches] load error:', err);
+      })
+      .finally(() => {
+        setLoadingJob(false);
+      });
   }, [jobId, candidates]);
 
   const ranked = useMemo<RankedCandidate[]>(() => {
@@ -180,15 +220,22 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
 
   const handle = async (key: string, fn: () => Promise<void>) => {
     setBusy(b => ({ ...b, [key]: true }));
-    try { await fn(); } catch (err) { console.error('[TopMatches]', key, err); }
-    finally { setBusy(b => ({ ...b, [key]: false })); }
+    try {
+      await fn();
+    } catch (err) {
+      console.error('[TopMatches]', key, err);
+    } finally {
+      setBusy(b => ({ ...b, [key]: false }));
+    }
   };
 
   const handleSendToBdReview = (candidate: RankedCandidate) => {
     if (!job) return;
+
     const key = `${candidate.id}-${job.id}`;
     const review = reviews[key] ?? null;
     const output = generateSubmissionOutput(candidate, job, review);
+
     setModalCandidate(candidate);
     setModalOutput(output);
     setModalOpen(true);
@@ -196,6 +243,7 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
 
   const handleModalSend = async (notes: string) => {
     if (!modalCandidate || !job || !modalOutput) return;
+
     setModalSending(true);
     try {
       await sendToBdReview(modalCandidate.id, job.id, modalOutput, notes);
@@ -209,21 +257,30 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
 
   const runReview = (candidate: RankedCandidate) => {
     if (!job) return;
+
     const key = `${candidate.id}-${job.id}`;
     setReviewRunning(r => ({ ...r, [key]: true }));
+
     setTimeout(async () => {
-      const reviewCandidate = {
-        ...candidate,
-        structuredSkills: candidate.structuredSkills,
-      };
-      const reviewJob = {
-        ...job,
-        requirements: jobRequirements,
-      };
-      const result = generateTerrerAIReview(reviewCandidate, reviewJob);
-      await upsertAssessment(candidate.id, job.id, result, candidate.score, candidate.matchScore);
-      setReviews(rv => ({ ...rv, [key]: result }));
-      setReviewRunning(r => ({ ...r, [key]: false }));
+      try {
+        const reviewCandidate = {
+          ...candidate,
+          structuredSkills: candidate.structuredSkills,
+        };
+
+        const reviewJob = {
+          ...job,
+          requirements: jobRequirements,
+        };
+
+        const result = generateTerrerAIReview(reviewCandidate, reviewJob);
+        await upsertAssessment(candidate.id, job.id, result, candidate.score, candidate.matchScore);
+        setReviews(rv => ({ ...rv, [key]: result }));
+      } catch (err) {
+        console.error('[TopMatches] runReview error', err);
+      } finally {
+        setReviewRunning(r => ({ ...r, [key]: false }));
+      }
     }, 1200);
   };
 
@@ -240,7 +297,9 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
       <div>
         <div className="mb-7">
           <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Top Matches</h1>
-          <p className="text-sm text-gray-500 mt-1">Select a job from the Jobs page to view ranked candidates.</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Select a job from the Jobs page to view ranked candidates.
+          </p>
         </div>
         <button
           onClick={() => onNavigate('jobs')}
@@ -268,22 +327,35 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
       </div>
 
       <div className="mb-6 bg-white rounded-xl border border-gray-200 p-5">
-        <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2">Top Matches for</p>
-        <h1 className="text-2xl font-semibold text-gray-900 tracking-tight leading-snug">{job.job_title}</h1>
+        <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2">
+          Top Matches for
+        </p>
+        <h1 className="text-2xl font-semibold text-gray-900 tracking-tight leading-snug">
+          {job.job_title}
+        </h1>
         <div className="flex flex-wrap items-center gap-4 mt-2">
           <span className="flex items-center gap-1.5 text-sm text-gray-500">
             <Briefcase size={13} className="text-gray-400" />
             {job.company_name}
           </span>
+
           {job.location && (
             <span className="flex items-center gap-1.5 text-sm text-gray-500">
               <MapPin size={13} className="text-gray-400" />
               {job.location}
             </span>
           )}
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${job.status === 'Open' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+
+          <span
+            className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+              job.status === 'Open'
+                ? 'bg-green-100 text-green-700'
+                : 'bg-gray-100 text-gray-500'
+            }`}
+          >
             {job.status}
           </span>
+
           {hasStructuredRequirements && (
             <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
               {jobRequirements.length} requirements loaded
@@ -322,13 +394,21 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
           else if (m.score >= 80) strengths.push('Strong overall candidate score');
 
           if (m.matchedSkills.length > 0) {
-            strengths.push(`Skills matched: ${m.matchedSkills.slice(0, 3).join(', ')}${m.matchedSkills.length > 3 ? ` +${m.matchedSkills.length - 3} more` : ''}`);
+            strengths.push(
+              `Skills matched: ${m.matchedSkills.slice(0, 3).join(', ')}${
+                m.matchedSkills.length > 3 ? ` +${m.matchedSkills.length - 3} more` : ''
+              }`
+            );
           }
 
           if (!m.roleMatch) gaps.push('Role title differs from job requirement');
           if (!m.locationMatch) gaps.push('Location may require relocation');
           if (m.missingSkills.length > 0) {
-            gaps.push(`Missing required skills: ${m.missingSkills.slice(0, 3).join(', ')}${m.missingSkills.length > 3 ? ` +${m.missingSkills.length - 3} more` : ''}`);
+            gaps.push(
+              `Missing required skills: ${m.missingSkills.slice(0, 3).join(', ')}${
+                m.missingSkills.length > 3 ? ` +${m.missingSkills.length - 3} more` : ''
+              }`
+            );
           }
 
           return (
@@ -339,8 +419,14 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
               <div className="p-5">
                 <div className="flex items-start gap-4">
                   <div className="flex-shrink-0 flex items-center gap-3">
-                    <span className="text-xs font-bold text-gray-300 w-4 text-right tabular-nums">{i + 1}</span>
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center text-base font-bold select-none ${avatarColors[i % avatarColors.length]}`}>
+                    <span className="text-xs font-bold text-gray-300 w-4 text-right tabular-nums">
+                      {i + 1}
+                    </span>
+                    <div
+                      className={`w-12 h-12 rounded-full flex items-center justify-center text-base font-bold select-none ${
+                        avatarColors[i % avatarColors.length]
+                      }`}
+                    >
                       {initials(m.name)}
                     </div>
                   </div>
@@ -348,32 +434,52 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
-                        <p className="text-[15px] font-semibold text-gray-900 leading-snug">{m.name}</p>
-                        <p className="text-sm text-gray-500 mt-0.5">{m.role} &middot; {m.location}</p>
+                        <p className="text-[15px] font-semibold text-gray-900 leading-snug">
+                          {m.name}
+                        </p>
+                        <p className="text-sm text-gray-500 mt-0.5">
+                          {m.role} &middot; {m.location}
+                        </p>
                       </div>
 
                       <div className="flex items-center gap-3 flex-shrink-0">
                         {stage !== 'new' && (
-                          <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${STAGE_STYLE[stage]}`}>
+                          <span
+                            className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${
+                              STAGE_STYLE[stage]
+                            }`}
+                          >
                             {STAGE_LABEL[stage]}
                           </span>
                         )}
-                        <div className={`flex flex-col items-center justify-center w-16 h-14 rounded-xl ring-1 ${mc.bg} ${mc.ring}`}>
-                          <p className={`text-xl font-bold leading-none ${mc.text}`}>{m.matchScore}</p>
-                          <p className="text-[10px] text-gray-400 mt-1 leading-none font-medium">score</p>
+                        <div
+                          className={`flex flex-col items-center justify-center w-16 h-14 rounded-xl ring-1 ${mc.bg} ${mc.ring}`}
+                        >
+                          <p className={`text-xl font-bold leading-none ${mc.text}`}>
+                            {m.matchScore}
+                          </p>
+                          <p className="text-[10px] text-gray-400 mt-1 leading-none font-medium">
+                            score
+                          </p>
                         </div>
                       </div>
                     </div>
 
                     <div className="mt-3 w-full bg-gray-100 rounded-full h-1.5">
-                      <div className={`h-1.5 rounded-full transition-all ${mc.bar}`} style={{ width: `${m.matchScore}%` }} />
+                      <div
+                        className={`h-1.5 rounded-full transition-all ${mc.bar}`}
+                        style={{ width: `${m.matchScore}%` }}
+                      />
                     </div>
 
                     <div className="flex flex-wrap gap-1.5 mt-3">
                       {m.skills.map(s => {
-                        const isMatched = m.matchedSkills.some(ms =>
-                          ms.toLowerCase().includes(s.toLowerCase()) || s.toLowerCase().includes(ms.toLowerCase())
+                        const isMatched = m.matchedSkills.some(
+                          ms =>
+                            ms.toLowerCase().includes(s.toLowerCase()) ||
+                            s.toLowerCase().includes(ms.toLowerCase())
                         );
+
                         return (
                           <span
                             key={s}
@@ -387,15 +493,24 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
                           </span>
                         );
                       })}
+
                       {m.structuredSkills
-                        .filter(ss => !m.skills.some(cs =>
-                          cs.toLowerCase().includes(ss.toLowerCase()) || ss.toLowerCase().includes(cs.toLowerCase())
-                        ))
+                        .filter(
+                          ss =>
+                            !m.skills.some(
+                              cs =>
+                                cs.toLowerCase().includes(ss.toLowerCase()) ||
+                                ss.toLowerCase().includes(cs.toLowerCase())
+                            )
+                        )
                         .slice(0, 3)
                         .map(ss => {
-                          const isMatched = m.matchedSkills.some(ms =>
-                            ms.toLowerCase().includes(ss.toLowerCase()) || ss.toLowerCase().includes(ms.toLowerCase())
+                          const isMatched = m.matchedSkills.some(
+                            ms =>
+                              ms.toLowerCase().includes(ss.toLowerCase()) ||
+                              ss.toLowerCase().includes(ms.toLowerCase())
                           );
+
                           return (
                             <span
                               key={ss}
@@ -415,9 +530,13 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
 
                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="rounded-lg bg-emerald-50 border border-emerald-100 p-3">
-                    <p className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wide mb-2">Strengths</p>
+                    <p className="text-[11px] font-semibold text-emerald-700 uppercase tracking-wide mb-2">
+                      Strengths
+                    </p>
                     {strengths.length === 0 ? (
-                      <p className="text-xs text-gray-400 italic">No specific strengths identified</p>
+                      <p className="text-xs text-gray-400 italic">
+                        No specific strengths identified
+                      </p>
                     ) : (
                       <ul className="space-y-1">
                         {strengths.map(s => (
@@ -430,8 +549,18 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
                     )}
                   </div>
 
-                  <div className={`rounded-lg border p-3 ${gaps.length === 0 ? 'bg-gray-50 border-gray-100' : 'bg-red-50 border-red-100'}`}>
-                    <p className={`text-[11px] font-semibold uppercase tracking-wide mb-2 ${gaps.length === 0 ? 'text-gray-400' : 'text-red-600'}`}>
+                  <div
+                    className={`rounded-lg border p-3 ${
+                      gaps.length === 0
+                        ? 'bg-gray-50 border-gray-100'
+                        : 'bg-red-50 border-red-100'
+                    }`}
+                  >
+                    <p
+                      className={`text-[11px] font-semibold uppercase tracking-wide mb-2 ${
+                        gaps.length === 0 ? 'text-gray-400' : 'text-red-600'
+                      }`}
+                    >
                       Gaps
                     </p>
                     {gaps.length === 0 ? (
@@ -449,15 +578,15 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
                   </div>
                 </div>
 
-              <div className="px-5 pb-5">
-                <TerrerAIReviewPanel
-                  review={reviews[`${m.id}-${job.id}`] ?? null}
-                  running={!!reviewRunning[`${m.id}-${job.id}`]}
-                  onRun={() => runReview(m)}
-                  hasExisting={!!reviews[`${m.id}-${job.id}`]}
-                  canRun={canRecruit}
-                />
-              </div>
+                <div className="px-5 pb-5">
+                  <TerrerAIReviewPanel
+                    review={reviews[`${m.id}-${job.id}`] ?? null}
+                    running={!!reviewRunning[`${m.id}-${job.id}`]}
+                    onRun={() => runReview(m)}
+                    hasExisting={!!reviews[`${m.id}-${job.id}`]}
+                    canRun={canRecruit}
+                  />
+                </div>
               </div>
 
               <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center gap-2">
@@ -465,6 +594,7 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
                   <Eye size={12} />
                   View Profile
                 </button>
+
                 {canRecruit && (
                   <button
                     onClick={() => handle(`${m.id}-${job.id}`, () => shortlist(m.id, job.id))}
@@ -479,6 +609,7 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
                     {isShortlisted ? 'Shortlisted' : isBusy ? 'Saving...' : 'Shortlist'}
                   </button>
                 )}
+
                 {canRecruit && (
                   <button
                     onClick={() => handleSendToBdReview(m)}
@@ -490,11 +621,22 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
                     }`}
                   >
                     <Send size={12} />
-                    {isSentToBd ? 'Sent to BD Review' : isSubmitted ? 'Submitted to Client' : isAdvanced ? 'Advanced' : 'Send to BD Review'}
+                    {isSentToBd
+                      ? 'Sent to BD Review'
+                      : isSubmitted
+                      ? 'Submitted to Client'
+                      : isAdvanced
+                      ? 'Advanced'
+                      : 'Send to BD Review'}
                   </button>
                 )}
+
                 {stage !== 'new' && !canRecruit && (
-                  <span className={`ml-auto text-[11px] font-semibold px-2.5 py-1 rounded-full ${STAGE_STYLE[stage]}`}>
+                  <span
+                    className={`ml-auto text-[11px] font-semibold px-2.5 py-1 rounded-full ${
+                      STAGE_STYLE[stage]
+                    }`}
+                  >
                     {STAGE_LABEL[stage]}
                   </span>
                 )}
