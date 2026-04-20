@@ -7,6 +7,17 @@ export interface CreateJobParams {
   description?: string;
 }
 
+export interface JobListRow {
+  id: string;
+  job_title: string;
+  company_name: string;
+  location: string;
+  source: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export async function createJob(params: CreateJobParams) {
   const { data, error } = await supabase
     .from('jobs')
@@ -33,4 +44,22 @@ export async function getJobById(jobId: string) {
 
   if (error) throw error;
   return data;
+}
+export async function fetchAllJobsBasic() {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('id, job_title, company_name, location');
+
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchAllJobs(): Promise<JobListRow[]> {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('*')
+    .order('updated_at', { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as JobListRow[];
 }

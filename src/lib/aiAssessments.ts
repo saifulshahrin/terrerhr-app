@@ -23,6 +23,13 @@ export interface AIAssessmentRow {
   updated_at: string;
 }
 
+export interface AIAssessmentSummaryRow {
+  candidate_id: string;
+  job_id: string;
+  ai_score: number;
+  overall_recommendation: string;
+}
+
 function recommendationToConfidence(rec: TerrerAIReview['recommendation']): string {
   if (rec === 'Strong Fit') return 'High';
   if (rec === 'Potential Fit') return 'Medium';
@@ -112,4 +119,19 @@ export function rowToReview(row: AIAssessmentRow): TerrerAIReview {
     submissionReady: row.submission_ready,
     generatedAt: row.assessed_at,
   };
+}
+
+export async function fetchAssessmentSummaries(): Promise<AIAssessmentSummaryRow[]> {
+  const { data, error } = await supabase
+    .from('ai_assessments')
+    .select('candidate_id, job_id, ai_score, overall_recommendation');
+
+  if (error) throw error;
+  return (data ?? []) as AIAssessmentSummaryRow[];
+}
+export interface AIAssessmentSummaryRow {
+  candidate_id: string;
+  job_id: string;
+  ai_score: number;
+  overall_recommendation: string;
 }

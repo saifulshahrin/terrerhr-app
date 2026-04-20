@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { CheckCircle, XCircle, UserCheck, Send, Eye, MapPin, Briefcase, ArrowLeft } from 'lucide-react';
 import { getJobById } from '../lib/jobs';
+import { fetchCandidatesForUI } from '../lib/candidates';
 import { useStore } from '../store/StoreContext';
 import { useRole } from '../store/RoleContext';
 import type { Candidate } from '../store/types';
@@ -58,6 +59,8 @@ const STAGE_LABEL: Partial<Record<SubmissionStage, string>> = {
   submitted_to_client: 'Submitted',
   interview: 'Interview',
   offer: 'Offer',
+  rejected: 'Rejected',
+  hired: 'Hired',
 };
 
 const STAGE_STYLE: Partial<Record<SubmissionStage, string>> = {
@@ -67,6 +70,8 @@ const STAGE_STYLE: Partial<Record<SubmissionStage, string>> = {
   submitted_to_client: 'bg-yellow-50 text-yellow-700',
   interview: 'bg-amber-50 text-amber-700',
   offer: 'bg-emerald-50 text-emerald-700',
+  rejected: 'bg-red-50 text-red-700',
+  hired: 'bg-green-50 text-green-700',
 };
 
 const matchConfig = (score: number) => {
@@ -152,48 +157,75 @@ function rankCandidates(
 }
 
 export default function TopMatches({ jobId, onNavigate }: Props) {
-  const { candidates, getStage, shortlist, sendToBdReview } = useStore();
+  const {
+    submissions,
+    getSubmission,
+    shortlist,
+    sendToBdReview,
+    resetSubmissionsForJob,
+    deleteSubmissionsForJob,
+  } = useStore();
   const { role } = useRole();
 
   const canRecruit = role === 'recruiter' || role === 'admin' || role === null;
+  const isAdmin = role === 'admin';
 
   const [job, setJob] = useState<Job | null>(null);
   const [loadingJob, setLoadingJob] = useState(!!jobId);
+  const [invalidJob, setInvalidJob] = useState(false);
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [reviews, setReviews] = useState<Record<string, TerrerAIReview>>({});
   const [reviewRunning, setReviewRunning] = useState<Record<string, boolean>>({});
   const [jobRequirements, setJobRequirements] = useState<JobRequirementRow[]>([]);
   const [skillMap, setSkillMap] = useState<Map<string, string[]>>(new Map());
+  const [liveCandidates, setLiveCandidates] = useState<Candidate[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalCandidate, setModalCandidate] = useState<RankedCandidate | null>(null);
   const [modalOutput, setModalOutput] = useState<SubmissionOutput | null>(null);
   const [modalSending, setModalSending] = useState(false);
+  const [bulkResetStage, setBulkResetStage] = useState<SubmissionStage>('shortlisted');
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    let resolvedValidJob = false;
+
     setJob(null);
+    setInvalidJob(false);
     setReviews({});
     setJobRequirements([]);
     setSkillMap(new Map());
+    setLiveCandidates([]);
 
     if (!jobId) {
       setLoadingJob(false);
       return;
     }
 
+    const selectedJobId = jobId;
     setLoadingJob(true);
 
-    const candidateIds = candidates.map(c => c.id);
+    async function loadTopMatches() {
+      try {
+        const jobData = await getJobById(selectedJobId);
+        if (cancelled) return;
 
-    Promise.all([
-      getJobById(jobId),
-      fetchAssessmentsForJob(jobId),
-      fetchJobRequirements(jobId),
-      fetchCandidateSkills(candidateIds),
-    ])
-      .then(([jobData, assessments, requirements, skillRows]) => {
-        if (jobData && (jobData as Job).id === jobId) {
-          setJob(jobData as Job);
+        const resolvedJob = jobData && (jobData as Job).id === selectedJobId ? (jobData as Job) : null;
+
+        if (!resolvedJob) {
+          setInvalidJob(true);
+          return;
         }
+
+        resolvedValidJob = true;
+        setJob(resolvedJob);
+
+        const [assessments, requirements, loadedCandidates] = await Promise.all([
+          fetchAssessmentsForJob(selectedJobId),
+          fetchJobRequirements(selectedJobId),
+          fetchCandidatesForUI(),
+        ]);
+        if (cancelled) return;
 
         const loaded: Record<string, TerrerAIReview> = {};
         for (const row of assessments) {
@@ -203,20 +235,40 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
 
         setReviews(loaded);
         setJobRequirements(requirements);
+        setLiveCandidates(loadedCandidates);
+
+        // Skill overlap stays live-candidate driven without changing ranking behavior.
+        const skillRows = await fetchCandidateSkills(loadedCandidates.map(c => c.id));
+        if (cancelled) return;
         setSkillMap(buildCandidateSkillMap(skillRows));
-      })
-      .catch(err => {
+      } catch (err) {
         console.error('[TopMatches] load error:', err);
-      })
-      .finally(() => {
-        setLoadingJob(false);
-      });
-  }, [jobId, candidates]);
+        if (!cancelled && !resolvedValidJob) {
+          setInvalidJob(true);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingJob(false);
+        }
+      }
+    }
+
+    loadTopMatches();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId]);
 
   const ranked = useMemo<RankedCandidate[]>(() => {
     if (!job) return [];
-    return rankCandidates(candidates, job, jobRequirements, skillMap);
-  }, [candidates, job, jobRequirements, skillMap]);
+    return rankCandidates(liveCandidates, job, jobRequirements, skillMap);
+  }, [job, jobRequirements, liveCandidates, skillMap]);
+
+  const jobSubmissionCount = useMemo(() => {
+    if (!job) return 0;
+    return submissions.filter(s => s.job_id === job.id).length;
+  }, [job, submissions]);
 
   const handle = async (key: string, fn: () => Promise<void>) => {
     setBusy(b => ({ ...b, [key]: true }));
@@ -284,6 +336,37 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
     }, 1200);
   };
 
+  const handleBulkReset = async () => {
+    if (!job) return;
+    if (!window.confirm(`Reset all submissions for ${job.job_title} to ${STAGE_LABEL[bulkResetStage]}?`)) {
+      return;
+    }
+
+    setBulkBusy(true);
+    try {
+      await resetSubmissionsForJob(job.id, bulkResetStage);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!job) return;
+    if (!window.confirm(`Delete all submission records for ${job.job_title}? This is intended for test data cleanup.`)) {
+      return;
+    }
+
+    setBulkBusy(true);
+    try {
+      const deletedCount = await deleteSubmissionsForJob(job.id);
+      if (deletedCount === 0 && jobSubmissionCount > 0) {
+        window.alert('Bulk delete failed. Check Supabase policies or console logs for details.');
+      }
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   if (loadingJob) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -297,8 +380,12 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
       <div>
         <div className="mb-7">
           <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Top Matches</h1>
+          {invalidJob && (
+            <p className="text-sm text-amber-600 mt-1">That job could not be found.</p>
+          )}
           <p className="text-sm text-gray-500 mt-1">
-            Select a job from the Jobs page to view ranked candidates.
+            Top Matches works on a specific job. Choose a role from Jobs to review ranked
+            candidates, shortlist them, and send them into the submission workflow.
           </p>
         </div>
         <button
@@ -328,7 +415,7 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
 
       <div className="mb-6 bg-white rounded-xl border border-gray-200 p-5">
         <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2">
-          Top Matches for
+          Selected Job
         </p>
         <h1 className="text-2xl font-semibold text-gray-900 tracking-tight leading-snug">
           {job.job_title}
@@ -362,7 +449,62 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
             </span>
           )}
         </div>
+        <p className="text-sm text-gray-500 mt-3">
+          Reviewing candidates for this role only. Submission status and actions below apply to{' '}
+          {job.company_name}.
+        </p>
         <p className="text-xs text-gray-400 mt-3">{ranked.length} candidates ranked by fit score</p>
+        {isAdmin && (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-[11px] font-semibold text-amber-700 uppercase tracking-wide">
+                  Testing Data
+                </p>
+                <p className="text-xs text-amber-800 mt-1">
+                  {jobSubmissionCount} submission{jobSubmissionCount !== 1 ? 's' : ''} for this job.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  value={bulkResetStage}
+                  onChange={(e) => setBulkResetStage(e.target.value as SubmissionStage)}
+                  disabled={bulkBusy}
+                  className="text-xs text-gray-600 border border-amber-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-amber-200 disabled:bg-gray-50"
+                >
+                  <option value="new">New</option>
+                  <option value="shortlisted">Shortlisted</option>
+                  <option value="ready_for_bd_review">BD Review</option>
+                  <option value="submitted_to_client">Submitted</option>
+                  <option value="interview">Interview</option>
+                  <option value="offer">Offer</option>
+                </select>
+                <button
+                  onClick={handleBulkReset}
+                  disabled={bulkBusy || jobSubmissionCount === 0}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                    bulkBusy || jobSubmissionCount === 0
+                      ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-default'
+                      : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-100'
+                  }`}
+                >
+                  {bulkBusy ? 'Working...' : 'Reset All Submissions'}
+                </button>
+                <button
+                  onClick={handleBulkDelete}
+                  disabled={bulkBusy || jobSubmissionCount === 0}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                    bulkBusy || jobSubmissionCount === 0
+                      ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-default'
+                      : 'bg-white border-red-200 text-red-600 hover:bg-red-50'
+                  }`}
+                >
+                  {bulkBusy ? 'Working...' : 'Delete All Submissions'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <SubmissionModal
@@ -378,12 +520,37 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
       <div className="space-y-4">
         {ranked.map((m, i) => {
           const mc = matchConfig(m.matchScore);
-          const stage = getStage(m.id, job.id);
+          const submission = getSubmission(m.id, job.id);
+          const stage = (submission?.submission_stage as SubmissionStage) ?? 'new';
           const isShortlisted = stage === 'shortlisted';
           const isSentToBd = stage === 'ready_for_bd_review';
           const isSubmitted = stage === 'submitted_to_client';
-          const isAdvanced = stage === 'interview' || stage === 'offer';
+          const isInterview = stage === 'interview';
+          const isOffer = stage === 'offer';
+          const isHired = stage === 'hired';
+          const isRejected = stage === 'rejected';
           const isBusy = !!busy[`${m.id}-${job.id}`];
+          const shortlistDisabled =
+            isShortlisted || isSentToBd || isSubmitted || isInterview || isOffer || isHired || isRejected;
+          const sendToBdDisabled =
+            isSentToBd || isSubmitted || isInterview || isOffer || isHired || isRejected;
+
+          let shortlistLabel = 'Shortlist';
+          if (isShortlisted) shortlistLabel = 'Shortlisted';
+          else if (isSentToBd) shortlistLabel = 'In BD Review';
+          else if (isSubmitted) shortlistLabel = 'Submitted';
+          else if (isInterview) shortlistLabel = 'Interview';
+          else if (isOffer) shortlistLabel = 'Offer';
+          else if (isHired) shortlistLabel = 'Hired';
+          else if (isRejected) shortlistLabel = 'Rejected';
+
+          let sendToBdLabel = 'Send to BD Review';
+          if (isSentToBd) sendToBdLabel = 'Sent to BD Review';
+          else if (isSubmitted) sendToBdLabel = 'Submitted to Client';
+          else if (isInterview) sendToBdLabel = 'Interview';
+          else if (isOffer) sendToBdLabel = 'Offer';
+          else if (isHired) sendToBdLabel = 'Hired';
+          else if (isRejected) sendToBdLabel = 'Rejected';
 
           const strengths: string[] = [];
           const gaps: string[] = [];
@@ -598,36 +765,30 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
                 {canRecruit && (
                   <button
                     onClick={() => handle(`${m.id}-${job.id}`, () => shortlist(m.id, job.id))}
-                    disabled={isShortlisted || isBusy}
+                    disabled={shortlistDisabled || isBusy}
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                      isShortlisted
+                      shortlistDisabled
                         ? 'bg-sky-50 text-sky-400 border-sky-200 cursor-default opacity-60'
                         : 'text-sky-700 bg-sky-50 border-sky-200 hover:bg-sky-100'
                     }`}
                   >
                     <UserCheck size={12} />
-                    {isShortlisted ? 'Shortlisted' : isBusy ? 'Saving...' : 'Shortlist'}
+                    {isBusy ? 'Saving...' : shortlistLabel}
                   </button>
                 )}
 
                 {canRecruit && (
                   <button
                     onClick={() => handleSendToBdReview(m)}
-                    disabled={isSentToBd || isSubmitted || isAdvanced}
+                    disabled={sendToBdDisabled}
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ml-auto ${
-                      isSentToBd || isSubmitted || isAdvanced
+                      sendToBdDisabled
                         ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-default'
                         : 'bg-blue-600 border-blue-600 text-white hover:bg-blue-700'
                     }`}
                   >
                     <Send size={12} />
-                    {isSentToBd
-                      ? 'Sent to BD Review'
-                      : isSubmitted
-                      ? 'Submitted to Client'
-                      : isAdvanced
-                      ? 'Advanced'
-                      : 'Send to BD Review'}
+                    {sendToBdLabel}
                   </button>
                 )}
 

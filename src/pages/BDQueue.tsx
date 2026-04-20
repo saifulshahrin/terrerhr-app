@@ -1,13 +1,16 @@
+import { fetchAllJobsBasic } from '../lib/jobs';
+import { fetchAssessmentSummaries } from '../lib/aiAssessments';
+import { fetchBDQueueSubmissions, type SubmissionStage } from '../lib/submissions';
 import { useEffect, useState, useCallback } from 'react';
 import {
   ClipboardCheck, Send, XCircle, PauseCircle, CheckCircle2, AlertTriangle,
   MessageSquare, Mail, Phone, Linkedin, Github, Copy, Check, MapPin,
   Briefcase, User, RefreshCw, ExternalLink, ChevronDown, ChevronUp,
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 import { ALL_CANDIDATES } from '../store/mockData';
 import type { Candidate } from '../store/types';
 import { useRole } from '../store/RoleContext';
+import { useStore } from '../store/StoreContext';
 
 interface Job {
   id: string;
@@ -283,7 +286,7 @@ function BDCard({ item, onAction, canAct }: { item: BDItem; onAction: (id: strin
 
       <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-3 flex-wrap">
         <p className="text-xs text-gray-400">
-          {canAct ? 'BD action required — not yet submitted to client' : 'Awaiting BD approval before client submission'}
+          {canAct ? 'BD action required â€” not yet submitted to client' : 'Awaiting BD approval before client submission'}
         </p>
         {canAct && (
           <div className="flex items-center gap-2">
@@ -332,35 +335,24 @@ function BDCard({ item, onAction, canAct }: { item: BDItem; onAction: (id: strin
 
 export default function BDQueue() {
   const { role } = useRole();
+  const { updateSubmissionInStore } = useStore();
   const canAct = role === 'bd' || role === 'admin' || role === null;
   const [items, setItems] = useState<BDItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [submissionsResult, jobsResult, assessmentsResult] = await Promise.all([
-      supabase
-        .from('submissions')
-        .select('id, candidate_id, job_id, submission_summary, submission_strengths, submission_concerns, notes, submission_generated_at, stage_updated_at')
-        .eq('submission_stage', 'ready_for_bd_review'),
-      supabase
-        .from('jobs')
-        .select('id, job_title, company_name, location'),
-      supabase
-        .from('ai_assessments')
-        .select('candidate_id, job_id, ai_score, overall_recommendation'),
+    const [submissionsResult, jobsData, assessmentsResult] = await Promise.all([
+      fetchBDQueueSubmissions(),
+      fetchAllJobsBasic(),
+      fetchAssessmentSummaries(),
     ]);
 
-    const subs = (submissionsResult.data ?? []) as Array<{
-      id: string; candidate_id: string; job_id: string;
-      submission_summary: string | null; submission_strengths: string[] | null;
-      submission_concerns: string[] | null; notes: string | null;
-      submission_generated_at: string | null; stage_updated_at: string;
-    }>;
+    const subs = submissionsResult;
 
-    const jobMap = new Map((jobsResult.data ?? []).map((j: Job) => [j.id, j]));
+    const jobMap = new Map((jobsData ?? []).map((j: Job) => [j.id, j]));
     const assessmentMap = new Map(
-      ((assessmentsResult.data ?? []) as Assessment[]).map(a => [`${a.candidate_id}-${a.job_id}`, a])
+      (assessmentsResult as Assessment[]).map(a => [`${a.candidate_id}-${a.job_id}`, a])
     );
 
     const built: BDItem[] = [];
@@ -393,21 +385,16 @@ export default function BDQueue() {
   useEffect(() => { load(); }, [load]);
 
   const handleAction = async (submissionId: string, action: 'approve' | 'reject' | 'hold') => {
-    const stageMap = {
-      approve: 'submitted_to_client',
-      reject: 'rejected',
-      hold: 'ready_for_bd_review',
-    };
+    const stageMap: Record<'approve' | 'reject' | 'hold', SubmissionStage> = {
+  approve: 'submitted_to_client',
+  reject: 'rejected',
+  hold: 'ready_for_bd_review',
+};
     const newStage = stageMap[action];
-    const now = new Date().toISOString();
+    const updatedSubmission = await updateSubmissionInStore(submissionId, newStage);
 
-    await supabase
-      .from('submissions')
-      .update({ submission_stage: newStage, stage_updated_at: now })
-      .eq('id', submissionId);
-
-    if (action !== 'hold') {
-      setItems(prev => prev.filter(i => i.submissionId !== submissionId));
+    if (updatedSubmission && action !== 'hold') {
+      setItems(prev => prev.filter(i => i.submissionId !== updatedSubmission.id));
     }
   };
 
