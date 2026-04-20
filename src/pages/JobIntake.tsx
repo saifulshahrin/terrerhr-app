@@ -1,163 +1,13 @@
 import { useRef, useState } from 'react';
 import { CheckCircle2, Briefcase, MapPin, Users, Clock, Tag } from 'lucide-react';
 import { createJob } from '../lib/jobs';
+import {
+  parseJobIntakeInput,
+  normalizeJobIntakeWhitespace,
+  type ParsedJob,
+} from '../lib/jobIntakeParser';
 
 const EXAMPLE_INPUT = `We're looking for a Senior Backend Engineer to join our platform team at Acme Corp. The role is based in San Francisco (hybrid) with a salary range of $160k-$200k. The candidate should have 5+ years of experience with Node.js, PostgreSQL, and cloud infrastructure (AWS preferred). They will own the design and implementation of core API services and work closely with product and frontend teams. Nice to have: experience with Kafka or similar message queue systems. Start date is flexible, targeting Q3 2026. Reporting to the VP of Engineering.`;
-
-interface ParsedJob {
-  title: string;
-  company: string;
-  location: string;
-  type: string;
-  salaryRange: string;
-  experience: string;
-  skills: string[];
-  niceToHave: string[];
-  startDate: string;
-  reportingTo: string;
-  summary: string;
-}
-
-const ROLE_HINTS = [
-  'engineer',
-  'developer',
-  'manager',
-  'designer',
-  'analyst',
-  'architect',
-  'lead',
-  'specialist',
-  'director',
-  'scientist',
-  'consultant',
-  'administrator',
-  'product',
-  'backend',
-  'frontend',
-  'full stack',
-  'devops',
-  'data',
-];
-
-const normalizeWhitespace = (value: string) => value.replace(/\s+/g, ' ').trim();
-
-function looksLikeRoleTitle(value: string): boolean {
-  const normalized = normalizeWhitespace(value).toLowerCase();
-  return ROLE_HINTS.some(hint => normalized.includes(hint));
-}
-
-function extractTitle(text: string): string {
-  const titlePatterns = [
-    /(?:looking for|hiring|seeking)\s+(?:an?\s+)?([A-Z][A-Za-z&/+\-\s]{2,60}?)(?:\s+to\s+join|\s+at\s+|\s+for\s+|\s+who\b|\s+with\b|[.,\n]|$)/i,
-    /title[:\s]+([A-Z][A-Za-z&/+\-\s]{2,60}?)(?:[.,\n]|$)/i,
-    /position[:\s]+([A-Z][A-Za-z&/+\-\s]{2,60}?)(?:[.,\n]|$)/i,
-    /role[:\s]+(?:is\s+)?([A-Z][A-Za-z&/+\-\s]{2,60}?)(?:[.,\n]|$)/i,
-  ];
-
-  for (const pattern of titlePatterns) {
-    const match = text.match(pattern);
-    const candidate = normalizeWhitespace(match?.[1] ?? '');
-    if (candidate && looksLikeRoleTitle(candidate)) {
-      return candidate;
-    }
-  }
-
-  const firstLine = normalizeWhitespace(text.split('\n')[0] ?? '');
-  const trimmedFirstLine = firstLine.replace(/\s+(at|for)\s+.+$/i, '').trim();
-  if (trimmedFirstLine && trimmedFirstLine.length <= 80 && looksLikeRoleTitle(trimmedFirstLine)) {
-    return trimmedFirstLine;
-  }
-
-  return 'Not specified';
-}
-
-const mockParse = (input: string): ParsedJob | null => {
-  if (!input.trim()) return null;
-
-  const text = input.trim();
-  const title = extractTitle(text);
-
-  const companyPatterns = [
-    /(?:at|join|joining|with)\s+([A-Z][A-Za-z0-9\s&.,]{1,40}?)(?:\s+team|\s+in\s+|\s+is\s+|\.|,|\n|$)/i,
-    /company[:\s]+([A-Z][A-Za-z0-9\s&.]{2,40}?)(?:\n|,|\.|$)/i,
-    /([A-Z][A-Za-z0-9&\s]{1,30}?)\s+is\s+(?:looking|hiring|seeking)/i,
-  ];
-  let company = 'Company';
-  for (const pattern of companyPatterns) {
-    const match = text.match(pattern);
-    if (match && match[1] && match[1].trim().length > 1) {
-      company = normalizeWhitespace(match[1]);
-      break;
-    }
-  }
-
-  const locationPatterns = [
-    /(?:based in|located in|location[:\s]+|office in|remote from|in\s+)([A-Z][A-Za-z\s,]{2,40}?)(?:\s*\(|\s+with|\s+salary|\.|,|\n|$)/i,
-    /([A-Z][A-Za-z\s]+,\s*[A-Z]{2})(?:\s*\(|\s+with|\s|$)/,
-  ];
-  let location = 'Remote';
-  for (const pattern of locationPatterns) {
-    const match = text.match(pattern);
-    if (match && match[1] && match[1].trim().length > 2) {
-      location = normalizeWhitespace(match[1]);
-      break;
-    }
-  }
-
-  const workModeMatch = text.match(/\((hybrid|remote|on.?site)\)/i);
-  if (workModeMatch) {
-    location = `${location} (${workModeMatch[1]})`;
-  }
-
-  const salaryMatch = text.match(/\$[\d,]+(?:k)?(?:\s*-\s*\$[\d,]+(?:k)?)?(?:\s*per\s+year)?/i);
-  const salaryRange = salaryMatch ? salaryMatch[0] : 'Not specified';
-
-  const expMatch = text.match(/(\d+\+?\s*(?:-|to)?\s*\d*\+?\s*years?)/i);
-  const experience = expMatch ? expMatch[1] : 'Not specified';
-
-  const skillKeywords = [
-    'Python', 'JavaScript', 'TypeScript', 'Node.js', 'React', 'Vue', 'Angular',
-    'Java', 'Golang', 'Go', 'Rust', 'C\\+\\+', 'C#', '.NET', 'PHP', 'Ruby',
-    'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Elasticsearch',
-    'AWS', 'GCP', 'Azure', 'Docker', 'Kubernetes', 'Terraform',
-    'GraphQL', 'REST', 'API Design', 'Microservices',
-    'Machine Learning', 'ML', 'AI', 'NLP', 'PyTorch', 'TensorFlow',
-    'dbt', 'Spark', 'Kafka', 'Airflow', 'Hadoop', 'SQL', 'Databricks',
-    'Data Engineering', 'ETL', 'Data Pipelines', 'Analytics',
-  ];
-  const skills = skillKeywords.filter(skill => new RegExp(`\\b${skill}\\b`, 'i').test(text));
-
-  const niceToHaveSection = text.match(/nice to have[:\s]+([\s\S]+?)(?:\n\n|$)/i);
-  const niceToHave = niceToHaveSection
-    ? niceToHaveSection[1]
-        .split(/[,\n]/)
-        .map(item => item.trim())
-        .filter(item => item.length > 1)
-        .slice(0, 4)
-    : [];
-
-  const startMatch = text.match(/(?:start\s*date|starting|target)[:\s]+([^\n.,]+)/i);
-  const startDate = startMatch ? startMatch[1].trim() : 'Flexible';
-
-  const reportMatch = text.match(/reporting\s+to[:\s]+([^\n.,]+)/i);
-  const reportingTo = reportMatch ? reportMatch[1].trim() : 'Not specified';
-
-  const summary = text.split(/[.!]/)[0]?.trim() ?? 'See full job description for details.';
-
-  return {
-    title,
-    company,
-    location,
-    type: 'Full-time',
-    salaryRange,
-    experience,
-    skills: skills.length > 0 ? skills : ['See job description'],
-    niceToHave,
-    startDate,
-    reportingTo,
-    summary: summary.length > 200 ? `${summary.slice(0, 197)}...` : summary,
-  };
-};
 
 interface Props {
   onNavigate: (page: string, jobId?: string) => void;
@@ -184,13 +34,21 @@ export default function JobIntake({ onNavigate }: Props) {
     setEditing(false);
     setSaveError(null);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       if (parseRequestRef.current !== requestId) return;
 
-      const result = mockParse(currentInput);
-      setParsed(result);
-      setDraft(result);
-      setLoading(false);
+      try {
+        const result = await parseJobIntakeInput(currentInput);
+
+        if (parseRequestRef.current !== requestId) return;
+
+        setParsed(result);
+        setDraft(result);
+      } finally {
+        if (parseRequestRef.current === requestId) {
+          setLoading(false);
+        }
+      }
     }, 800);
   };
 
@@ -218,17 +76,17 @@ export default function JobIntake({ onNavigate }: Props) {
 
     const normalizedDraft: ParsedJob = {
       ...draft,
-      title: normalizeWhitespace(draft.title) || 'Not specified',
-      company: normalizeWhitespace(draft.company) || 'Company',
-      location: normalizeWhitespace(draft.location) || 'Remote',
-      type: normalizeWhitespace(draft.type) || 'Full-time',
-      salaryRange: normalizeWhitespace(draft.salaryRange) || 'Not specified',
-      experience: normalizeWhitespace(draft.experience) || 'Not specified',
-      startDate: normalizeWhitespace(draft.startDate) || 'Flexible',
-      reportingTo: normalizeWhitespace(draft.reportingTo) || 'Not specified',
-      summary: normalizeWhitespace(draft.summary) || 'See full job description for details.',
-      skills: draft.skills.map(normalizeWhitespace).filter(Boolean),
-      niceToHave: draft.niceToHave.map(normalizeWhitespace).filter(Boolean),
+      title: normalizeJobIntakeWhitespace(draft.title) || 'Not specified',
+      company: normalizeJobIntakeWhitespace(draft.company) || 'Company',
+      location: normalizeJobIntakeWhitespace(draft.location) || 'Remote',
+      type: normalizeJobIntakeWhitespace(draft.type) || 'Full-time',
+      salaryRange: normalizeJobIntakeWhitespace(draft.salaryRange) || 'Not specified',
+      experience: normalizeJobIntakeWhitespace(draft.experience) || 'Not specified',
+      startDate: normalizeJobIntakeWhitespace(draft.startDate) || 'Flexible',
+      reportingTo: normalizeJobIntakeWhitespace(draft.reportingTo) || 'Not specified',
+      summary: normalizeJobIntakeWhitespace(draft.summary) || 'See full job description for details.',
+      skills: draft.skills.map(normalizeJobIntakeWhitespace).filter(Boolean),
+      niceToHave: draft.niceToHave.map(normalizeJobIntakeWhitespace).filter(Boolean),
     };
 
     setDraft(normalizedDraft);

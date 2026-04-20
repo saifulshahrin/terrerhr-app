@@ -21,14 +21,13 @@ export interface JobListRow {
 export async function createJob(params: CreateJobParams) {
   const { data, error } = await supabase
     .from('jobs')
-.insert({
-  job_title: params.title,
-  company_name: params.company,
-  location: params.location ?? null,
-  source: 'manual_intake',
-  status: 'Open',
-  updated_at: new Date().toISOString(),
-})
+    .insert({
+      job_title: params.title,
+      company_name: params.company,
+      location: params.location ?? null,
+      source: 'manual_intake',
+      updated_at: new Date().toISOString(),
+    })
     .select()
     .single();
 
@@ -36,11 +35,26 @@ export async function createJob(params: CreateJobParams) {
   return data;
 }
 export async function getJobById(jobId: string) {
+  const normalizedJobId = typeof jobId === 'string' ? jobId.trim() : '';
+
+  console.log('[jobs.getJobById] input', {
+    jobId,
+    type: typeof jobId,
+    normalizedJobId,
+  });
+
+  console.log('[jobs.getJobById] query', { normalizedJobId });
   const { data, error } = await supabase
     .from('jobs')
-    .select('id, job_title, company_name, location, status')
-    .eq('id', jobId)
+    .select('id, job_title, company_name, location')
+    .eq('id', normalizedJobId)
     .maybeSingle();
+
+  console.log('[jobs.getJobById] result', {
+    normalizedJobId,
+    data,
+    error,
+  });
 
   if (error) throw error;
   return data;

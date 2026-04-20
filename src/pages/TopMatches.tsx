@@ -161,7 +161,7 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
     submissions,
     getSubmission,
     shortlist,
-    sendToBdReview,
+    submitToClientWithOutput,
     resetSubmissionsForJob,
     deleteSubmissionsForJob,
   } = useStore();
@@ -187,8 +187,19 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
   const [bulkBusy, setBulkBusy] = useState(false);
 
   useEffect(() => {
+    console.log('[TopMatches][state]', {
+      jobId,
+      loadingJob,
+      invalidJob,
+      job,
+    });
+  }, [jobId, loadingJob, invalidJob, job]);
+
+  useEffect(() => {
     let cancelled = false;
     let resolvedValidJob = false;
+
+    console.log('[TopMatches][effect:start]', { jobId });
 
     setJob(null);
     setInvalidJob(false);
@@ -198,27 +209,31 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
     setLiveCandidates([]);
 
     if (!jobId) {
+      console.log('[TopMatches][effect:no-job-id]', { jobId });
       setLoadingJob(false);
       return;
     }
 
     const selectedJobId = jobId;
+    console.log('[TopMatches][effect:resolve-job]', { selectedJobId });
     setLoadingJob(true);
 
     async function loadTopMatches() {
       try {
+        console.log('[TopMatches][getJobById:call]', { selectedJobId });
         const jobData = await getJobById(selectedJobId);
+        console.log('[TopMatches][getJobById:return]', { selectedJobId, jobData });
         if (cancelled) return;
 
-        const resolvedJob = jobData && (jobData as Job).id === selectedJobId ? (jobData as Job) : null;
-
-        if (!resolvedJob) {
+        if (!jobData) {
+          console.log('[TopMatches][invalidJob:no-row]', { selectedJobId });
           setInvalidJob(true);
           return;
         }
 
         resolvedValidJob = true;
-        setJob(resolvedJob);
+        console.log('[TopMatches][setJob:success]', { selectedJobId, jobData });
+        setJob(jobData as Job);
 
         const [assessments, requirements, loadedCandidates] = await Promise.all([
           fetchAssessmentsForJob(selectedJobId),
@@ -244,10 +259,12 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
       } catch (err) {
         console.error('[TopMatches] load error:', err);
         if (!cancelled && !resolvedValidJob) {
+          console.log('[TopMatches][invalidJob:catch]', { selectedJobId, err });
           setInvalidJob(true);
         }
       } finally {
         if (!cancelled) {
+          console.log('[TopMatches][effect:loading-false]', { selectedJobId });
           setLoadingJob(false);
         }
       }
@@ -256,6 +273,7 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
     loadTopMatches();
 
     return () => {
+      console.log('[TopMatches][effect:cleanup]', { selectedJobId, cancelled: true });
       cancelled = true;
     };
   }, [jobId]);
@@ -271,38 +289,77 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
   }, [job, submissions]);
 
   const handle = async (key: string, fn: () => Promise<void>) => {
+    console.log('[TopMatches][action:handle:start]', { key });
     setBusy(b => ({ ...b, [key]: true }));
     try {
       await fn();
+      console.log('[TopMatches][action:handle:success]', { key });
     } catch (err) {
       console.error('[TopMatches]', key, err);
     } finally {
+      console.log('[TopMatches][action:handle:finally]', { key });
       setBusy(b => ({ ...b, [key]: false }));
     }
   };
 
-  const handleSendToBdReview = (candidate: RankedCandidate) => {
+  const handleSubmitToClient = (candidate: RankedCandidate) => {
+    console.log('[TopMatches][action:submitToClient:open:start]', {
+      candidateId: candidate?.id,
+      hasJob: !!job,
+      candidate,
+    });
     if (!job) return;
 
     const key = `${candidate.id}-${job.id}`;
     const review = reviews[key] ?? null;
     const output = generateSubmissionOutput(candidate, job, review);
 
+    console.log('[TopMatches][action:submitToClient:open:resolved]', {
+      key,
+      hasJob: !!job,
+      hasCandidate: !!candidate,
+      hasOutput: !!output,
+      review,
+      output,
+    });
+
     setModalCandidate(candidate);
     setModalOutput(output);
     setModalOpen(true);
+    console.log('[TopMatches][action:submitToClient:open:set-state]', {
+      modalOpen: true,
+      candidateId: candidate.id,
+      jobId: job.id,
+    });
   };
 
   const handleModalSend = async (notes: string) => {
+    console.log('[TopMatches][action:submitToClient:submit:start]', {
+      notes,
+      hasModalCandidate: !!modalCandidate,
+      hasJob: !!job,
+      hasModalOutput: !!modalOutput,
+      candidateId: modalCandidate?.id,
+      jobId: job?.id,
+    });
     if (!modalCandidate || !job || !modalOutput) return;
 
     setModalSending(true);
     try {
-      await sendToBdReview(modalCandidate.id, job.id, modalOutput, notes);
+      const result = await submitToClientWithOutput(modalCandidate.id, job.id, modalOutput, notes);
+      console.log('[TopMatches][action:submitToClient:submit:success]', {
+        candidateId: modalCandidate.id,
+        jobId: job.id,
+        result,
+      });
       setModalOpen(false);
     } catch (err) {
-      console.error('[TopMatches] sendToBdReview error', err);
+      console.error('[TopMatches] submitToClientWithOutput error', err);
     } finally {
+      console.log('[TopMatches][action:submitToClient:submit:finally]', {
+        candidateId: modalCandidate?.id,
+        jobId: job?.id,
+      });
       setModalSending(false);
     }
   };
@@ -532,7 +589,7 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
           const isBusy = !!busy[`${m.id}-${job.id}`];
           const shortlistDisabled =
             isShortlisted || isSentToBd || isSubmitted || isInterview || isOffer || isHired || isRejected;
-          const sendToBdDisabled =
+          const submitToClientDisabled =
             isSentToBd || isSubmitted || isInterview || isOffer || isHired || isRejected;
 
           let shortlistLabel = 'Shortlist';
@@ -544,13 +601,13 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
           else if (isHired) shortlistLabel = 'Hired';
           else if (isRejected) shortlistLabel = 'Rejected';
 
-          let sendToBdLabel = 'Send to BD Review';
-          if (isSentToBd) sendToBdLabel = 'Sent to BD Review';
-          else if (isSubmitted) sendToBdLabel = 'Submitted to Client';
-          else if (isInterview) sendToBdLabel = 'Interview';
-          else if (isOffer) sendToBdLabel = 'Offer';
-          else if (isHired) sendToBdLabel = 'Hired';
-          else if (isRejected) sendToBdLabel = 'Rejected';
+          let submitToClientLabel = 'Submit to Client';
+          if (isSentToBd) submitToClientLabel = 'Forwarded';
+          else if (isSubmitted) submitToClientLabel = 'Submitted to Client';
+          else if (isInterview) submitToClientLabel = 'Interview';
+          else if (isOffer) submitToClientLabel = 'Offer';
+          else if (isHired) submitToClientLabel = 'Hired';
+          else if (isRejected) submitToClientLabel = 'Rejected';
 
           const strengths: string[] = [];
           const gaps: string[] = [];
@@ -779,16 +836,16 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
 
                 {canRecruit && (
                   <button
-                    onClick={() => handleSendToBdReview(m)}
-                    disabled={sendToBdDisabled}
+                    onClick={() => handleSubmitToClient(m)}
+                    disabled={submitToClientDisabled}
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ml-auto ${
-                      sendToBdDisabled
+                      submitToClientDisabled
                         ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-default'
                         : 'bg-blue-600 border-blue-600 text-white hover:bg-blue-700'
                     }`}
                   >
                     <Send size={12} />
-                    {sendToBdLabel}
+                    {submitToClientLabel}
                   </button>
                 )}
 

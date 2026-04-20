@@ -16,6 +16,7 @@ export interface SubmissionRow {
   job_id: string;
   candidate_id: string;
   submission_stage: SubmissionStage;
+  next_action_date?: string | null;
   stage_updated_at?: string | null;
 
   submission_summary?: string | null;
@@ -30,7 +31,8 @@ export interface SubmissionRow {
 export interface UpsertSubmissionParams {
   job_id: string;
   candidate_id: string;
-  submission_stage: SubmissionStage;
+  submission_stage?: SubmissionStage;
+  next_action_date?: string | null;
 
   submission_summary?: string | null;
   submission_strengths?: string[] | null;
@@ -53,6 +55,10 @@ export interface BDQueueSubmissionRow {
   stage_updated_at: string;
 }
 
+function isTerminalSubmissionStage(stage: SubmissionStage): boolean {
+  return stage === 'hired' || stage === 'rejected';
+}
+
 export async function fetchSubmissions(): Promise<SubmissionRow[]> {
   const { data, error } = await supabase
     .from('submissions')
@@ -68,9 +74,20 @@ export async function upsertSubmission(
   const now = new Date().toISOString();
 
   const payload = {
-    ...params,
+    job_id: params.job_id,
+    candidate_id: params.candidate_id,
+    submission_stage: params.submission_stage,
+    next_action_date: params.next_action_date ?? null,
+    submission_summary: params.submission_summary ?? null,
+    submission_strengths: params.submission_strengths ?? null,
+    submission_concerns: params.submission_concerns ?? null,
+    submission_full_text: params.submission_full_text ?? null,
+    submission_generated_at: params.submission_generated_at ?? null,
+    notes: params.notes ?? null,
     stage_updated_at: now,
   };
+
+  console.log('[submissions.upsertSubmission] payload', payload);
 
   const { data, error } = await supabase
     .from('submissions')
@@ -96,12 +113,22 @@ export async function updateSubmissionStage(
   submissionId: string,
   submissionStage: SubmissionStage
 ): Promise<SubmissionRow> {
+  const updatePayload: {
+    submission_stage: SubmissionStage;
+    stage_updated_at: string;
+    next_action_date?: null;
+  } = {
+    submission_stage: submissionStage,
+    stage_updated_at: new Date().toISOString(),
+  };
+
+  if (isTerminalSubmissionStage(submissionStage)) {
+    updatePayload.next_action_date = null;
+  }
+
   const { data, error } = await supabase
     .from('submissions')
-    .update({
-      submission_stage: submissionStage,
-      stage_updated_at: new Date().toISOString(),
-    })
+    .update(updatePayload)
     .eq('id', submissionId)
     .select('*')
     .single();

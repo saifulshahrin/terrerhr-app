@@ -15,114 +15,168 @@ interface JobContext {
   location: string;
 }
 
+function firstName(name: string): string {
+  return name.split(' ').filter(Boolean)[0] || name;
+}
+
+function ensureSentence(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+function normalizeRecruiterText(value: string): string {
+  return ensureSentence(
+    value
+      .replace(/[—–]/g, '-')
+      .replace(/â€”/g, '-')
+      .replace(/\b(score|confidence|recommendation)\b.*$/i, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
+}
+
+function normalizeConcern(value: string): string {
+  return value
+    .replace(/[—–]/g, '-')
+    .replace(/â€”/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function formatYearsOfExperience(candidate: Candidate): string | null {
+  const candidateWithExperience = candidate as Candidate & {
+    years_experience?: unknown;
+    yearsExperience?: unknown;
+    experience?: unknown;
+  };
+
+  const raw =
+    candidateWithExperience.years_experience ??
+    candidateWithExperience.yearsExperience ??
+    candidateWithExperience.experience;
+
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) {
+    return `${raw}+ years`;
+  }
+
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    return trimmed || null;
+  }
+
+  return null;
+}
+
+function getKeySkills(candidate: Candidate): string[] {
+  return candidate.skills
+    .map(skill => skill.trim())
+    .filter(Boolean)
+    .slice(0, 5);
+}
+
+function buildSummary(candidate: Candidate, job: JobContext, review: TerrerAIReview | null): string {
+  const recruiterName = firstName(candidate.name);
+  const lines: string[] = [];
+
+  if (review?.summary) {
+    lines.push(normalizeRecruiterText(review.summary));
+  } else {
+    lines.push(
+      ensureSentence(
+        `${candidate.name} is being submitted for the ${job.job_title} role at ${job.company_name}, with a background in ${candidate.role.toLowerCase()}`
+      )
+    );
+  }
+
+  const strengthLines = (review?.strengths ?? [])
+    .slice(0, 2)
+    .map(normalizeRecruiterText)
+    .filter(Boolean);
+
+  if (strengthLines.length > 0) {
+    lines.push(strengthLines.join(' '));
+  } else {
+    const fallback = [
+      candidate.company && candidate.company !== 'Unknown Source'
+        ? `${recruiterName} most recently comes from ${candidate.company}`
+        : '',
+      candidate.location && candidate.location !== 'Unknown Location'
+        ? `and is based in ${candidate.location}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    if (fallback) {
+      lines.push(ensureSentence(fallback));
+    }
+  }
+
+  if ((review?.concerns ?? []).length > 0) {
+    lines.push(
+      ensureSentence(
+        `Main points to validate in conversation: ${review!.concerns
+          .slice(0, 2)
+          .map(normalizeConcern)
+          .join('; ')}`
+      )
+    );
+  } else {
+    lines.push('Profile appears relevant for further client consideration based on current information.');
+  }
+
+  return lines
+    .filter(Boolean)
+    .slice(0, 3)
+    .join('\n');
+}
+
 export function generateSubmissionOutput(
   candidate: Candidate,
   job: JobContext,
   review: TerrerAIReview | null
 ): SubmissionOutput {
   const now = new Date().toISOString();
-
-  const strengths: string[] = review?.strengths?.slice(0, 5) ?? [];
-  const concerns: string[] = review?.concerns?.slice(0, 4) ?? [];
-
-  const strengthHighlight =
-    strengths.length > 0
-      ? strengths
-          .slice(0, 2)
-          .map(s => {
-            const lower = s.toLowerCase();
-            if (lower.includes('title') || lower.includes('role')) return 'strong role alignment';
-            if (lower.includes('skill')) return 'relevant technical skills';
-            if (lower.includes('location')) return 'location suitability';
-            if (lower.includes('score') || lower.includes('profile')) return 'a strong overall profile';
-            if (lower.includes('overlap') || lower.includes('requirement')) return 'solid requirement coverage';
-            return s.split('—')[0].trim().toLowerCase();
-          })
-          .join(' and ')
-      : 'relevant experience and skills';
-
-  const recommendation = review?.recommendation ?? 'Potential Fit';
-
-  let summaryOpener: string;
-  if (recommendation === 'Strong Fit') {
-    summaryOpener = `We are pleased to recommend ${candidate.name} for the ${job.job_title} role at ${job.company_name}.`;
-  } else if (recommendation === 'Potential Fit') {
-    summaryOpener = `We would like to present ${candidate.name} as a candidate for the ${job.job_title} role at ${job.company_name}.`;
-  } else {
-    summaryOpener = `We are submitting ${candidate.name} for your consideration for the ${job.job_title} role at ${job.company_name}.`;
-  }
-
-  const submission_summary =
-    `${summaryOpener} ` +
-    `The candidate demonstrates ${strengthHighlight}` +
-    (candidate.location ? ` and is currently based in ${candidate.location}` : '') +
-    `. With a background as ${candidate.role}` +
-    (candidate.company ? ` at ${candidate.company}` : '') +
-    `, ${candidate.name.split(' ')[0]} brings practical experience relevant to this position.` +
-    (recommendation === 'Strong Fit'
-      ? ' We recommend advancing this candidate to the interview stage.'
-      : ' We recommend a screening call to further assess suitability.');
-
-  const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  const dateObj = new Date();
-  const formattedDate = `${dateObj.getDate()} ${MONTH_NAMES[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+  const strengths = (review?.strengths ?? [])
+    .map(normalizeRecruiterText)
+    .filter(Boolean)
+    .slice(0, 5);
+  const concerns = (review?.concerns ?? [])
+    .map(normalizeRecruiterText)
+    .filter(Boolean)
+    .slice(0, 4);
+  const yearsOfExperience = formatYearsOfExperience(candidate);
+  const keySkills = getKeySkills(candidate);
+  const submission_summary = buildSummary(candidate, job, review);
 
   const fullTextLines: string[] = [
-    `CANDIDATE SUBMISSION`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    ``,
-    `Candidate:    ${candidate.name}`,
-    `Current Role: ${candidate.role}${candidate.company ? ` at ${candidate.company}` : ''}`,
-    `Location:     ${candidate.location || 'Not specified'}`,
-    `Match Score:  ${candidate.score}/100`,
-    ``,
-    `Applying For: ${job.job_title}`,
-    `Company:      ${job.company_name}`,
-    `Job Location: ${job.location || 'Not specified'}`,
-    ``,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `RECRUITER SUMMARY`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    ``,
+    'CANDIDATE BRIEF',
+    '',
+    `Role Applied For: ${job.job_title}`,
+    `Company: ${job.company_name}`,
+    job.location ? `Job Location: ${job.location}` : '',
+    '',
+    'CANDIDATE SNAPSHOT',
+    `Candidate Name: ${candidate.name}`,
+    `Current Role / Title: ${candidate.role}${candidate.company && candidate.company !== 'Unknown Source' ? ` at ${candidate.company}` : ''}`,
+    yearsOfExperience ? `Years of Experience: ${yearsOfExperience}` : '',
+    `Location: ${candidate.location || 'Not specified'}`,
+    `Key Skills: ${keySkills.length > 0 ? keySkills.join(', ') : 'Not specified'}`,
+    '',
+    'SUMMARY',
     submission_summary,
-    ``,
-  ];
-
-  if (review) {
-    fullTextLines.push(
-      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-      `AI ASSESSMENT  (${review.recommendation.toUpperCase()} — ${review.confidence ?? 'N/A'} confidence)`,
-      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-      ``,
-      review.summary,
-      ``,
-    );
-  }
+  ].filter(Boolean);
 
   if (strengths.length > 0) {
-    fullTextLines.push(
-      `KEY STRENGTHS`,
-      `─────────────────────────────────────────────────────`,
-    );
-    strengths.forEach(s => fullTextLines.push(`  • ${s}`));
-    fullTextLines.push('');
+    fullTextLines.push('', 'KEY HIGHLIGHTS');
+    strengths.forEach(strength => fullTextLines.push(`- ${strength}`));
   }
 
   if (concerns.length > 0) {
-    fullTextLines.push(
-      `AREAS TO PROBE / CONCERNS`,
-      `─────────────────────────────────────────────────────`,
-    );
-    concerns.forEach(c => fullTextLines.push(`  • ${c}`));
-    fullTextLines.push('');
+    fullTextLines.push('', 'POINTS TO CLARIFY');
+    concerns.forEach(concern => fullTextLines.push(`- ${concern}`));
   }
-
-  fullTextLines.push(
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `Submitted by: Terrer Recruit`,
-    `Date: ${formattedDate}`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-  );
 
   return {
     submission_summary,

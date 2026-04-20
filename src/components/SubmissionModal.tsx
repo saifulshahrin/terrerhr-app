@@ -49,7 +49,7 @@ export default function SubmissionModal({ open, candidate, job, output, onClose,
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // ignore
+      // ignore clipboard failures in the modal
     }
   };
 
@@ -80,8 +80,10 @@ export default function SubmissionModal({ open, candidate, job, output, onClose,
               <FileText size={15} className="text-blue-600" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-gray-900">Review & Send to BD</h2>
-              <p className="text-xs text-gray-400">Internal only — not visible to client yet</p>
+              <h2 className="text-sm font-semibold text-gray-900">Review & Submit to Client</h2>
+              <p className="text-xs text-gray-400">
+                Finalize the recruiter submission before it moves to the submitted stage.
+              </p>
             </div>
           </div>
           <button
@@ -150,13 +152,13 @@ export default function SubmissionModal({ open, candidate, job, output, onClose,
           <div className="border border-gray-200 rounded-lg overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-200">
               <MessageSquare size={13} className="text-gray-500" />
-              <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide">Recruiter Notes to BD</p>
-              <span className="ml-auto text-[10px] text-gray-400 italic">BD will see this</span>
+              <p className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide">Recruiter Notes</p>
+              <span className="ml-auto text-[10px] text-gray-400 italic">Saved with the submission</span>
             </div>
             <textarea
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              placeholder={`Add context for BD before they review...\n\nE.g. "Candidate is strong technically but may need salary alignment"\n"Spoke briefly — open to relocate"\n"Not perfect fit but best available in market right now"`}
+              placeholder={`Add recruiter context for this submission...\n\nE.g. "Candidate is strong technically but may need salary alignment"\n"Spoke briefly - open to relocate"\n"Not perfect fit but best available in market right now"`}
               className="w-full px-4 py-3 text-sm text-gray-700 placeholder-gray-400 resize-none focus:outline-none focus:ring-0 leading-relaxed"
               rows={4}
             />
@@ -185,7 +187,7 @@ export default function SubmissionModal({ open, candidate, job, output, onClose,
         </div>
 
         <div className="px-6 py-4 border-t border-gray-100 flex-shrink-0 flex items-center justify-between gap-3">
-          <p className="text-xs text-gray-400">This brief goes to BD for review before client submission.</p>
+          <p className="text-xs text-gray-400">This brief is saved with the candidate submission.</p>
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
@@ -204,7 +206,7 @@ export default function SubmissionModal({ open, candidate, job, output, onClose,
               }`}
             >
               <Send size={12} />
-              {sending ? 'Sending...' : 'Send to BD Review'}
+              {sending ? 'Submitting...' : 'Submit to Client'}
             </button>
           </div>
         </div>

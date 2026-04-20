@@ -5,6 +5,7 @@ import { CalendarClock } from 'lucide-react';
 import { useRole } from '../store/RoleContext';
 import { buildCandidateMap, createFallbackCandidate, fetchCandidatesByIds } from '../lib/candidates';
 import { fetchAllJobsBasic } from '../lib/jobs';
+import { generateSubmissionOutput } from '../lib/submissionOutput';
 
 const PIPELINE_STAGES: { key: SubmissionStage; name: string; color: string; headerColor: string }[] = [
   { key: 'new',                 name: 'New',           color: 'border-gray-300',   headerColor: 'bg-gray-100' },
@@ -83,7 +84,7 @@ export default function Pipeline() {
   const {
     submissions,
     moveSubmissionStage,
-    sendShortlistedToBd,
+    submitToClientWithOutput,
     resetSubmissionToStage,
     deleteSubmissionById,
   } = useStore();
@@ -92,7 +93,7 @@ export default function Pipeline() {
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [resetTargets, setResetTargets] = useState<Record<string, SubmissionStage>>({});
   const [candidateMap, setCandidateMap] = useState<Map<string, Candidate>>(new Map());
-  const [jobTitleMap, setJobTitleMap] = useState<Map<string, string>>(new Map());
+  const [jobMap, setJobMap] = useState<Map<string, { job_title: string; company_name: string; location: string }>>(new Map());
 
   const isAdmin = role === 'admin';
   const total = new Set(submissions.map(sub => sub.candidate_id)).size;
@@ -103,7 +104,18 @@ export default function Pipeline() {
     fetchAllJobsBasic()
       .then(rows => {
         if (cancelled) return;
-        setJobTitleMap(new Map((rows ?? []).map(job => [job.id, job.job_title])));
+        setJobMap(
+          new Map(
+            (rows ?? []).map(job => [
+              job.id,
+              {
+                job_title: job.job_title,
+                company_name: job.company_name,
+                location: job.location,
+              },
+            ])
+          )
+        );
       })
       .catch(error => {
         console.error('[Pipeline] fetchAllJobsBasic error:', error);
@@ -143,21 +155,25 @@ export default function Pipeline() {
     }
   };
 
-  const handleSendToBd = async (submissionId: string, existingNotes?: string | null) => {
-    const draft = noteDrafts[submissionId] ?? existingNotes ?? '';
+  const handleSubmitToClient = async (sub: Submission, card: Candidate) => {
+    const draft = noteDrafts[sub.id] ?? sub.notes ?? '';
+    const jobContext = jobMap.get(sub.job_id);
+    if (!jobContext) return;
 
-    setBusy(prev => ({ ...prev, [submissionId]: true }));
+    const output = generateSubmissionOutput(card, jobContext, null);
+
+    setBusy(prev => ({ ...prev, [sub.id]: true }));
     try {
-      const result = await sendShortlistedToBd(submissionId, draft, existingNotes);
+      const result = await submitToClientWithOutput(sub.candidate_id, sub.job_id, output, draft);
       if (result) {
         setNoteDrafts(prev => {
           const next = { ...prev };
-          delete next[submissionId];
+          delete next[sub.id];
           return next;
         });
       }
     } finally {
-      setBusy(prev => ({ ...prev, [submissionId]: false }));
+      setBusy(prev => ({ ...prev, [sub.id]: false }));
     }
   };
 
@@ -229,7 +245,8 @@ export default function Pipeline() {
                 {stageSubs.map((sub) => {
                   const card = candidateMap.get(sub.candidate_id) ?? createFallbackCandidate(sub.candidate_id);
                   const isResolvedCandidate = candidateMap.has(sub.candidate_id);
-                  const jobTitle = jobTitleMap.get(sub.job_id) ?? `Job ${sub.job_id}`;
+                  const jobContext = jobMap.get(sub.job_id);
+                  const jobTitle = jobContext?.job_title ?? `Job ${sub.job_id}`;
                   const urgency = getDateUrgency(sub.next_action_date);
                   const submissionBusy = !!busy[sub.id];
                   const noteValue = noteDrafts[sub.id] ?? sub.notes ?? '';
@@ -286,21 +303,21 @@ export default function Pipeline() {
                           <textarea
                             value={noteValue}
                             onChange={(e) => setNoteDrafts(prev => ({ ...prev, [sub.id]: e.target.value }))}
-                            placeholder="Recommendation for BD (optional)"
+                            placeholder="Recruiter note for this submission (optional)"
                             rows={2}
                             disabled={submissionBusy}
                             className="w-full text-[10px] text-gray-600 border border-gray-200 rounded px-2 py-1 resize-none focus:outline-none focus:ring-1 focus:ring-blue-200 focus:border-blue-300 disabled:bg-gray-50"
                           />
                           <button
-                            onClick={() => handleSendToBd(sub.id, sub.notes)}
-                            disabled={submissionBusy}
+                            onClick={() => handleSubmitToClient(sub, card)}
+                            disabled={submissionBusy || !jobContext}
                             className={`px-2 py-1 text-[10px] font-medium rounded border transition-colors ${
-                              submissionBusy
+                              submissionBusy || !jobContext
                                 ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-default'
-                                : 'bg-white border-violet-200 text-violet-700 hover:bg-violet-50'
+                                : 'bg-white border-blue-200 text-blue-700 hover:bg-blue-50'
                             }`}
                           >
-                            {submissionBusy ? 'Sending...' : 'Send to BD'}
+                            {submissionBusy ? 'Submitting...' : 'Submit to Client'}
                           </button>
                         </div>
                       )}
