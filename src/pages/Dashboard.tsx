@@ -12,8 +12,8 @@ import {
   type OpportunityItem,
   type BdQueueItem,
 } from '../lib/dashboardData';
+import { updateSubmissionStage } from '../lib/submissions';
 import { useStore } from '../store/StoreContext';
-import { supabase } from '../lib/supabase';
 import { useRole } from '../store/RoleContext';
 
 const TODAY = new Date();
@@ -41,6 +41,8 @@ function stageLabel(stage: string): string {
     submitted_to_client: 'Submitted',
     interview: 'Interview',
     offer: 'Offer',
+    rejected: 'Rejected',
+    hired: 'Hired',
   };
   return map[stage] ?? stage;
 }
@@ -84,11 +86,8 @@ export default function Dashboard() {
 
   const handleReject = async (item: BdQueueItem) => {
     setRejectingBd(p => ({ ...p, [item.submissionId]: true }));
-    await supabase
-      .from('submissions')
-      .update({ submission_stage: 'shortlisted', stage_updated_at: new Date().toISOString() })
-      .eq('id', item.submissionId);
-    setBdQueue(prev => prev.filter(i => i.submissionId !== item.submissionId));
+    const updatedSubmission = await updateSubmissionStage(item.submissionId, 'shortlisted');
+    setBdQueue(prev => prev.filter(i => i.submissionId !== updatedSubmission.id));
     setRejectingBd(p => ({ ...p, [item.submissionId]: false }));
   };
 

@@ -1,4 +1,4 @@
-export type SubmissionStage = 'new' | 'shortlisted' | 'ready_for_bd_review' | 'submitted_to_client' | 'interview' | 'offer' | 'rejected' | 'hold';
+export type SubmissionStage = 'new' | 'shortlisted' | 'ready_for_bd_review' | 'submitted_to_client' | 'interview' | 'offer' | 'rejected' | 'hold' | 'hired';
 
 export interface Candidate {
   id: string;

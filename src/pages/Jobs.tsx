@@ -1,27 +1,27 @@
 import { useEffect, useState } from 'react';
 import { MapPin, BarChart2 } from 'lucide-react';
+import { fetchAllJobs, type JobListRow } from '../lib/jobs';
 import { supabase } from '../lib/supabase';
 
-interface Job {
-  id: string;
-  job_title: string;
-  company_name: string;
-  location: string;
-  source: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
+type Job = JobListRow;
+
+interface SubmissionMetricRow {
+  job_id: string;
+  submission_stage: string | null;
+  next_action_date: string | null;
 }
+
+interface JobMetrics {
+  candidates: number;
+  shortlisted: number;
+  nextActionDate: Date | null;
+}
+
+type JobUrgency = 'overdue' | 'due_today' | 'upcoming' | 'none';
 
 interface Props {
   onViewTopMatches: (jobId: string) => void;
 }
-
-const statusStyle: Record<string, string> = {
-  Open: 'bg-green-100 text-green-700',
-  Closed: 'bg-gray-100 text-gray-500',
-  'On Hold': 'bg-yellow-100 text-yellow-700',
-};
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -31,76 +31,244 @@ function timeAgo(dateStr: string): string {
   return `${days} days ago`;
 }
 
+const URGENCY_LABEL: Record<JobUrgency, string> = {
+  overdue: 'Overdue',
+  due_today: 'Due today',
+  upcoming: 'Upcoming',
+  none: 'No action',
+};
+
+const URGENCY_STYLE: Record<JobUrgency, string> = {
+  overdue: 'text-red-600 bg-red-50',
+  due_today: 'text-orange-600 bg-orange-50',
+  upcoming: 'text-blue-600 bg-blue-50',
+  none: 'text-gray-500 bg-gray-100',
+};
+
+const CARD_BORDER_STYLE: Record<JobUrgency, string> = {
+  overdue: 'border-red-300',
+  due_today: 'border-orange-300',
+  upcoming: 'border-gray-200',
+  none: 'border-gray-200',
+};
+
+const URGENCY_PRIORITY: Record<JobUrgency, number> = {
+  overdue: 0,
+  due_today: 1,
+  upcoming: 2,
+  none: 3,
+};
+
+function isSameCalendarDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function getJobUrgency(nextActionDate: Date | null): JobUrgency {
+  if (!nextActionDate) return 'none';
+
+  const now = new Date();
+
+  if (nextActionDate < now) return 'overdue';
+  if (isSameCalendarDay(nextActionDate, now)) return 'due_today';
+  return 'upcoming';
+}
+
+function getUpdatedAtTime(job: Job): number {
+  const time = new Date(job.updated_at).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
 export default function Jobs({ onViewTopMatches }: Props) {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [jobMetricsMap, setJobMetricsMap] = useState<Map<string, JobMetrics>>(new Map());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadJobs() {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (!error && data) {
-        setJobs(data as Job[]);
+      try {
+        const [jobsData, submissionsResult] = await Promise.all([
+          fetchAllJobs(),
+          supabase
+            .from('submissions')
+            .select('job_id, submission_stage, next_action_date'),
+        ]);
+
+        if (submissionsResult.error) throw submissionsResult.error;
+
+        const submissions = (submissionsResult.data ?? []) as SubmissionMetricRow[];
+        const now = new Date();
+        const metricsAccumulator = new Map<
+          string,
+          {
+            candidates: number;
+            shortlisted: number;
+            nextActionDates: Date[];
+          }
+        >();
+
+        for (const submission of submissions) {
+          const existing = metricsAccumulator.get(submission.job_id) ?? {
+            candidates: 0,
+            shortlisted: 0,
+            nextActionDates: [],
+          };
+
+          existing.candidates += 1;
+
+          if (submission.submission_stage?.toLowerCase() === 'shortlisted') {
+            existing.shortlisted += 1;
+          }
+
+          if (submission.next_action_date) {
+            const nextActionDate = new Date(submission.next_action_date);
+            if (!Number.isNaN(nextActionDate.getTime())) {
+              existing.nextActionDates.push(nextActionDate);
+            }
+          }
+
+          metricsAccumulator.set(submission.job_id, existing);
+        }
+
+        const nextMetricsMap = new Map<string, JobMetrics>();
+
+        for (const [jobId, metrics] of metricsAccumulator.entries()) {
+          const futureDates = metrics.nextActionDates
+            .filter(date => date >= now)
+            .sort((a, b) => a.getTime() - b.getTime());
+          const pastDates = metrics.nextActionDates
+            .filter(date => date < now)
+            .sort((a, b) => b.getTime() - a.getTime());
+
+          nextMetricsMap.set(jobId, {
+            candidates: metrics.candidates,
+            shortlisted: metrics.shortlisted,
+            nextActionDate: futureDates[0] ?? pastDates[0] ?? null,
+          });
+        }
+
+        setJobs(jobsData as Job[]);
+        setJobMetricsMap(nextMetricsMap);
+      } catch (error) {
+        console.error('[Jobs] loadJobs error:', error);
+        setJobs([]);
+        setJobMetricsMap(new Map());
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
+
     loadJobs();
   }, []);
 
-  const openCount = jobs.filter(j => j.status === 'Open').length;
+  const sortedJobs = [...jobs].sort((a, b) => {
+    const metricsA = jobMetricsMap.get(a.id);
+    const metricsB = jobMetricsMap.get(b.id);
+    const nextActionDateA = metricsA?.nextActionDate ?? null;
+    const nextActionDateB = metricsB?.nextActionDate ?? null;
+    const urgencyA = getJobUrgency(nextActionDateA);
+    const urgencyB = getJobUrgency(nextActionDateB);
+    const urgencyPriorityDiff = URGENCY_PRIORITY[urgencyA] - URGENCY_PRIORITY[urgencyB];
+
+    if (urgencyPriorityDiff !== 0) {
+      return urgencyPriorityDiff;
+    }
+
+    if (nextActionDateA && nextActionDateB) {
+      const nextActionDiff = nextActionDateA.getTime() - nextActionDateB.getTime();
+      if (nextActionDiff !== 0) {
+        return nextActionDiff;
+      }
+    }
+
+    if (nextActionDateA && !nextActionDateB) {
+      return -1;
+    }
+
+    if (!nextActionDateA && nextActionDateB) {
+      return 1;
+    }
+
+    const updatedAtDiff = getUpdatedAtTime(b) - getUpdatedAtTime(a);
+    if (updatedAtDiff !== 0) {
+      return updatedAtDiff;
+    }
+
+  return (a.job_title ?? '').localeCompare(b.job_title ?? '')
+  });
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-gray-800">Jobs</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{openCount} open positions</p>
+          <p className="text-sm text-gray-500 mt-0.5">{jobs.length} jobs</p>
         </div>
         <button className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors">
           + New Job
         </button>
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="space-y-4">
         {loading ? (
-          <div className="flex items-center justify-center py-16">
+          <div className="bg-white rounded-lg border border-gray-200 flex items-center justify-center py-16">
             <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : jobs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="bg-white rounded-lg border border-gray-200 flex flex-col items-center justify-center py-16 text-center">
             <p className="text-sm text-gray-400">No jobs yet. Use Job Intake to add one.</p>
           </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                {['Job Title', 'Company', 'Location', 'Status', 'Posted', ''].map((h, i) => (
-                  <th key={i} className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide whitespace-nowrap">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {jobs.map((job) => (
-                <tr key={job.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                  <td className="px-5 py-3.5 font-medium text-gray-800 whitespace-nowrap">{job.job_title}</td>
-                  <td className="px-5 py-3.5 text-gray-600 whitespace-nowrap">{job.company_name}</td>
-                  <td className="px-5 py-3.5 text-gray-500 whitespace-nowrap">
-                    <span className="flex items-center gap-1">
-                      <MapPin size={12} className="text-gray-400" />
-                      {job.location || '—'}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 whitespace-nowrap">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusStyle[job.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                      {job.status}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3.5 text-gray-400 whitespace-nowrap text-xs">{timeAgo(job.created_at)}</td>
-                  <td className="px-5 py-3.5 whitespace-nowrap text-right">
+          sortedJobs.map(job => {
+            const metrics = jobMetricsMap.get(job.id);
+            const urgency = getJobUrgency(metrics?.nextActionDate ?? null);
+            const urgencyLabel = URGENCY_LABEL[urgency];
+            const urgencyStyle = URGENCY_STYLE[urgency];
+            const cardBorderStyle = CARD_BORDER_STYLE[urgency];
+
+            return (
+              <div
+                key={job.id}
+                className={`bg-white rounded-lg border p-5 hover:bg-gray-50 transition-colors ${cardBorderStyle}`}
+              >
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-lg font-semibold text-gray-900 truncate" title={job.job_title}>
+                      {job.job_title}
+                    </h2>
+                    <p className="text-sm text-gray-600 mt-1">{job.company_name}</p>
+
+                    <div className="flex items-center gap-1.5 text-sm text-gray-500 mt-2">
+                      <MapPin size={14} className="text-gray-400" />
+                      <span>{job.location || '-'}</span>
+                    </div>
+
+                    <p className="text-xs text-gray-400 mt-2">Updated: {timeAgo(job.updated_at)}</p>
+                  </div>
+
+                  <div className="flex flex-col gap-3 lg:items-end lg:text-right">
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm text-gray-600">
+                      <div>
+                        <span className="text-gray-400">Candidates:</span> {metrics?.candidates ?? 0}
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Shortlisted:</span> {metrics?.shortlisted ?? 0}
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Stage:</span> Active
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Next Action:</span>{' '}
+                        {metrics?.nextActionDate ? timeAgo(metrics.nextActionDate.toISOString()) : 'No action'}{' '}
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${urgencyStyle}`}>
+                          {urgencyLabel}
+                        </span>
+                      </div>
+                    </div>
+
                     <button
                       onClick={() => onViewTopMatches(job.id)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
@@ -108,11 +276,11 @@ export default function Jobs({ onViewTopMatches }: Props) {
                       <BarChart2 size={12} />
                       View Top Matches
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  </div>
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
     </div>

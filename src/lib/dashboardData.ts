@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { ALL_CANDIDATES } from '../store/mockData';
+import { createFallbackCandidate, fetchCandidateMapByIds } from './candidates';
 
 export interface DashboardJob {
   id: string;
@@ -98,8 +98,6 @@ export interface BdQueueItem {
   aiScore: number | null;
 }
 
-const CANDIDATE_MAP = new Map(ALL_CANDIDATES.map(c => [c.id, c]));
-
 const KL_SELANGOR_KEYWORDS = ['kuala lumpur', 'kl', 'selangor', 'petaling jaya', 'pj', 'subang', 'shah alam', 'cyberjaya', 'putrajaya', 'cheras', 'bangsar', 'mont kiara', 'damansara'];
 
 function isKlSelangor(location: string): boolean {
@@ -133,8 +131,7 @@ export async function fetchDashboardData(): Promise<{
   const [jobsResult, submissionsResult, assessmentsResult] = await Promise.all([
     supabase
       .from('jobs')
-      .select('id, job_title, company_name, location, status, created_at')
-      .eq('status', 'Open'),
+.select('id, job_title, company_name, location, created_at'),
     supabase
       .from('submissions')
       .select('id, job_id, candidate_id, submission_stage, next_action_date, stage_updated_at, created_at, submission_summary, submission_strengths, submission_concerns, submission_full_text, submission_generated_at, notes'),
@@ -146,6 +143,7 @@ export async function fetchDashboardData(): Promise<{
   const jobs: DashboardJob[] = (jobsResult.data ?? []) as DashboardJob[];
   const submissions: DashboardSubmission[] = (submissionsResult.data ?? []) as DashboardSubmission[];
   const assessments: DashboardAssessment[] = (assessmentsResult.data ?? []) as DashboardAssessment[];
+  const candidateMap = await fetchCandidateMapByIds(submissions.map(sub => sub.candidate_id));
 
   const jobMap = new Map(jobs.map(j => [j.id, j]));
   const assessmentMap = new Map(assessments.map(a => [`${a.candidate_id}-${a.job_id}`, a]));
@@ -159,9 +157,9 @@ export async function fetchDashboardData(): Promise<{
     const actionDate = isoToDate(sub.next_action_date);
     actionDate.setHours(0, 0, 0, 0);
 
-    const candidate = CANDIDATE_MAP.get(sub.candidate_id);
+    const candidate = candidateMap.get(sub.candidate_id) ?? createFallbackCandidate(sub.candidate_id);
     const job = jobMap.get(sub.job_id);
-    if (!candidate || !job) continue;
+    if (!job) continue;
 
     const diff = Math.floor((actionDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     let urgency: ActionQueueItem['urgency'];
@@ -272,9 +270,9 @@ export async function fetchDashboardData(): Promise<{
     const isStrongFit = assessment.overall_recommendation === 'Strong Fit';
     if (!isHighScore && !isStrongFit) continue;
 
-    const candidate = CANDIDATE_MAP.get(sub.candidate_id);
+    const candidate = candidateMap.get(sub.candidate_id) ?? createFallbackCandidate(sub.candidate_id);
     const job = jobMap.get(sub.job_id);
-    if (!candidate || !job) continue;
+    if (!job) continue;
 
     opportunities.push({
       candidateId: sub.candidate_id,
@@ -300,7 +298,7 @@ export async function fetchDashboardData(): Promise<{
     return b.aiScore - a.aiScore;
   });
 
-  const advancedStages = new Set(['interview', 'offer']);
+  const advancedStages = new Set(['interview', 'offer', 'hired']);
   const advancedCandidates = new Set(
     submissions
       .filter(s => advancedStages.has(s.submission_stage))
@@ -317,9 +315,9 @@ export async function fetchDashboardData(): Promise<{
   const bdQueue: BdQueueItem[] = [];
   for (const sub of submissions) {
     if (sub.submission_stage !== 'ready_for_bd_review') continue;
-    const candidate = CANDIDATE_MAP.get(sub.candidate_id);
+    const candidate = candidateMap.get(sub.candidate_id) ?? createFallbackCandidate(sub.candidate_id);
     const job = jobMap.get(sub.job_id);
-    if (!candidate || !job) continue;
+    if (!job) continue;
     const assessment = assessmentMap.get(`${sub.candidate_id}-${sub.job_id}`);
     bdQueue.push({
       submissionId: sub.id,

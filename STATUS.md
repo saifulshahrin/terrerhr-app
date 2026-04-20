@@ -1,0 +1,215 @@
+# Terrer Implementation Status
+
+## Current Task
+Finish approved live-candidate workflow iteration in approved scope only:
+- `src/lib/candidates.ts`
+- `src/pages/TopMatches.tsx`
+- `src/lib/dashboardData.ts`
+- `src/pages/Pipeline.tsx`
+
+## Progress Log
+- implementation started
+- inspected approved-scope files and confirmed partial in-progress changes already exist
+- beginning finish-and-validate pass without expanding scope
+- verified approved-scope files now use the live candidate helper approach
+- confirmed no remaining mock-candidate references in the approved files during static inspection
+- stopped at validation boundary after environment blocker was confirmed
+- updated `HANDOFF.md` with completed work, remaining validation note, and owner testing checklist
+- owner testing found a Jobs -> Top Matches selected-job handoff bug
+- traced the handoff path and confirmed `Jobs` and `App` still pass `jobId` correctly
+- fixed `TopMatches` selected-job resolve logic to accept any successful `getJobById(jobId)` result
+- kept invalid/stale fallback behavior only for true missing-job and error cases
+- owner testing confirmed the previous fix did not resolve the Jobs -> Top Matches bug
+- inspected `src/lib/jobs.ts` first as the next minimal diagnostic step
+- confirmed `fetchAllJobs()` and `getJobById()` both use the same `jobs` table and the same `id` field contract
+- stopping here because the lookup-contract mismatch in `src/lib/jobs.ts` is not the cause and expanding scope would violate the current instruction
+- added temporary runtime instrumentation in `src/pages/TopMatches.tsx` to trace selected-job resolve flow in the browser
+- instrumentation is diagnostic only; no recruiter behavior or data flow was changed
+- next validation step is owner browser console capture for Jobs -> Top Matches
+- added a UUID boundary guard and temporary runtime logging in `src/lib/jobs.ts#getJobById`
+- the query now normalizes `jobId`, validates UUID shape before querying, and skips invalid values instead of sending malformed UUID filters to Supabase
+- awaiting owner console capture to confirm whether invalid UUID input is the actual root cause or whether Supabase still returns 400 for a valid UUID
+- runtime logs confirmed the actual Supabase error: `column jobs.status does not exist`
+- fixed `src/lib/jobs.ts#getJobById` by removing the invalid `status` column from the select list
+- removed the temporary UUID validation guard because the confirmed root cause was the invalid select column, not malformed UUID input
+- kept temporary logging in `getJobById` for one more validation pass
+- owner testing found a new bug: recruiter actions on Top Matches appear to do nothing
+- added narrow temporary runtime diagnostics in `src/pages/TopMatches.tsx` and the directly used action path in `src/store/StoreContext.tsx`
+- this instrumentation is diagnostic only; no UI behavior, store merge logic, or submission query logic was changed
+- next validation step is owner browser console capture for shortlist and send-to-BD actions
+- owner testing confirmed a narrower remaining failure: `sendToBdReview` still violates `submissions_next_action_check`
+- fixed the submissions write boundary in `src/lib/submissions.ts` so `UpsertSubmissionParams` explicitly includes `submission_stage`, `next_action_date`, and `notes`
+- `upsertSubmission(...)` now builds and logs an explicit payload, including `next_action_date`, before the Supabase upsert call
+- kept existing diagnostics in place for one more validation pass
+- runtime diagnosis confirmed a narrower remaining issue for send-to-BD:
+  - `submission_stage: 'ready_for_bd_review'` is not accepted by the current `submissions_next_action_check` constraint
+- applied a narrow store-side stabilization fix:
+  - `sendToBdReview(...)` now writes `submission_stage: 'submitted_to_client'`
+  - `next_action_date` remains non-null
+- kept diagnostics in place for one more validation pass
+- owner testing exposed a workflow inconsistency across recruiter forward actions:
+  - `TopMatches` already wrote `submitted_to_client`
+  - `Pipeline` still used the stale `ready_for_bd_review` helper path
+  - recruiter-facing labels still implied BD review even though the write skipped it
+- applied a narrow consistency fix for recruiter workflow stabilization:
+  - recruiter forward action is now treated as `Submit to Client`
+  - `TopMatches` and `Pipeline` now use the same store submit path
+  - recruiter-facing submission copy was updated to match actual behavior
+- started the submission output / voice-layer upgrade
+- replaced the old internal-style submission text with a structured recruiter brief
+- kept the modal flow unchanged while making the stored final brief include recruiter notes at submit time
+
+## Files Changed
+- `src/lib/candidates.ts`
+- `src/pages/TopMatches.tsx`
+- `src/lib/dashboardData.ts`
+- `src/pages/Pipeline.tsx`
+- `src/lib/jobs.ts`
+- `src/lib/submissions.ts`
+- `src/store/StoreContext.tsx`
+- `src/components/SubmissionModal.tsx`
+- `src/lib/submissionOutput.ts`
+- `STATUS.md`
+- `HANDOFF.md`
+
+## Risks / Blockers
+- validation is blocked in this worktree because `node_modules` is missing
+- `npm run typecheck` fails here with `'tsc' is not recognized as an internal or external command`
+- per approved scope, no out-of-scope changes were made to `Dashboard.tsx` or migrations
+- revised diagnosis is in progress; `src/lib/jobs.ts` does not explain the owner-reported failure
+
+## Validation Notes
+- static inspection completed for approved files
+- built-in search confirms no lingering `mockData` / `ALL_CANDIDATES` usage in:
+  - `src/lib/candidates.ts`
+  - `src/pages/TopMatches.tsx`
+  - `src/lib/dashboardData.ts`
+  - `src/pages/Pipeline.tsx`
+- attempted `npm run typecheck`, but validation could not complete because this worktree does not contain `node_modules`
+- selected-job handoff root cause was the overly strict `TopMatches` resolve guard that rejected a fetched job unless `jobData.id === selectedJobId`
+- `TopMatches` now:
+  - sets the selected job when `getJobById(jobId)` returns a row
+  - keeps the loading spinner while resolving a truthy `jobId`
+  - still falls back to `That job could not be found.` only when `getJobById(jobId)` returns no row or throws before a valid job is resolved
+- changed files for this bug fix:
+  - `src/pages/TopMatches.tsx`
+  - `STATUS.md`
+- revised diagnostic result:
+- `src/lib/jobs.ts` is not the root cause
+- `fetchAllJobs()` returns rows from `.from('jobs').select('*')`
+- `getJobById(jobId)` resolves rows from `.from('jobs').select(...).eq('id', jobId).maybeSingle()`
+- based on static inspection, Jobs is passing an `id` that should be resolvable by the same lookup contract
+- temporary runtime instrumentation was added in `src/pages/TopMatches.tsx`
+- validation is now pending owner console capture of:
+  - incoming `jobId`
+  - `getJobById(jobId)` call and returned value
+  - whether `setJob(...)` is reached
+  - whether `invalidJob` is set and by which branch
+  - final `job / loadingJob / invalidJob` state transitions
+- `src/lib/jobs.ts#getJobById` now logs:
+  - raw `jobId`
+  - runtime type
+  - normalized `jobId`
+  - query attempt
+  - returned row / error
+- confirmed schema context from migrations:
+  - `jobs.id` is `uuid`
+- confirmed root cause:
+  - `getJobById` queried `select('id, job_title, company_name, location, status')`
+  - Supabase returned `column jobs.status does not exist`
+  - the 400 was caused by the invalid select column, not by the `eq('id', jobId)` filter
+- applied fix:
+  - `getJobById` now queries `select('id, job_title, company_name, location')`
+- next validation step:
+  - confirm Jobs -> View Top Matches now shows the selected job header and loads candidates
+  - keep temporary `getJobById` logging for one more runtime validation pass
+- Top Matches recruiter action diagnostics added:
+  - page-level logs for shortlist click flow, modal-open flow, and send-to-BD submit flow
+  - store-level logs for `shortlist(candidateId, jobId)` and `sendToBdReview(candidateId, jobId, output, notes)`
+- validation is now pending owner console capture of:
+  - whether shortlist click reaches `handle(...)`
+  - whether `StoreContext.shortlist(...)` is called
+  - whether submission upsert returns a result or error
+  - whether send-to-BD opens the modal
+  - whether modal submit reaches `sendToBdReview(...)`
+  - whether the store merge occurs after a successful result
+- confirmed root cause for the remaining send-to-BD failure:
+  - the active-stage write needed `next_action_date`
+  - `StoreContext.sendToBdReview(...)` was already attempting to send it
+  - but the submissions upsert boundary did not explicitly declare and shape that field in `UpsertSubmissionParams` / `upsertSubmission(...)`
+- applied fix:
+  - `src/lib/submissions.ts` now explicitly includes and forwards:
+    - `submission_stage`
+    - `next_action_date`
+    - `notes`
+  - `upsertSubmission(...)` now logs the final payload before the DB call
+- next validation step:
+  - retest `Send to BD Review`
+  - confirm the payload log shows:
+    - `submission_stage: 'submitted_to_client'`
+    - non-null `next_action_date`
+  - confirm Supabase returns a row and the store merge runs
+- confirmed root cause for the remaining send-to-BD failure:
+  - the database constraint does not accept `ready_for_bd_review` as a valid active stage value
+  - the write failed even with a valid non-null `next_action_date`
+- applied fix:
+  - in `src/store/StoreContext.tsx`, `sendToBdReview(...)` now writes:
+    - `submission_stage: 'submitted_to_client'`
+    - `next_action_date: getTodayIsoDate()`
+- current note:
+  - recruiter-forward labels are now aligned to `Submit to Client`
+  - historical `ready_for_bd_review` records may still appear until cleaned up, but recruiter actions no longer create that stage from `TopMatches` or `Pipeline`
+- confirmed root cause for the recruiter-forward inconsistency:
+  - `TopMatches` used the working upsert path that wrote `submitted_to_client`
+  - `Pipeline` still called the stale `sendShortlistedToBd(...)` helper, which targeted `ready_for_bd_review`
+  - this left the same business action split across multiple handlers and mismatched UI copy
+- applied fix:
+  - `src/store/StoreContext.tsx`
+    - removed recruiter use of the stale BD-review forward path
+    - kept a single `submitToClientWithOutput(...)` action as the shared recruiter submit path
+  - `src/pages/TopMatches.tsx`
+    - relabeled the recruiter forward action to `Submit to Client`
+    - kept the existing modal flow but routed it through `submitToClientWithOutput(...)`
+  - `src/pages/Pipeline.tsx`
+    - shortlisted cards now generate submission output locally and call the same `submitToClientWithOutput(...)` action
+    - recruiter note copy now reflects submission, not BD review
+  - `src/components/SubmissionModal.tsx`
+    - recruiter-facing BD review language was updated to client-submission language
+- next validation step:
+  - from `TopMatches`, confirm `Shortlist` still works and `Submit to Client` persists `submitted_to_client`
+  - from `Pipeline`, confirm shortlisted cards move to `Submitted` immediately after `Submit to Client`
+  - confirm historical `ready_for_bd_review` cards remain viewable but no new recruiter action writes that stage
+- confirmed root cause for weak submission voice output:
+  - the output helper still emitted internal framing such as match score / AI assessment wording
+  - recruiter notes were stored separately but were not blended into the final submission brief text
+- applied fix:
+  - `src/lib/submissionOutput.ts`
+    - now generates a structured plain-text candidate brief with:
+      - candidate name
+      - current role / title
+      - years of experience when available on the candidate object
+      - key skills (top 3-5)
+      - recruiter-style 2-3 line summary
+      - highlights / points to clarify derived from Terrer AI Review without exposing raw internal labels
+  - `src/store/StoreContext.tsx`
+    - `submitToClientWithOutput(...)` now merges recruiter notes into the stored final brief text before persisting
+    - keeps the same stable `submitted_to_client` write path and existing logs
+- validation targets for this pass:
+  - open `TopMatches`, click `Submit to Client`, and confirm the modal still opens unchanged
+  - send a submission with recruiter notes and confirm the stored submission text includes:
+    - structured candidate snapshot
+    - recruiter-style summary
+    - recruiter notes appended as a final section
+  - confirm no raw `Match Score`, `AI ASSESSMENT`, `confidence`, or recommendation labels appear in the stored client-facing brief
+- recruiter-only core loop validation completed successfully end to end
+- validated recruiter loop coverage:
+  - Job Intake parse -> confirm -> save
+  - saved job open path through Jobs -> Top Matches
+  - shortlist
+  - submit to client
+  - Pipeline stage progression
+  - terminal transitions (`hired`, `rejected`)
+  - refresh/reload consistency across the validated path
+- stabilization note from core loop validation:
+  - breakpoint 1: Job Intake save failed because the save payload still sent `jobs.status`, but the live canonical `jobs` table does not have that column
+  - breakpoint 2: terminal stage transitions failed because terminal states needed `next_action_date = null` to satisfy `submissions_next_action_check`

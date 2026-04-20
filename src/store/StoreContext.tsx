@@ -2,7 +2,14 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 import type { Candidate, Submission, SubmissionStage } from './types';
 import type { SubmissionOutput } from '../lib/submissionOutput';
 import { ALL_CANDIDATES } from './mockData';
-import { fetchSubmissions, upsertSubmission as upsertSubmissionDB } from '../lib/submissions';
+import {
+  fetchSubmissions,
+  upsertSubmission as upsertSubmissionDB,
+  updateSubmissionStage,
+  deleteSubmission,
+  bulkResetSubmissionsForJob,
+  bulkDeleteSubmissionsForJob,
+} from '../lib/submissions';
 
 interface AppStore {
   candidates: Candidate[];
@@ -11,22 +18,40 @@ interface AppStore {
   getStage: (candidateId: string, jobId?: string) => SubmissionStage;
   getSubmission: (candidateId: string, jobId?: string) => Submission | undefined;
   shortlist: (candidateId: string, jobId: string) => Promise<void>;
-  sendToBdReview: (
-    candidateId: string,
-    jobId: string,
-    output: SubmissionOutput,
-    notes?: string
-  ) => Promise<Submission | null>;
+  resetSubmissionToStage: (submissionId: string, stage: SubmissionStage) => Promise<Submission | null>;
+  deleteSubmissionById: (submissionId: string) => Promise<boolean>;
+  resetSubmissionsForJob: (jobId: string, stage: SubmissionStage) => Promise<Submission[]>;
+  deleteSubmissionsForJob: (jobId: string) => Promise<number>;
+  moveSubmissionStage: (submissionId: string, stage: SubmissionStage) => Promise<Submission | null>;
+  updateSubmissionInStore: (submissionId: string, stage: SubmissionStage) => Promise<Submission | null>;
   approveAndSubmitToClient: (candidateId: string, jobId: string) => Promise<void>;
   submitToClient: (candidateId: string, jobId: string) => Promise<void>;
   submitToClientWithOutput: (
     candidateId: string,
     jobId: string,
-    output: SubmissionOutput
+    output: SubmissionOutput,
+    notes?: string
   ) => Promise<Submission | null>;
 }
 
 const StoreContext = createContext<AppStore | null>(null);
+
+function getTodayIsoDate(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+function mergeRecruiterNotesIntoOutput(
+  output: SubmissionOutput,
+  notes?: string
+): SubmissionOutput {
+  const trimmedNotes = notes?.trim() ?? '';
+  if (!trimmedNotes) return output;
+
+  return {
+    ...output,
+    submission_full_text: `${output.submission_full_text}\n\nRECRUITER NOTES\n${trimmedNotes}`,
+  };
+}
 
 async function upsertSubmission(
   candidateId: string,
@@ -38,6 +63,7 @@ async function upsertSubmission(
       candidate_id: candidateId,
       job_id: jobId,
       submission_stage: stage as 'new' | 'shortlisted' | 'ready_for_bd_review' | 'submitted_to_client',
+      next_action_date: getTodayIsoDate(),
     });
 
     return data as Submission;
@@ -64,6 +90,10 @@ function mergeSubmission(
   }
 
   return [...prev, result];
+}
+
+function removeSubmission(prev: Submission[], submissionId: string) {
+  return prev.filter(s => s.id !== submissionId);
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
@@ -107,9 +137,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const shortlist = useCallback(async (candidateId: string, jobId: string) => {
+    console.log('[StoreContext][shortlist:start]', { candidateId, jobId });
     const result = await upsertSubmission(candidateId, jobId, 'shortlisted');
+    console.log('[StoreContext][shortlist:result]', { candidateId, jobId, result });
     if (result) {
       setSubmissions(prev => mergeSubmission(prev, result, candidateId, jobId));
+      console.log('[StoreContext][shortlist:merged]', { candidateId, jobId, submissionId: result.id });
     }
   }, []);
 
@@ -120,7 +153,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const sendToBdReview = useCallback(
+  const submitToClientWithOutput = useCallback(
     async (
       candidateId: string,
       jobId: string,
@@ -128,25 +161,51 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       notes?: string
     ): Promise<Submission | null> => {
       try {
+        const finalOutput = mergeRecruiterNotesIntoOutput(output, notes);
+
+        console.log('[StoreContext][submitToClientWithOutput:start]', {
+          candidateId,
+          jobId,
+          notes,
+          output: finalOutput,
+        });
         const result = await upsertSubmissionDB({
           candidate_id: candidateId,
           job_id: jobId,
-          submission_stage: 'ready_for_bd_review',
-          submission_summary: output.submission_summary,
-          submission_strengths: output.submission_strengths,
-          submission_concerns: output.submission_concerns,
-          submission_full_text: output.submission_full_text,
-          submission_generated_at: output.submission_generated_at,
+          submission_stage: 'submitted_to_client',
+          next_action_date: getTodayIsoDate(),
+          submission_summary: finalOutput.submission_summary,
+          submission_strengths: finalOutput.submission_strengths,
+          submission_concerns: finalOutput.submission_concerns,
+          submission_full_text: finalOutput.submission_full_text,
+          submission_generated_at: finalOutput.submission_generated_at,
           notes: notes ?? null,
+        });
+
+        console.log('[StoreContext][submitToClientWithOutput:result]', {
+          candidateId,
+          jobId,
+          result,
         });
 
         setSubmissions(prev =>
           mergeSubmission(prev, result as Submission, candidateId, jobId)
         );
 
+        console.log('[StoreContext][submitToClientWithOutput:merged]', {
+          candidateId,
+          jobId,
+          submissionId: (result as Submission).id,
+        });
+
         return result as Submission;
       } catch (error) {
-        console.error('[sendToBdReview] error:', error);
+        console.error('[submitToClientWithOutput] error:', error);
+        console.log('[StoreContext][submitToClientWithOutput:error]', {
+          candidateId,
+          jobId,
+          error,
+        });
         return null;
       }
     },
@@ -160,36 +219,109 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const submitToClientWithOutput = useCallback(
-    async (
-      candidateId: string,
-      jobId: string,
-      output: SubmissionOutput
-    ): Promise<Submission | null> => {
-      try {
-        const result = await upsertSubmissionDB({
-          candidate_id: candidateId,
-          job_id: jobId,
-          submission_stage: 'submitted_to_client',
-          submission_summary: output.submission_summary,
-          submission_strengths: output.submission_strengths,
-          submission_concerns: output.submission_concerns,
-          submission_full_text: output.submission_full_text,
-          submission_generated_at: output.submission_generated_at,
-        });
+  const resetSubmissionToStage = useCallback(async (
+    submissionId: string,
+    stage: SubmissionStage
+  ): Promise<Submission | null> => {
+    try {
+      const result = await updateSubmissionStage(submissionId, stage);
+      const submission = result as Submission;
 
-        setSubmissions(prev =>
-          mergeSubmission(prev, result as Submission, candidateId, jobId)
-        );
+      setSubmissions(prev =>
+        mergeSubmission(prev, submission, submission.candidate_id, submission.job_id)
+      );
 
-        return result as Submission;
-      } catch (error) {
-        console.error('[submitToClientWithOutput] error:', error);
-        return null;
-      }
-    },
-    []
-  );
+      return submission;
+    } catch (error) {
+      console.error('[resetSubmissionToStage] error:', error);
+      return null;
+    }
+  }, []);
+
+  const deleteSubmissionById = useCallback(async (submissionId: string): Promise<boolean> => {
+    try {
+      await deleteSubmission(submissionId);
+      setSubmissions(prev => removeSubmission(prev, submissionId));
+      return true;
+    } catch (error) {
+      console.error('[deleteSubmissionById] error:', error);
+      return false;
+    }
+  }, []);
+
+  const resetSubmissionsForJob = useCallback(async (
+    jobId: string,
+    stage: SubmissionStage
+  ): Promise<Submission[]> => {
+    try {
+      const result = await bulkResetSubmissionsForJob(jobId, stage);
+      const updated = result as Submission[];
+
+      setSubmissions(prev => {
+        let next = prev;
+        for (const submission of updated) {
+          next = mergeSubmission(next, submission, submission.candidate_id, submission.job_id);
+        }
+        return next;
+      });
+
+      return updated;
+    } catch (error) {
+      console.error('[resetSubmissionsForJob] error:', error);
+      return [];
+    }
+  }, []);
+
+  const deleteSubmissionsForJob = useCallback(async (jobId: string): Promise<number> => {
+    try {
+      const deletedCount = submissions.filter(s => s.job_id === jobId).length;
+      await bulkDeleteSubmissionsForJob(jobId);
+      setSubmissions(prev => prev.filter(s => s.job_id !== jobId));
+
+      return deletedCount;
+    } catch (error) {
+      console.error('[deleteSubmissionsForJob] error:', error);
+      return 0;
+    }
+  }, [submissions]);
+
+  const moveSubmissionStage = useCallback(async (
+    submissionId: string,
+    stage: SubmissionStage
+  ): Promise<Submission | null> => {
+    try {
+      const result = await updateSubmissionStage(submissionId, stage);
+      const submission = result as Submission;
+
+      setSubmissions(prev =>
+        mergeSubmission(prev, submission, submission.candidate_id, submission.job_id)
+      );
+
+      return submission;
+    } catch (error) {
+      console.error('[moveSubmissionStage] error:', error);
+      return null;
+    }
+  }, []);
+
+  const updateSubmissionInStore = useCallback(async (
+    submissionId: string,
+    stage: SubmissionStage
+  ): Promise<Submission | null> => {
+    try {
+      const result = await updateSubmissionStage(submissionId, stage);
+      const submission = result as Submission;
+
+      setSubmissions(prev =>
+        mergeSubmission(prev, submission, submission.candidate_id, submission.job_id)
+      );
+
+      return submission;
+    } catch (error) {
+      console.error('[updateSubmissionInStore] error:', error);
+      return null;
+    }
+  }, []);
 
   return (
     <StoreContext.Provider
@@ -200,7 +332,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         getStage,
         getSubmission,
         shortlist,
-        sendToBdReview,
+        resetSubmissionToStage,
+        deleteSubmissionById,
+        resetSubmissionsForJob,
+        deleteSubmissionsForJob,
+        moveSubmissionStage,
+        updateSubmissionInStore,
         approveAndSubmitToClient,
         submitToClient,
         submitToClientWithOutput,
