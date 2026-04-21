@@ -80,6 +80,35 @@ function formatStageLabel(stage: SubmissionStage): string {
   }
 }
 
+function getRecommendedAction(
+  stage: SubmissionStage,
+  urgency: 'overdue' | 'today' | 'upcoming' | null
+): string {
+  if (urgency === 'overdue') return 'Follow up overdue';
+  if (urgency === 'today') return 'Follow up today';
+
+  switch (stage) {
+    case 'new':
+      return 'Review match';
+    case 'shortlisted':
+      return 'Submit to client';
+    case 'ready_for_bd_review':
+      return 'BD review';
+    case 'submitted_to_client':
+      return 'Chase client feedback';
+    case 'interview':
+      return 'Prepare candidate / confirm schedule';
+    case 'offer':
+      return 'Close offer';
+    case 'rejected':
+      return 'Archive / reset if needed';
+    case 'hired':
+      return 'Confirm placement';
+    default:
+      return 'Review next step';
+  }
+}
+
 export default function Pipeline() {
   const {
     submissions,
@@ -248,6 +277,7 @@ export default function Pipeline() {
                   const jobContext = jobMap.get(sub.job_id);
                   const jobTitle = jobContext?.job_title ?? `Job ${sub.job_id}`;
                   const urgency = getDateUrgency(sub.next_action_date);
+                  const recommendedAction = getRecommendedAction(sub.submission_stage, urgency);
                   const submissionBusy = !!busy[sub.id];
                   const noteValue = noteDrafts[sub.id] ?? sub.notes ?? '';
                   const resetOptions = getResetOptions(sub.submission_stage);
@@ -282,6 +312,9 @@ export default function Pipeline() {
                         <p className="text-xs text-gray-500 truncate">{jobTitle}</p>
                         <p className={`text-xs font-semibold flex-shrink-0 ml-1 ${scoreColor(card.score)}`}>{card.score}</p>
                       </div>
+                      <p className="mt-1 pl-8 text-[10px] font-semibold text-gray-600">
+                        <span className="text-gray-400 font-medium">Recommended:</span> {recommendedAction}
+                      </p>
                       {!isResolvedCandidate && (
                         <p className="mt-1 pl-8 text-[10px] text-gray-400 truncate">ID: {sub.candidate_id}</p>
                       )}

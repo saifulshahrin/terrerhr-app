@@ -264,3 +264,423 @@ Finish approved live-candidate workflow iteration in approved scope only:
   - the likely remaining issue is backend/studio layer visibility confusion between scraped rows and manual-intake rows, not a failed canonical insert
 - applied one minimal traceability tweak in `src/lib/jobs.ts`:
   - logs now explicitly name `public.jobs` and `public.jobs_intake` on save
+
+## Active Jobs vs Hiring Intelligence UI Separation
+- implemented UI-level separation using the existing `jobs.source` field only
+- chose the minimal toggle approach inside `src/pages/Jobs.tsx` instead of adding a new route/page
+- Jobs page now has two views:
+  - Active Jobs: `source === 'manual_intake'`
+  - Hiring Intelligence: `source !== 'manual_intake'`
+- Active Jobs is the default view for recruiter execution
+- both views reuse the existing card layout, urgency logic, metrics lookup, and `View Top Matches` job-id handoff
+- Dashboard recruiter-facing job summaries now filter to manual-intake active jobs in `src/lib/dashboardData.ts`
+- no schema changes were made
+- no changes were made to Top Matches, submissions, or Pipeline logic
+- live backend count check:
+  - Active Jobs / manual intake: 7
+  - Hiring Intelligence / scraped: 1808
+- validation:
+  - `npm run typecheck` still reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Recruiter Loop Validation After Transitional Job Split
+- preserved the `source` split as UI-only transitional logic:
+  - `manual_intake` is only a temporary proxy for recruiter-operational jobs
+  - non-manual sources remain Hiring Intelligence / market radar
+- did not push this assumption into Top Matches, submissions, or Pipeline workflow logic
+- inspected the recruiter loop:
+  - Job Intake creates `source = manual_intake`
+  - Jobs defaults to Active Jobs and filters `source === 'manual_intake'`
+  - `View Top Matches` still passes the canonical `jobs.id`
+  - Top Matches resolves that id through `getJobById(...)`
+  - shortlist and submit still write submissions against the same `job_id`
+  - Pipeline still renders from submissions, not from the Jobs page filter
+- applied one minimal cleanliness fix:
+  - `TopMatches` no longer renders an empty status pill when the live `jobs` row has no `status` column
+- live write-path validation passed:
+  - active job:
+    - `id = 4e6b5bbc-1cfa-4e13-a65e-b5d76f672068`
+    - `job_title = Medical Officer`
+    - `source = manual_intake`
+  - candidate:
+    - `candidate_id = 005f0ec2-31d3-436c-8307-a57a2e5c955f`
+  - submission:
+    - `id = e88b872c-c472-4f8b-b97e-a708de90aacc`
+    - advanced from `shortlisted` to `submitted_to_client`
+    - read back successfully from Supabase
+- validation note:
+  - this live validation intentionally created/updated one submission row for testing
+  - `npm run typecheck` still reports only the unrelated pre-existing `Dashboard.tsx` unused `isAdmin` error
+
+## Active Jobs Recommended Next Step
+- implemented a targeted Active Jobs card clarity improvement in `src/pages/Jobs.tsx`
+- replaced generic Active Jobs card wording:
+  - from `Next Action`
+  - to `Recommended`
+- recommendation rules now derive from existing card data only:
+  - overdue -> `Follow up overdue`
+  - due today -> `Follow up today`
+  - zero candidates -> `Review matches`
+  - candidates but zero shortlisted -> `Shortlist candidates`
+  - candidates and shortlisted -> `Progress pipeline`
+  - fallback -> `Review matches`
+- preserved the existing urgency pill
+- preserved next-action date context as secondary text when available
+- kept Hiring Intelligence display behavior unchanged:
+  - it still uses `Next Action`
+- no changes were made to schema, routes, Top Matches, submissions, or Pipeline logic
+- validation:
+  - `npm run typecheck` still reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Pipeline Recommended Action
+- implemented a targeted Pipeline card clarity improvement in `src/pages/Pipeline.tsx`
+- added a per-submission `Recommended` label derived from existing state only
+- recommendation rules:
+  - overdue next action -> `Follow up overdue`
+  - due today -> `Follow up today`
+  - `new` -> `Review match`
+  - `shortlisted` -> `Submit to client`
+  - `ready_for_bd_review` -> `BD review`
+  - `submitted_to_client` -> `Chase client feedback`
+  - `interview` -> `Prepare candidate / confirm schedule`
+  - `offer` -> `Close offer`
+  - `rejected` -> `Archive / reset if needed`
+  - `hired` -> `Confirm placement`
+- preserved existing stage columns, dates, card data, buttons, and admin controls
+- no write logic, schema, routes, or submission stage semantics changed
+- validation:
+  - `npm run typecheck` still reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Pipeline Recommended Action Language Review
+- reviewed Pipeline recommendation wording for role-boundary accuracy only
+- confirmed current recruiter action wiring:
+  - Pipeline shortlisted cards call `submitToClientWithOutput(...)`
+  - `StoreContext.submitToClientWithOutput(...)` writes `submission_stage: 'submitted_to_client'`
+  - Top Matches uses the same submit-to-client path
+- conclusion:
+  - no wording correction is needed for `shortlisted -> Submit to client`
+  - relabeling this to `Send to BD review` would be inaccurate for the current validated flow
+- kept `ready_for_bd_review -> BD review` because that stage still exists for historical/admin/BD review records
+- no code changes were made during this wording review
+
+## Terrer AI Review Decision Layer
+- upgraded Terrer AI Review output clarity with a top-level `decision`
+- supported decisions:
+  - `Proceed`
+  - `Review`
+  - `Reject`
+- decision is derived from existing candidate/job signals only:
+  - role alignment
+  - skills relevance
+  - experience/profile match using the existing score signal
+- aligned recommendation labels to decision:
+  - `Proceed` -> `Strong Fit`
+  - `Review` -> `Potential Fit`
+  - `Reject` -> `Low Fit`
+- updated generated summaries to be more decisive:
+  - proceed language explicitly says the candidate should move forward
+  - review language says the candidate needs validation before progressing
+  - reject language says the candidate should not progress at this stage
+- updated Terrer AI Review panel to show `Decision` without changing the overall panel structure
+- preserved old saved assessment compatibility:
+  - older `Weak Fit` rows are normalized to `Low Fit` when loaded into the review panel
+  - dashboard and BD queue styling still handles both `Low Fit` and historical `Weak Fit`
+- no schema changes were made
+- validation:
+  - `npm run typecheck` still reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Terrer AI Review Calibration
+- applied the smallest targeted calibration fix in `src/lib/terrerAI.ts`
+- changed only:
+  - `experienceMatch` threshold from `score >= 80` to `score >= 70`
+- reran the same 3-case QA:
+  - poor fit:
+    - Senior Backend Engineer vs Graphic Designer
+    - remains `Reject` / `Low Fit`
+  - borderline fit:
+    - Product Manager vs Business Analyst
+    - moved to `Review` / `Potential Fit`
+  - strong fit:
+    - Senior Backend Engineer vs Senior Backend Engineer
+    - remains `Proceed` / `Strong Fit`
+- no schema, UI, or decision-mapping changes were made in this calibration pass
+- validation:
+  - `npm run typecheck` still reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Terrer AI Review Workflow Validation
+- ran a focused workflow validation using one active job and multiple live candidates
+- active job used:
+  - `Senior Backend Engineer`
+  - `job_id = 420abd7b-653e-46d1-bdc9-3cf8a5394655`
+- path reviewed:
+  - Top Matches
+  - Terrer AI Review
+  - shortlist / submit decision context
+  - Pipeline implication
+- candidates reviewed:
+  - `huseinzol05` / Software Data Engineer -> `Review` / `Potential Fit`
+  - `LeeSzeYuan` / Software Data Engineer -> `Review` / `Potential Fit`
+  - `Laikaiyong` / Software Data Engineer -> `Review` / `Potential Fit`
+  - `Shamim-Al-Mamun` / Software Data Engineer -> `Review` / `Potential Fit`
+  - `crynobone` / Web Developer -> `Reject` / `Low Fit`
+- workflow assessment:
+  - `Review` feels natural for software/data candidates with relevant skills but weak score/location confidence
+  - `Reject` feels natural for a weaker web developer fit against Senior Backend Engineer
+  - collapsed review placement is useful because decision is visible before recruiter action buttons
+  - summary tone is decisive enough to support recruiter judgment
+- recommendation:
+  - keep Terrer AI Review advisory only for now
+  - do not disable Shortlist or Submit buttons based on `decision` yet
+  - reason: current live data still has mixed score scales and imperfect job location parsing, so hard-gating would risk blocking valid recruiter judgment
+- friction noted:
+  - some job location text is messy from intake parsing, which can create noisy location concerns
+  - this is not a Terrer AI Review decision-layer bug and should be handled separately if prioritized
+- no code changes were made during this workflow validation
+
+## Terrer AI Review Role Constraint Gate
+- added a lightweight role-constraint layer inside `src/lib/terrerAI.ts`
+- implemented the first regulated-role case:
+  - Medical Officer (Malaysia)
+- gating now runs before the existing AI-style review reasoning
+- Medical Officer reviews now require detectable evidence of:
+  - medical or clinical background
+  - housemanship or house officer experience
+  - MMC registration or equivalent medical registration signal
+  - APC or active medical licensing indicator
+- if a Medical Officer constraint fails:
+  - decision returns immediately as `Reject`
+  - recommendation returns as `Low Fit`
+  - summary names the missing Malaysian medical/regulatory requirements
+  - strengths are intentionally empty, preventing unrelated strengths like programming skills from leaking into the review
+- if Medical Officer constraints pass:
+  - the existing review logic continues normally
+  - non-medical skills are filtered out of fallback skill reasoning for that regulated role
+- no UI, schema, submission, or workflow write logic was changed
+- focused QA cases passed:
+  - software candidate vs Medical Officer -> `Reject` / `Low Fit`, no strengths, missing medical/MMC/APC requirements shown
+  - partial clinical candidate missing housemanship/MMC/APC -> `Reject` / `Low Fit`
+  - credentialed Medical Officer candidate with MBBS, housemanship, MMC, and APC -> normal reasoning, `Proceed` / `Strong Fit`
+  - non-medical Senior Backend Engineer case -> unchanged normal reasoning, `Proceed` / `Strong Fit`
+- validation:
+  - `npm run typecheck` still reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Top Matches Job-Level Supply Assessment
+- added a job-level supply assessment layer in `src/pages/TopMatches.tsx`
+- this is a decision-support aggregation layer only; it does not change candidate-level Terrer AI Review logic
+- Top Matches now counts loaded Terrer AI Review decisions for the selected job:
+  - `Proceed`
+  - `Review`
+  - `Reject`
+- supply status rules:
+  - `Proceed + Review === 0` -> `No viable candidates`
+  - `Proceed > 0` -> `Strong supply`
+  - otherwise -> `Limited supply`
+- added a compact supply panel above the candidate list showing:
+  - supply status
+  - short explanation of the candidate availability situation
+  - Proceed / Review / Reject counts
+- no schema, candidate review logic, submission logic, or page routing changed
+- validation:
+  - `npm run typecheck` still reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Terrer AI Review Weak-Alignment Credibility Fix
+- fixed a credibility issue in `src/lib/terrerAI.ts`
+- root cause:
+  - generic strengths were added from score/location/skill-count signals even when title alignment was clearly weak
+  - fallback skill relevance could also keep an irrelevant candidate at `Review`
+- applied minimal targeted fix:
+  - when `alignment === 'weak'`, generated strengths are cleared before return
+  - fallback skill relevance now requires role alignment
+  - weak-alignment candidates remain concern-led instead of showing unrelated positives
+- no schema, UI, persistence, or broad review architecture changes were made
+- focused QA passed:
+  - Legal Counsel vs Senior Backend Engineer -> `Reject` / `Low Fit`, no strengths
+  - Medical Officer vs Senior Backend Engineer -> `Reject` / `Low Fit`, no strengths
+  - Senior Backend Engineer vs Senior Backend Engineer -> `Proceed` / `Strong Fit`, strengths still appear
+- validation:
+  - `npm run typecheck` still reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Top Matches No-Viable Supply State
+- implemented Option B behavior in `src/pages/TopMatches.tsx`
+- when supply assessment is `No viable candidates` after at least one Terrer AI Review exists:
+  - candidate cards are hidden
+  - candidate names are hidden
+  - shortlist / submit actions tied to those cards are hidden
+  - the selected job context and supply assessment block remain visible
+- the supply assessment message includes the call to action:
+  - `Try sourcing new candidates or refine job requirements`
+- fresh jobs with zero completed reviews remain reviewable so recruiters can still run Terrer AI Review
+- tightened non-AI card strengths:
+  - card-level location / score / skill positives now only appear when the candidate role matches the job role
+  - weak-alignment cards show `No specific strengths identified` instead of cosmetic positives if they remain visible in other states
+- no schema, Gemini integration, decision logic, or broad UI redesign was introduced
+- validation:
+  - Medical Officer vs software-only reviewed pool will hide candidate cards after reviews return only `Reject`
+  - Legal role vs software-only reviewed pool will hide candidate cards after reviews return only `Reject`
+  - relevant tech roles with `Proceed` or `Review` supply still render candidate cards normally
+  - `npm run typecheck` still reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Top Matches Strict No-Viable Rendering Fix
+- corrected the no-viable supply UI guard in `src/pages/TopMatches.tsx`
+- previous behavior kept candidate cards visible when `No viable candidates` had zero completed reviews
+- new behavior is strict:
+  - if supply status is `No viable candidates`, candidate cards do not render
+  - candidate names do not render
+  - shortlist / submit actions do not render
+  - the submission modal path does not render
+- selected job context, supply assessment message, and sourcing/refinement CTA remain visible
+- validation:
+  - static check confirms the only `ranked.map(...)` candidate card block is behind `!isNoViableCandidates`
+  - `npm run typecheck` still reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Top Matches No-Viable CTA
+- added one actionable next step to the `No viable candidates` supply state in `src/pages/TopMatches.tsx`
+- final button label:
+  - `Source Candidates`
+- current behavior:
+  - uses existing app navigation to Candidates
+  - passes selected job context for sourcing
+  - no new route, backend logic, schema change, or AI logic change was added
+- candidate cards/actions remain hidden in the no-viable state
+- validation:
+  - static check confirms there is no remaining `Find Candidates` action in Top Matches
+  - `Source Candidates` appears only when `isNoViableCandidates`
+  - `npm run typecheck` still reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Top Matches Candidate Sourcing Handoff
+- connected the no-viable supply state to a lightweight candidate sourcing flow
+- changed the no-viable CTA from `Find Candidates` to `Source Candidates`
+- `Source Candidates` now captures selected-job context:
+  - job title as `role`
+  - up to five required job requirements as `skills`
+- extended the existing in-memory app navigation state in `src/App.tsx` with optional `sourcingContext`
+- `Candidates` now accepts optional sourcing context and displays:
+  - `Sourcing candidates for: [Job Title]`
+  - `Key skills: ...` when requirements are available
+- no backend sourcing automation, schema changes, AI logic changes, or routing overhaul were added
+- validation:
+  - static trace confirms `TopMatches -> App nav state -> Candidates` context handoff
+  - `npm run typecheck` still reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Skill Match 400 Error Fix After Source Candidates
+- investigated console 400s seen after using the Top Matches `Source Candidates` flow
+- confirmed Candidates page itself does not call `skillMatch`
+- exact failing requests were still in the Top Matches enrichment path:
+  - `job_requirements.select('job_id, requirement, required')`
+  - `candidate_skills.select('candidate_id, skill, proficiency')`
+- live Supabase returned 400 because those columns do not exist in the current live schema:
+  - `job_requirements.requirement` does not exist
+  - `candidate_skills.skill` does not exist
+- live schema uses:
+  - `job_requirements`: `job_id`, `skill_name`, `requirement_type`
+  - `candidate_skills`: `candidate_id`, `skill_id`, `proficiency_score`
+  - `skills`: `skill_id`, `skill_name`
+- applied minimal fix in `src/lib/skillMatch.ts`:
+  - `fetchJobRequirements(...)` now selects `job_id, skill_name, requirement_type`
+  - maps `skill_name` -> existing app `requirement`
+  - maps `requirement_type === 'must_have'` -> existing app `required`
+  - `fetchCandidateSkills(...)` now selects `candidate_id, proficiency_score, skills(skill_name)`
+  - maps joined `skills.skill_name` -> existing app `skill`
+- no flow redesign, schema change, backend change, or Source Candidates behavior change was made
+- impact:
+  - this was background Top Matches skill-overlap enrichment
+  - when broken, Top Matches still loaded candidates but structured skill matching / requirement badges / match-score bonus were degraded
+- validation:
+  - old live queries reproduced 400s with missing-column errors
+  - new live queries return 200 from Supabase
+  - `src/lib/skillMatch.ts` transpiles successfully
+  - `npm run typecheck` still reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Role Title Normalization Layer
+- added a lightweight app-layer normalization helper in `src/lib/roleNormalization.ts`
+- no schema, AI dependency, backend change, charting, or Hiring Intelligence UI change was introduced
+- exported outputs for each title:
+  - `raw_job_title`
+  - `normalized_job_title`
+  - `role_family`
+  - `seniority`
+- exported helpers:
+  - `normalizeRoleTitle(rawTitle)`
+  - `normalizeJobTitles(jobs)`
+  - `deriveSeniorityFromTitle(title)`
+- initial mapping set reflects the current scraped-title sample:
+  - Software Engineer
+  - Frontend Engineer
+  - Data Analyst
+  - Data Scientist
+  - Product Manager
+  - Technical Program Manager
+  - Project Engineer
+  - Technical Support Analyst
+  - Enterprise Architect
+  - Legal Associate / Junior Lawyer
+  - Relationship Manager
+  - Personal Banker
+  - Customer Service / Operations Executive
+  - Business Banking Executive
+  - Branch Manager
+  - Compliance / Risk Analyst
+  - Finance / Accounting Analyst
+  - Supply Chain / Logistics Analyst
+  - Sales / Commercial Manager
+- seniority detection currently supports:
+  - Intern
+  - Junior
+  - Mid-level
+  - Senior
+  - Lead
+  - Manager
+  - Head / Director
+  - Executive
+  - Vice President
+  - Not specified
+- validated against representative current scraped titles:
+  - `Executive - Business Channel (Operations & Customer Service)` -> `Customer Service / Operations Executive`
+  - `Branch Manager` -> `Branch Manager`
+  - `Executive - Business Channels (Personal Banker Associate)` -> `Personal Banker`
+  - `Wealth Relationship Manager` -> `Relationship Manager`
+  - `SeniorTechnical Program Manager` -> `Technical Program Manager`
+  - `Backend Developer` -> `Software Engineer`
+  - `UI Developer` -> `Frontend Engineer`
+  - `Business Intelligence Analyst` -> `Data Analyst`
+- intended Hiring Intelligence consumption next:
+  - fetch scraped/non-manual jobs
+  - run `normalizeJobTitles(scrapedJobs)` before aggregation
+  - group demand by `normalized_job_title`, then `role_family`, then `seniority`
+  - keep `raw_job_title` available for drill-down examples and QA
+- validation:
+  - local smoke test confirms representative titles normalize as expected
+  - `npm run typecheck` still reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Hiring Intelligence Summary Layer
+- transformed the Hiring Intelligence tab in `src/pages/Jobs.tsx` from a raw scraped-jobs-first list into a BD-facing summary layer
+- no schema, backend, AI dependency, route, Top Matches, submission, or Pipeline changes were made
+- existing non-manual jobs are still fetched through the existing Jobs page data path
+- Hiring Intelligence now runs non-manual jobs through `normalizeJobTitles(...)` before aggregation
+- added three summary cards above the raw drill-down list:
+  - `Top Hiring Companies`
+  - `Top Roles in Demand`
+  - `Role Families`
+- each summary card sorts demand signals by descending count with alphabetical tie-breaks
+- clicking a company, normalized role, or role family filters the raw scraped jobs drill-down below
+- raw scraped jobs remain visible as a secondary drill-down with normalized role, role-family, and seniority badges
+- Active Jobs behavior remains unchanged:
+  - still defaults to manual-intake recruiter jobs
+  - still shows recruiter-facing `Recommended` next step
+  - still preserves the existing `View Top Matches` handoff
+- validation:
+  - `npm run typecheck` still reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`

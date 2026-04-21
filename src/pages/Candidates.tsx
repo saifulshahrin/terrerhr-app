@@ -34,7 +34,14 @@ const scoreBg = (s: number) =>
 const initials = (name: string) =>
   name.split(' ').map(n => n[0]).join('').toUpperCase();
 
-export default function Candidates() {
+interface Props {
+  sourcingContext?: {
+    role: string;
+    skills: string[];
+  };
+}
+
+export default function Candidates({ sourcingContext }: Props) {
   const { getStage } = useStore();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +87,22 @@ export default function Candidates() {
           + Add Candidate
         </button>
       </div>
+
+      {sourcingContext && (
+        <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50 p-4">
+          <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
+            Candidate Sourcing
+          </p>
+          <p className="text-sm text-blue-900 mt-1">
+            Sourcing candidates for: <span className="font-semibold">{sourcingContext.role}</span>
+          </p>
+          {sourcingContext.skills.length > 0 && (
+            <p className="text-xs text-blue-700 mt-2">
+              Key skills: {sourcingContext.skills.join(', ')}
+            </p>
+          )}
+        </div>
+      )}
 
       {loading && (
         <div className="bg-white rounded-xl border border-gray-200 p-6 text-sm text-gray-500">

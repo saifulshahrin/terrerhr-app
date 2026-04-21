@@ -7,7 +7,7 @@ import { useRole } from '../store/RoleContext';
 import type { Candidate } from '../store/types';
 import type { SubmissionStage } from '../store/types';
 import { generateTerrerAIReview } from '../lib/terrerAI';
-import type { TerrerAIReview } from '../lib/terrerAI';
+import type { Decision, TerrerAIReview } from '../lib/terrerAI';
 import TerrerAIReviewPanel from '../components/TerrerAIReviewPanel';
 import SubmissionModal from '../components/SubmissionModal';
 import { fetchAssessmentsForJob, upsertAssessment, rowToReview } from '../lib/aiAssessments';
@@ -25,7 +25,7 @@ interface Job {
   job_title: string;
   company_name: string;
   location: string;
-  status: string;
+  status?: string;
 }
 
 interface RankedCandidate extends Candidate {
@@ -38,9 +38,19 @@ interface RankedCandidate extends Candidate {
   skillBonus: number;
 }
 
+type SupplyStatus = 'No viable candidates' | 'Strong supply' | 'Limited supply';
+
+interface SupplyAssessment {
+  proceed: number;
+  review: number;
+  reject: number;
+  total: number;
+  status: SupplyStatus;
+}
+
 interface Props {
   jobId?: string;
-  onNavigate: (page: string, jobId?: string) => void;
+  onNavigate: (page: string, jobId?: string, sourcingContext?: { role: string; skills: string[] }) => void;
 }
 
 const avatarColors: string[] = [
@@ -72,6 +82,12 @@ const STAGE_STYLE: Partial<Record<SubmissionStage, string>> = {
   offer: 'bg-emerald-50 text-emerald-700',
   rejected: 'bg-red-50 text-red-700',
   hired: 'bg-green-50 text-green-700',
+};
+
+const SUPPLY_STYLE: Record<SupplyStatus, string> = {
+  'No viable candidates': 'bg-red-50 text-red-700 border-red-100',
+  'Strong supply': 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  'Limited supply': 'bg-amber-50 text-amber-700 border-amber-100',
 };
 
 const matchConfig = (score: number) => {
@@ -154,6 +170,20 @@ function rankCandidates(
       };
     })
     .sort((a, b) => b.matchScore - a.matchScore);
+}
+
+function deriveSupplyStatus(proceed: number, review: number): SupplyStatus {
+  if (proceed + review === 0) return 'No viable candidates';
+  if (proceed > 0) return 'Strong supply';
+  return 'Limited supply';
+}
+
+function getSourcingSkills(jobRequirements: JobRequirementRow[]): string[] {
+  return jobRequirements
+    .filter(req => req.required)
+    .map(req => req.requirement)
+    .filter(Boolean)
+    .slice(0, 5);
 }
 
 export default function TopMatches({ jobId, onNavigate }: Props) {
@@ -287,6 +317,37 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
     if (!job) return 0;
     return submissions.filter(s => s.job_id === job.id).length;
   }, [job, submissions]);
+
+  const supplyAssessment = useMemo<SupplyAssessment>(() => {
+    const counts: Record<Decision, number> = {
+      Proceed: 0,
+      Review: 0,
+      Reject: 0,
+    };
+
+    if (!job) {
+      return {
+        proceed: 0,
+        review: 0,
+        reject: 0,
+        total: 0,
+        status: 'No viable candidates',
+      };
+    }
+
+    for (const [key, review] of Object.entries(reviews)) {
+      if (!key.endsWith(`-${job.id}`)) continue;
+      counts[review.decision] += 1;
+    }
+
+    return {
+      proceed: counts.Proceed,
+      review: counts.Review,
+      reject: counts.Reject,
+      total: counts.Proceed + counts.Review + counts.Reject,
+      status: deriveSupplyStatus(counts.Proceed, counts.Review),
+    };
+  }, [job, reviews]);
 
   const handle = async (key: string, fn: () => Promise<void>) => {
     console.log('[TopMatches][action:handle:start]', { key });
@@ -457,6 +518,7 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
   }
 
   const hasStructuredRequirements = jobRequirements.length > 0;
+  const isNoViableCandidates = supplyAssessment.status === 'No viable candidates';
 
   return (
     <div>
@@ -490,15 +552,17 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
             </span>
           )}
 
-          <span
-            className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-              job.status === 'Open'
-                ? 'bg-green-100 text-green-700'
-                : 'bg-gray-100 text-gray-500'
-            }`}
-          >
-            {job.status}
-          </span>
+          {job.status && (
+            <span
+              className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                job.status === 'Open'
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-gray-100 text-gray-500'
+              }`}
+            >
+              {job.status}
+            </span>
+          )}
 
           {hasStructuredRequirements && (
             <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
@@ -564,18 +628,57 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
         )}
       </div>
 
-      <SubmissionModal
-        open={modalOpen}
-        candidate={modalCandidate}
-        job={job}
-        output={modalOutput}
-        onClose={() => setModalOpen(false)}
-        onSend={handleModalSend}
-        sending={modalSending}
-      />
+      <div className={`mb-6 rounded-xl border p-4 ${SUPPLY_STYLE[supplyAssessment.status]}`}>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide">Supply Assessment</p>
+            <p className="text-base font-semibold mt-1">{supplyAssessment.status}</p>
+            <p className="text-sm mt-1 opacity-90">
+              {supplyAssessment.status === 'No viable candidates'
+                ? supplyAssessment.total === 0
+                  ? 'No Terrer AI Reviews have identified viable candidates for this job yet. Try sourcing new candidates or refine job requirements.'
+                  : 'Terrer AI Review has not found any Proceed or Review candidates for this job. Try sourcing new candidates or refine job requirements.'
+                : supplyAssessment.status === 'Strong supply'
+                  ? 'At least one candidate is ready to progress based on Terrer AI Review decisions.'
+                  : 'There are candidates worth reviewing, but no clear Proceed decision yet.'}
+            </p>
+            {isNoViableCandidates && (
+              <button
+                onClick={() =>
+                  onNavigate('candidates', undefined, {
+                    role: job.job_title,
+                    skills: getSourcingSkills(jobRequirements),
+                  })
+                }
+                className="mt-3 inline-flex items-center px-3 py-1.5 text-xs font-semibold text-red-700 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+              >
+                Source Candidates
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-xs font-semibold">
+            <span className="rounded-full bg-white/70 px-2.5 py-1">Proceed {supplyAssessment.proceed}</span>
+            <span className="rounded-full bg-white/70 px-2.5 py-1">Review {supplyAssessment.review}</span>
+            <span className="rounded-full bg-white/70 px-2.5 py-1">Reject {supplyAssessment.reject}</span>
+          </div>
+        </div>
+      </div>
 
-      <div className="space-y-4">
-        {ranked.map((m, i) => {
+      {!isNoViableCandidates && (
+        <SubmissionModal
+          open={modalOpen}
+          candidate={modalCandidate}
+          job={job}
+          output={modalOutput}
+          onClose={() => setModalOpen(false)}
+          onSend={handleModalSend}
+          sending={modalSending}
+        />
+      )}
+
+      {!isNoViableCandidates && (
+        <div className="space-y-4">
+          {ranked.map((m, i) => {
           const mc = matchConfig(m.matchScore);
           const submission = getSubmission(m.id, job.id);
           const stage = (submission?.submission_stage as SubmissionStage) ?? 'new';
@@ -612,17 +715,19 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
           const strengths: string[] = [];
           const gaps: string[] = [];
 
-          if (m.roleMatch) strengths.push(`Role matches "${job.job_title}"`);
-          if (m.locationMatch) strengths.push(`Location matches "${job.location}"`);
-          if (m.score >= 90) strengths.push('High overall candidate score');
-          else if (m.score >= 80) strengths.push('Strong overall candidate score');
+          if (m.roleMatch) {
+            strengths.push(`Role matches "${job.job_title}"`);
+            if (m.locationMatch) strengths.push(`Location matches "${job.location}"`);
+            if (m.score >= 90) strengths.push('High overall candidate score');
+            else if (m.score >= 80) strengths.push('Strong overall candidate score');
 
-          if (m.matchedSkills.length > 0) {
-            strengths.push(
-              `Skills matched: ${m.matchedSkills.slice(0, 3).join(', ')}${
-                m.matchedSkills.length > 3 ? ` +${m.matchedSkills.length - 3} more` : ''
-              }`
-            );
+            if (m.matchedSkills.length > 0) {
+              strengths.push(
+                `Skills matched: ${m.matchedSkills.slice(0, 3).join(', ')}${
+                  m.matchedSkills.length > 3 ? ` +${m.matchedSkills.length - 3} more` : ''
+                }`
+              );
+            }
           }
 
           if (!m.roleMatch) gaps.push('Role title differs from job requirement');
@@ -861,8 +966,9 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
               </div>
             </div>
           );
-        })}
-      </div>
+          })}
+        </div>
+      )}
     </div>
   );
 }

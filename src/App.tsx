@@ -13,9 +13,15 @@ import { RoleProvider, useRole } from './store/RoleContext';
 
 type Page = 'dashboard' | 'jobs' | 'candidates' | 'pipeline' | 'top-matches' | 'job-intake' | 'bd-queue';
 
+interface SourcingContext {
+  role: string;
+  skills: string[];
+}
+
 interface NavState {
   page: Page;
   jobId?: string;
+  sourcingContext?: SourcingContext;
 }
 
 function AppShell() {
@@ -26,15 +32,15 @@ function AppShell() {
     return <LoginScreen onSelect={setRole} />;
   }
 
-  function navigate(page: string, jobId?: string) {
-    setNav({ page: page as Page, jobId });
+  function navigate(page: string, jobId?: string, sourcingContext?: SourcingContext) {
+    setNav({ page: page as Page, jobId, sourcingContext });
   }
 
-  function renderPage({ page, jobId }: NavState) {
+  function renderPage({ page, jobId, sourcingContext }: NavState) {
     switch (page) {
       case 'dashboard':   return <Dashboard />;
       case 'jobs':        return <Jobs onViewTopMatches={(id) => navigate('top-matches', id)} />;
-      case 'candidates':  return <Candidates />;
+      case 'candidates':  return <Candidates sourcingContext={sourcingContext} />;
       case 'pipeline':    return <Pipeline />;
       case 'top-matches': return <TopMatches jobId={jobId} onNavigate={navigate} />;
       case 'job-intake':  return <JobIntake onNavigate={navigate} />;

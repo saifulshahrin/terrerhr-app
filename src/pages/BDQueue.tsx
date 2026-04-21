@@ -101,7 +101,7 @@ function ContactRow({ icon, label, value, href, copyValue }: {
 function ScoreBadge({ score, recommendation }: { score: number | null; recommendation: string | null }) {
   if (!score && !recommendation) return null;
   const isStrong = recommendation === 'Strong Fit';
-  const isWeak = recommendation === 'Weak Fit';
+  const isWeak = recommendation === 'Low Fit' || recommendation === 'Weak Fit';
   return (
     <div className={`flex items-center gap-2 px-2.5 py-1 rounded-lg border text-xs font-semibold ${
       isStrong ? 'bg-emerald-50 border-emerald-200 text-emerald-700' :

@@ -13,7 +13,13 @@ interface Props {
 const recommendationConfig: Record<Recommendation, { label: string; style: string; dot: string }> = {
   'Strong Fit':    { label: 'Strong Fit',    style: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
   'Potential Fit': { label: 'Potential Fit', style: 'bg-sky-50 text-sky-700 border-sky-200',             dot: 'bg-sky-500' },
-  'Weak Fit':      { label: 'Weak Fit',      style: 'bg-red-50 text-red-600 border-red-200',             dot: 'bg-red-400' },
+  'Low Fit':       { label: 'Low Fit',       style: 'bg-red-50 text-red-600 border-red-200',             dot: 'bg-red-400' },
+};
+
+const decisionConfig: Record<NonNullable<TerrerAIReview['decision']>, { label: string; style: string }> = {
+  Proceed: { label: 'Proceed', style: 'bg-emerald-600 text-white' },
+  Review:  { label: 'Review',  style: 'bg-sky-600 text-white' },
+  Reject:  { label: 'Reject',  style: 'bg-red-600 text-white' },
 };
 
 function formatTime(iso: string): string {
@@ -61,6 +67,7 @@ export default function TerrerAIReviewPanel({ review, running, onRun, hasExistin
   }
 
   const rec = recommendationConfig[review!.recommendation];
+  const decision = decisionConfig[review!.decision];
 
   return (
     <div className="mt-4 rounded-xl border border-gray-200 overflow-hidden">
@@ -79,6 +86,9 @@ export default function TerrerAIReviewPanel({ review, running, onRun, hasExistin
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
+          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold ${decision.style}`}>
+            Decision: {decision.label}
+          </span>
           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${rec.style}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${rec.dot} flex-shrink-0`} />
             {rec.label}
@@ -92,6 +102,13 @@ export default function TerrerAIReviewPanel({ review, running, onRun, hasExistin
 
       {expanded && (
         <div className="bg-white px-4 pt-4 pb-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Decision</p>
+            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold ${decision.style}`}>
+              {decision.label}
+            </span>
+          </div>
+
           <div>
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Summary</p>
             <p className="text-sm text-gray-700 leading-relaxed">{review!.summary}</p>

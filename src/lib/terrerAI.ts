@@ -1,9 +1,11 @@
 import type { JobRequirementRow } from './skillMatch';
 
-export type Recommendation = 'Strong Fit' | 'Potential Fit' | 'Weak Fit';
+export type Decision = 'Proceed' | 'Review' | 'Reject';
+export type Recommendation = 'Strong Fit' | 'Potential Fit' | 'Low Fit';
 
 export interface TerrerAIReview {
   status: 'completed';
+  decision: Decision;
   summary: string;
   strengths: string[];
   concerns: string[];
@@ -28,6 +30,14 @@ export interface ReviewCandidate {
   skills: string[];
   score: number;
   structuredSkills?: string[];
+}
+
+interface RoleConstraintResult {
+  applies: boolean;
+  passed: boolean;
+  roleLabel: string;
+  missingRequirements: string[];
+  relevantSkills: string[];
 }
 
 function looseMatch(a: string, b: string): boolean {
@@ -74,15 +84,172 @@ function computeStructuredOverlap(
   return { matched, missing };
 }
 
-export function generateTerrerAIReview(candidate: ReviewCandidate, job: ReviewJob): TerrerAIReview {
-  const alignment = titleAlignment(candidate.role, job.job_title);
-  const locationFit = looseMatch(candidate.location, job.location);
-  const score = candidate.score;
+function recommendationForDecision(decision: Decision): Recommendation {
+  if (decision === 'Proceed') return 'Strong Fit';
+  if (decision === 'Review') return 'Potential Fit';
+  return 'Low Fit';
+}
 
+function hasAny(text: string, patterns: RegExp[]): boolean {
+  return patterns.some(pattern => pattern.test(text));
+}
+
+function unique(values: string[]): string[] {
+  return Array.from(new Set(values.map(value => value.trim()).filter(Boolean)));
+}
+
+function candidateEvidence(candidate: ReviewCandidate, allCandidateSkills: string[]): string {
+  return [
+    candidate.role,
+    candidate.company,
+    candidate.location,
+    ...allCandidateSkills,
+  ].join(' ').toLowerCase();
+}
+
+function isMedicalOfficerMalaysiaRole(job: ReviewJob): boolean {
+  const title = job.job_title.toLowerCase();
+  return /\bmedical officer\b/.test(title) || /\bdoctor\b/.test(title) || /\bphysician\b/.test(title);
+}
+
+function isMedicalRelevantSkill(skill: string): boolean {
+  return hasAny(skill.toLowerCase(), [
+    /\bmedical\b/,
+    /\bclinical\b/,
+    /\bdoctor\b/,
+    /\bphysician\b/,
+    /\bmbbs\b/,
+    /\bmbchb\b/,
+    /\bmedicine\b/,
+    /\bhospital\b/,
+    /\bhealthcare\b/,
+    /\bpatient\b/,
+    /\bdiagnosis\b/,
+    /\bemergency\b/,
+    /\bsurgery\b/,
+    /\bward\b/,
+    /\bclinic\b/,
+    /\bhousemanship\b/,
+    /\bhouse officer\b/,
+    /\bmmc\b/,
+    /\bapc\b/,
+    /\bpractising certificate\b/,
+    /\bpracticing certificate\b/,
+  ]);
+}
+
+function evaluateMedicalOfficerMalaysiaConstraints(
+  candidate: ReviewCandidate,
+  allCandidateSkills: string[],
+  job: ReviewJob
+): RoleConstraintResult {
+  if (!isMedicalOfficerMalaysiaRole(job)) {
+    return {
+      applies: false,
+      passed: true,
+      roleLabel: '',
+      missingRequirements: [],
+      relevantSkills: allCandidateSkills,
+    };
+  }
+
+  const evidence = candidateEvidence(candidate, allCandidateSkills);
+  const missingRequirements: string[] = [];
+  const hasMedicalBackground = hasAny(evidence, [
+    /\bmedical\b/,
+    /\bclinical\b/,
+    /\bdoctor\b/,
+    /\bphysician\b/,
+    /\bmbbs\b/,
+    /\bmbchb\b/,
+    /\bmedicine\b/,
+    /\bhospital\b/,
+    /\bhealthcare\b/,
+    /\bhouse officer\b/,
+  ]);
+  const hasHousemanship = hasAny(evidence, [
+    /\bhousemanship\b/,
+    /\bhouse officer\b/,
+    /\bhouseman\b/,
+    /\bmedical internship\b/,
+    /\bclinical internship\b/,
+    /\bclinical rotation\b/,
+  ]);
+  const hasMmcRegistration = hasAny(evidence, [
+    /\bmmc\b/,
+    /\bmalaysian medical council\b/,
+    /\bmalaysia medical council\b/,
+    /\bmedical council\b/,
+    /\bregistered medical practitioner\b/,
+    /\bfull registration\b/,
+    /\bprovisional registration\b/,
+  ]);
+  const hasApcOrLicense = hasAny(evidence, [
+    /\bapc\b/,
+    /\bannual practising certificate\b/,
+    /\bannual practicing certificate\b/,
+    /\bpractising certificate\b/,
+    /\bpracticing certificate\b/,
+    /\blicensed medical practitioner\b/,
+    /\blicensed doctor\b/,
+    /\blicence to practise\b/,
+    /\blicense to practice\b/,
+    /\bregistered to practise\b/,
+    /\bregistered to practice\b/,
+  ]);
+
+  if (!hasMedicalBackground) missingRequirements.push('medical or clinical background');
+  if (!hasHousemanship) missingRequirements.push('housemanship or house officer experience');
+  if (!hasMmcRegistration) missingRequirements.push('MMC registration or equivalent medical registration signal');
+  if (!hasApcOrLicense) missingRequirements.push('APC or active medical licensing indicator');
+
+  return {
+    applies: true,
+    passed: missingRequirements.length === 0,
+    roleLabel: 'Medical Officer (Malaysia)',
+    missingRequirements,
+    relevantSkills: unique(allCandidateSkills.filter(isMedicalRelevantSkill)),
+  };
+}
+
+function evaluateRoleConstraints(
+  candidate: ReviewCandidate,
+  allCandidateSkills: string[],
+  job: ReviewJob
+): RoleConstraintResult {
+  return evaluateMedicalOfficerMalaysiaConstraints(candidate, allCandidateSkills, job);
+}
+
+export function generateTerrerAIReview(candidate: ReviewCandidate, job: ReviewJob): TerrerAIReview {
   const allCandidateSkills = [
     ...candidate.skills,
     ...(candidate.structuredSkills ?? []),
   ];
+  const roleConstraints = evaluateRoleConstraints(candidate, allCandidateSkills, job);
+
+  // Regulated roles must pass hard constraints before softer AI-style reasoning.
+  if (roleConstraints.applies && !roleConstraints.passed) {
+    const missing = roleConstraints.missingRequirements.join(', ');
+    return {
+      status: 'completed',
+      decision: 'Reject',
+      summary: `${candidate.name} should be rejected for the ${job.job_title} role because required ${roleConstraints.roleLabel} regulatory requirements are not evidenced: ${missing}. Do not progress this candidate until these credentials are confirmed.`,
+      strengths: [],
+      concerns: roleConstraints.missingRequirements.map(
+        requirement => `Missing required regulatory requirement: ${requirement}`
+      ),
+      recommendation: 'Low Fit',
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  const reasoningSkills = roleConstraints.applies && roleConstraints.relevantSkills.length > 0
+    ? roleConstraints.relevantSkills
+    : allCandidateSkills;
+
+  const alignment = titleAlignment(candidate.role, job.job_title);
+  const locationFit = looseMatch(candidate.location, job.location);
+  const score = candidate.score;
 
   const hasStructuredData =
     (candidate.structuredSkills ?? []).length > 0 &&
@@ -144,10 +311,12 @@ export function generateTerrerAIReview(candidate: ReviewCandidate, job: ReviewJo
       strengths.push('Moderate overlap with job requirements — core skills are present with some gaps');
     }
   } else {
-    if (allCandidateSkills.length >= 4) {
-      strengths.push(`Broad skill set (${allCandidateSkills.slice(0, 3).join(', ')} and more) suggests good versatility`);
-    } else if (allCandidateSkills.length >= 2) {
-      strengths.push(`Relevant skills on profile: ${allCandidateSkills.join(', ')}`);
+    if (alignment === 'weak') {
+      concerns.push('Skills are not role-aligned enough to count as strengths for this specific job');
+    } else if (reasoningSkills.length >= 4) {
+      strengths.push(`Broad skill set (${reasoningSkills.slice(0, 3).join(', ')} and more) suggests good versatility`);
+    } else if (reasoningSkills.length >= 2) {
+      strengths.push(`Relevant skills on profile: ${reasoningSkills.join(', ')}`);
     } else {
       concerns.push('Limited skill data available — full skills assessment recommended before advancing');
     }
@@ -161,44 +330,37 @@ export function generateTerrerAIReview(candidate: ReviewCandidate, job: ReviewJo
     concerns.push('Limited evidence for direct fit — recommend additional validation before progressing');
   }
 
-  let fitPoints: number;
-
-  if (hasStructuredData) {
-    const skillPoint = structuredOverlapRatio >= 0.5 ? 1 : 0;
-    fitPoints =
-      (alignment !== 'weak' ? 1 : 0) +
-      (score >= 80 ? 1 : 0) +
-      (locationFit ? 1 : 0) +
-      skillPoint;
-  } else {
-    fitPoints =
-      (alignment !== 'weak' ? 1 : 0) +
-      (score >= 80 ? 1 : 0) +
-      (locationFit ? 1 : 0);
+  const roleAligned = alignment !== 'weak';
+  if (!roleAligned) {
+    strengths.length = 0;
   }
 
-  let recommendation: Recommendation;
+  const skillsRelevant = hasStructuredData
+    ? roleAligned && structuredOverlapRatio >= 0.4
+    : roleAligned && reasoningSkills.length >= 2;
+  const experienceMatch = score >= 70;
+  const decisionPoints = [roleAligned, skillsRelevant, experienceMatch].filter(Boolean).length;
+  const hasCriticalSkillGap = hasStructuredData && structuredMissing.length >= 3 && structuredOverlapRatio < 0.4;
+
+  let decision: Decision;
   let summary: string;
 
-  const maxFitPoints = hasStructuredData ? 4 : 3;
-  const threshold = maxFitPoints >= 4 ? 3 : 2;
-
-  if (fitPoints >= maxFitPoints) {
-    recommendation = 'Strong Fit';
-    summary = `${candidate.name} presents a compelling match for the ${job.job_title} role at ${job.company_name}. ${hasStructuredData ? `Skill overlap against the structured job requirements is strong (${structuredMatched.length} of ${(job.requirements ?? []).length} matched), and` : 'Title alignment, location, and'} overall profile indicators are positive. Recommended for immediate consideration.`;
-  } else if (fitPoints >= threshold) {
-    recommendation = 'Potential Fit';
-    summary = `${candidate.name} shows solid alignment for the ${job.job_title} role but has a couple of areas worth probing. ${hasStructuredData && structuredMissing.length > 0 ? `Key gaps include: ${structuredMissing.slice(0, 2).join(', ')}. ` : ''}A short screening call should clarify overall suitability.`;
-  } else if (fitPoints === 1) {
-    recommendation = 'Potential Fit';
-    summary = `${candidate.name} has some relevant qualities for the ${job.job_title} role, though there are clear gaps that need validation before progressing. A brief discovery call is recommended.`;
+  if (decisionPoints === 3 && !hasCriticalSkillGap) {
+    decision = 'Proceed';
+    summary = `${candidate.name} should proceed for the ${job.job_title} role at ${job.company_name}. Role alignment, skills relevance, and experience indicators are all strong enough to move forward.`;
+  } else if (decisionPoints >= 2 && !hasCriticalSkillGap) {
+    decision = 'Review';
+    summary = `${candidate.name} should be reviewed before progressing for the ${job.job_title} role. The profile has enough role, skill, or experience relevance to justify follow-up, but specific gaps should be validated first.`;
   } else {
-    recommendation = 'Weak Fit';
-    summary = `${candidate.name} does not present a strong case for the ${job.job_title} role at ${job.company_name} at this stage. Notable gaps exist in ${[!locationFit && 'location', alignment === 'weak' && 'title alignment', hasStructuredData && structuredMissing.length > 2 && 'required skills'].filter(Boolean).join(', ') || 'key criteria'}. Consider deprioritising unless further context emerges.`;
+    decision = 'Reject';
+    summary = `${candidate.name} should be rejected for the ${job.job_title} role at this stage. The evidence is not strong enough across role alignment, skills relevance, and experience match to justify progressing.`;
   }
+
+  const recommendation = recommendationForDecision(decision);
 
   return {
     status: 'completed',
+    decision,
     summary,
     strengths,
     concerns,

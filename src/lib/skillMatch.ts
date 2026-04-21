@@ -18,32 +18,62 @@ export interface SkillOverlap {
   bonus: number;
 }
 
+interface LiveCandidateSkillRow {
+  candidate_id: string;
+  proficiency_score: number | null;
+  skills: { skill_name: string | null } | { skill_name: string | null }[] | null;
+}
+
+interface LiveJobRequirementRow {
+  job_id: string;
+  skill_name: string | null;
+  requirement_type: string | null;
+}
+
 export async function fetchJobRequirements(jobId: string): Promise<JobRequirementRow[]> {
   const { data, error } = await supabase
     .from('job_requirements')
-    .select('job_id, requirement, required')
+    .select('job_id, skill_name, requirement_type')
     .eq('job_id', jobId);
 
   if (error) {
     console.error('[skillMatch] fetchJobRequirements error', error);
     return [];
   }
-  return (data ?? []) as JobRequirementRow[];
+
+  return ((data ?? []) as LiveJobRequirementRow[])
+    .filter(row => !!row.skill_name)
+    .map(row => ({
+      job_id: row.job_id,
+      requirement: row.skill_name ?? '',
+      required: row.requirement_type === 'must_have',
+    }));
 }
 
 export async function fetchCandidateSkills(candidateIds: string[]): Promise<CandidateSkillRow[]> {
   if (candidateIds.length === 0) return [];
   const { data, error } = await supabase
     .from('candidate_skills')
-    .select('candidate_id, skill, proficiency')
+    .select('candidate_id, proficiency_score, skills(skill_name)')
     .in('candidate_id', candidateIds);
 
   if (error) {
     console.error('[skillMatch] fetchCandidateSkills error', error);
     return [];
   }
-  return (data ?? []) as CandidateSkillRow[];
+
+  return ((data ?? []) as unknown as LiveCandidateSkillRow[])
+    .map(row => {
+      const skill = Array.isArray(row.skills) ? row.skills[0] : row.skills;
+      return {
+        candidate_id: row.candidate_id,
+        skill: skill?.skill_name ?? '',
+        proficiency: String(row.proficiency_score ?? ''),
+      };
+    })
+    .filter(row => !!row.skill);
 }
+
 
 function normalize(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]/g, '').trim();

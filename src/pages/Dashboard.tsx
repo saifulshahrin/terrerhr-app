@@ -241,7 +241,7 @@ export default function Dashboard() {
                           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
                             item.aiRecommendation === 'Strong Fit'
                               ? 'bg-emerald-100 text-emerald-700'
-                              : item.aiRecommendation === 'Weak Fit'
+                              : item.aiRecommendation === 'Low Fit' || item.aiRecommendation === 'Weak Fit'
                               ? 'bg-red-100 text-red-600'
                               : 'bg-sky-100 text-sky-700'
                           }`}>

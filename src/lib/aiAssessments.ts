@@ -40,6 +40,18 @@ function recommendationToSubmissionReady(rec: TerrerAIReview['recommendation']):
   return rec === 'Strong Fit';
 }
 
+function recommendationToDecision(rec: string): TerrerAIReview['decision'] {
+  if (rec === 'Strong Fit') return 'Proceed';
+  if (rec === 'Potential Fit') return 'Review';
+  return 'Reject';
+}
+
+function normalizeRecommendation(rec: string): TerrerAIReview['recommendation'] {
+  if (rec === 'Strong Fit') return 'Strong Fit';
+  if (rec === 'Potential Fit') return 'Potential Fit';
+  return 'Low Fit';
+}
+
 export async function fetchAssessmentsForJob(jobId: string): Promise<AIAssessmentRow[]> {
   const { data, error } = await supabase
     .from('ai_assessments')
@@ -114,7 +126,8 @@ export function rowToReview(row: AIAssessmentRow): TerrerAIReview {
     summary: row.reasoning_summary,
     strengths: row.strengths,
     concerns: row.concerns,
-    recommendation: row.overall_recommendation as TerrerAIReview['recommendation'],
+    decision: recommendationToDecision(row.overall_recommendation),
+    recommendation: normalizeRecommendation(row.overall_recommendation),
     confidence: row.confidence,
     submissionReady: row.submission_ready,
     generatedAt: row.assessed_at,
