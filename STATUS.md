@@ -213,3 +213,54 @@ Finish approved live-candidate workflow iteration in approved scope only:
 - stabilization note from core loop validation:
   - breakpoint 1: Job Intake save failed because the save payload still sent `jobs.status`, but the live canonical `jobs` table does not have that column
   - breakpoint 2: terminal stage transitions failed because terminal states needed `next_action_date = null` to satisfy `submissions_next_action_check`
+
+## Latest Update
+- targeted Job Intake save-path trace is complete
+- exact pre-fix save path:
+  - `src/pages/JobIntake.tsx#handleConfirmSave`
+  - `src/lib/jobs.ts#createJob`
+  - `supabase.from('jobs').insert(...)`
+- confirmed there is no job persistence through app-only state, `StoreContext`, `localStorage`, or `sessionStorage`
+- confirmed live backend includes `jobs_intake`, but the app was not writing to it
+- identified the actual blocker:
+  - `createJob()` selected `jobs.created_at`
+  - the live `jobs` table does not have that column
+  - Supabase returned `42703 column jobs.created_at does not exist`
+- applied fix:
+  - `src/lib/jobs.ts`
+    - select only verified live `jobs` columns after insert
+    - insert canonical row into `jobs`
+    - insert raw intake row into `jobs_intake` using the returned `jobs.id`
+    - add temporary logs for request + returned ids
+  - `src/pages/JobIntake.tsx`
+    - pass parsed intake fields, raw input, and current role into `createJob(...)`
+    - log returned `job.id` / `intake.job_id` on success
+- live verification passed against configured Supabase:
+  - `jobs.id = d5135ce1-9bf1-405d-80a0-0825925fe756`
+  - matching `jobs_intake.job_id = d5135ce1-9bf1-405d-80a0-0825925fe756`
+- verification note:
+  - one labeled confirmation row was inserted:
+    - `Codex Verification Job 2026-04-20T16:34:22.745Z`
+- validation note:
+- `npm run typecheck` still reports only the unrelated pre-existing error in `src/pages/Dashboard.tsx`
+
+## Canonical Jobs Follow-up
+- investigated the owner-reported claim that canonical Job Intake jobs were missing from `jobs`
+- confirmed the canonical operational target table is `public.jobs`
+- confirmed the save flow intends to write canonical rows to `public.jobs` first, then raw rows to `public.jobs_intake`
+- queried the live backend directly and confirmed multiple `source = 'manual_intake'` rows already exist in `public.jobs`
+- confirmed the previously verified canonical row is present in `public.jobs`:
+  - `id = d5135ce1-9bf1-405d-80a0-0825925fe756`
+  - `job_title = Codex Verification Job 2026-04-20T16:34:22.745Z`
+  - `source = manual_intake`
+- confirmed the latest live manual-intake row is also present in `public.jobs`:
+  - `id = 4e6b5bbc-1cfa-4e13-a65e-b5d76f672068`
+  - `job_title = Medical Officer`
+  - `company_name = Private hospital`
+  - `source = manual_intake`
+- conclusion:
+  - the canonical write is not going to the wrong project, schema, or table
+  - it is landing in `public.jobs`
+  - the likely remaining issue is backend/studio layer visibility confusion between scraped rows and manual-intake rows, not a failed canonical insert
+- applied one minimal traceability tweak in `src/lib/jobs.ts`:
+  - logs now explicitly name `public.jobs` and `public.jobs_intake` on save

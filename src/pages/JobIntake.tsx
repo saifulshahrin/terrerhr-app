@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { CheckCircle2, Briefcase, MapPin, Users, Clock, Tag } from 'lucide-react';
 import { createJob } from '../lib/jobs';
+import { useRole } from '../store/RoleContext';
 import {
   parseJobIntakeInput,
   normalizeJobIntakeWhitespace,
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export default function JobIntake({ onNavigate }: Props) {
+  const { role } = useRole();
   const [input, setInput] = useState('');
   const [parsed, setParsed] = useState<ParsedJob | null>(null);
   const [draft, setDraft] = useState<ParsedJob | null>(null);
@@ -101,10 +103,24 @@ export default function JobIntake({ onNavigate }: Props) {
     setSaveError(null);
 
     try {
-      await createJob({
+      const result = await createJob({
         title: parsed.title,
         company: parsed.company,
         location: parsed.location,
+        rawInput: input.trim(),
+        type: parsed.type,
+        salaryRange: parsed.salaryRange,
+        experience: parsed.experience,
+        skills: parsed.skills,
+        niceToHave: parsed.niceToHave,
+        startDate: parsed.startDate,
+        reportingTo: parsed.reportingTo,
+        summary: parsed.summary,
+        createdBy: role ?? 'terrer_app',
+      });
+      console.log('[JobIntake] save success', {
+        jobId: result.job.id,
+        intakeJobId: result.intake.job_id,
       });
       onNavigate('jobs');
     } catch (error) {

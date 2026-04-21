@@ -45,3 +45,65 @@
   - confirm admin reset/delete still behaves the same
 - Validation note
   - this worktree could not run `npm run typecheck` because local toolchain binaries are unavailable here
+
+## Latest Job Intake Save Fix
+- traced the current save path and confirmed there was no fake/local job persistence in source
+- pre-fix path already targeted Supabase:
+  - `JobIntake.handleConfirmSave(...)`
+  - `createJob(...)`
+  - `supabase.from('jobs').insert(...)`
+- real blocker was a live schema mismatch:
+  - `createJob()` selected `jobs.created_at`
+  - the live `jobs` table does not have `created_at`
+  - this caused the save call to fail
+- fix applied:
+  - `src/lib/jobs.ts`
+    - now inserts the canonical operational row into `public.jobs`
+    - uses returned `jobs.id` as the canonical downstream job id
+    - now also inserts the raw intake row into `public.jobs_intake` with `job_id = jobs.id`
+    - includes temporary console logging for request, success, and returned ids
+  - `src/pages/JobIntake.tsx`
+    - now passes raw input + parsed fields + current role into `createJob(...)`
+    - logs the returned canonical ids on success
+- live verification succeeded:
+  - `jobs.id = d5135ce1-9bf1-405d-80a0-0825925fe756`
+  - `jobs_intake.job_id = d5135ce1-9bf1-405d-80a0-0825925fe756`
+  - both rows were readable back from Supabase immediately after insert
+
+## Owner Testing For This Fix
+- in Job Intake:
+  - paste a job description
+  - click `Extract Details`
+  - optionally use `Edit Details`
+  - click `Confirm & Save`
+- expected result:
+  - no save error
+  - browser console shows:
+    - `[jobs.createJob] start`
+    - `[jobs.createJob] jobs insert succeeded`
+    - `[jobs.createJob] jobs_intake insert succeeded`
+    - `[JobIntake] save success`
+  - app navigates back to Jobs
+  - the new job appears in `public.jobs`
+  - a matching raw intake row appears in `public.jobs_intake`
+  - both use the same canonical job id (`jobs.id === jobs_intake.job_id`)
+- downstream compatibility to spot-check:
+  - the newly created job opens from Jobs into Top Matches
+  - recruiter shortlist / submit flow still uses that same job id normally
+
+## Canonical Jobs Follow-up Result
+- follow-up investigation confirmed the canonical operational target is `public.jobs`
+- the current save flow writes:
+  1. canonical row into `public.jobs`
+  2. raw intake row into `public.jobs_intake`
+- direct live backend checks confirmed canonical manual-intake rows are present in `public.jobs`, including:
+  - `d5135ce1-9bf1-405d-80a0-0825925fe756` → `Codex Verification Job 2026-04-20T16:34:22.745Z`
+  - `4e6b5bbc-1cfa-4e13-a65e-b5d76f672068` → `Medical Officer`
+- conclusion:
+  - the canonical write is not missing
+  - it is not going to a different schema/project/table
+  - the likely confusion is that `public.jobs` contains both scraped hiring-intelligence rows and manual-intake operational rows, with manual-intake rows distinguished by `source = 'manual_intake'`
+- minimal code change for traceability:
+  - `src/lib/jobs.ts` logs now explicitly name:
+    - `public.jobs`
+    - `public.jobs_intake`
