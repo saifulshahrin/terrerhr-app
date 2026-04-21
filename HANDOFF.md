@@ -501,3 +501,38 @@
 - confirm raw job cards still show `View Top Matches`
 - switch back to `Active Jobs`
 - confirm Active Jobs still shows recruiter-operational jobs and the existing `Recommended` next-step language
+
+## Hiring Intelligence Priority Targets
+- added a lightweight `Priority Targets` section near the top of Hiring Intelligence
+- purpose:
+  - help BD quickly identify hiring companies with demand that overlaps Terrer's current tech/digital-heavy candidate supply
+- implementation is UI-layer only in `src/pages/Jobs.tsx`
+- no schema, backend, AI, route, Top Matches, submissions, or Pipeline changes were made
+- priority is derived from:
+  - active scraped job count per company
+  - normalized role / role-family fit against Terrer's current strongest supply categories
+- high-fit categories include:
+  - Software Engineering / Backend
+  - Frontend
+  - Data
+  - Product
+  - Technical Program / Technology
+- lower-fit categories such as Legal, Medical, Banking branch, and Operations-heavy roles receive less priority lift for this phase
+- each target shows:
+  - company name
+  - active scraped job count
+  - dominant normalized roles
+  - dominant role families
+  - `High`, `Medium`, or `Low` priority label
+- clicking a priority target filters the raw scraped jobs drill-down by that company
+
+## Owner Testing For Priority Targets
+- open Jobs
+- switch to `Hiring Intelligence`
+- confirm `Priority Targets` appears above the existing summary cards
+- confirm each target has a company, job count, dominant roles/families, and priority label
+- click a priority target
+- confirm the raw scraped jobs drill-down filters to that company
+- click the same target again or `Clear filter`
+- confirm the full drill-down list returns
+- confirm `Top Hiring Companies`, `Top Roles in Demand`, `Role Families`, and raw job cards still work as before

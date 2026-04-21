@@ -684,3 +684,29 @@ Finish approved live-candidate workflow iteration in approved scope only:
 - validation:
   - `npm run typecheck` still reports only the unrelated pre-existing error:
     - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Hiring Intelligence Priority Targets
+- added a lightweight `Priority Targets` decision-support section to the Hiring Intelligence tab in `src/pages/Jobs.tsx`
+- no schema, backend, AI, route, Top Matches, submission, or Pipeline changes were made
+- priority targets are derived from already-fetched non-manual jobs after role normalization
+- scoring is intentionally rule-based for this phase:
+  - active scraped job volume increases priority
+  - tech/digital supply-fit roles increase priority more strongly
+  - lower-fit families such as Legal, Medical, Banking branch, and Operations-heavy roles do not receive supply-fit lift
+- high-fit categories currently include:
+  - Software Engineering / Backend
+  - Frontend
+  - Data
+  - Product
+  - Technical Program / Technology
+- each target shows:
+  - company name
+  - active scraped job count
+  - dominant normalized roles
+  - dominant role families
+  - priority label: `High`, `Medium`, or `Low`
+- clicking a priority target filters the raw scraped jobs drill-down by that company
+- existing summary cards and raw jobs drill-down remain intact
+- validation:
+  - `npm run typecheck` still reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
