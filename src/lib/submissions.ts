@@ -55,7 +55,7 @@ export interface BDQueueSubmissionRow {
   stage_updated_at: string;
 }
 
-function isTerminalSubmissionStage(stage: SubmissionStage): boolean {
+function shouldClearNextActionDate(stage: SubmissionStage | undefined): boolean {
   return stage === 'hired' || stage === 'rejected';
 }
 
@@ -77,7 +77,9 @@ export async function upsertSubmission(
     job_id: params.job_id,
     candidate_id: params.candidate_id,
     submission_stage: params.submission_stage,
-    next_action_date: params.next_action_date ?? null,
+    next_action_date: shouldClearNextActionDate(params.submission_stage)
+      ? null
+      : params.next_action_date ?? null,
     submission_summary: params.submission_summary ?? null,
     submission_strengths: params.submission_strengths ?? null,
     submission_concerns: params.submission_concerns ?? null,
@@ -122,7 +124,7 @@ export async function updateSubmissionStage(
     stage_updated_at: new Date().toISOString(),
   };
 
-  if (isTerminalSubmissionStage(submissionStage)) {
+  if (shouldClearNextActionDate(submissionStage)) {
     updatePayload.next_action_date = null;
   }
 
@@ -150,6 +152,7 @@ export async function sendSubmissionToBdReview(
     .update({
       submission_stage: 'ready_for_bd_review',
       notes: resolvedNotes,
+      next_action_date: new Date().toISOString().split('T')[0],
       stage_updated_at: new Date().toISOString(),
     })
     .eq('id', submissionId)

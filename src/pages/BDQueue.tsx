@@ -7,10 +7,10 @@ import {
   MessageSquare, Mail, Phone, Linkedin, Github, Copy, Check, MapPin,
   Briefcase, User, RefreshCw, ExternalLink, ChevronDown, ChevronUp,
 } from 'lucide-react';
-import { ALL_CANDIDATES } from '../store/mockData';
 import type { Candidate } from '../store/types';
 import { useRole } from '../store/RoleContext';
 import { useStore } from '../store/StoreContext';
+import { buildCandidateMap, createFallbackCandidate, fetchCandidatesByIds } from '../lib/candidates';
 
 interface Job {
   id: string;
@@ -42,8 +42,6 @@ interface BDItem {
 }
 
 type ActionState = 'idle' | 'approving' | 'rejecting' | 'holding';
-
-const CANDIDATE_MAP = new Map(ALL_CANDIDATES.map(c => [c.id, c]));
 
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
@@ -349,6 +347,9 @@ export default function BDQueue() {
     ]);
 
     const subs = submissionsResult;
+    const candidateMap = buildCandidateMap(
+      await fetchCandidatesByIds(subs.map(sub => sub.candidate_id))
+    );
 
     const jobMap = new Map((jobsData ?? []).map((j: Job) => [j.id, j]));
     const assessmentMap = new Map(
@@ -357,9 +358,9 @@ export default function BDQueue() {
 
     const built: BDItem[] = [];
     for (const sub of subs) {
-      const candidate = CANDIDATE_MAP.get(sub.candidate_id);
+      const candidate = candidateMap.get(sub.candidate_id) ?? createFallbackCandidate(sub.candidate_id);
       const job = jobMap.get(sub.job_id);
-      if (!candidate || !job) continue;
+      if (!job) continue;
       const assessment = assessmentMap.get(`${sub.candidate_id}-${sub.job_id}`);
       built.push({
         submissionId: sub.id,

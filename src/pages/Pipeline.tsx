@@ -201,6 +201,8 @@ export default function Pipeline() {
           delete next[sub.id];
           return next;
         });
+      } else {
+        window.alert('Could not send this candidate to BD Review. Check console logs for details.');
       }
     } finally {
       setBusy(prev => ({ ...prev, [sub.id]: false }));

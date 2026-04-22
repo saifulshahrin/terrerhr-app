@@ -820,10 +820,15 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
 
     setModalSending(true);
     try {
-      await sendToBdReviewWithOutput(modalCandidate.id, job.id, modalOutput, notes);
-      setModalOpen(false);
+      const result = await sendToBdReviewWithOutput(modalCandidate.id, job.id, modalOutput, notes);
+      if (result) {
+        setModalOpen(false);
+      } else {
+        window.alert('Could not send this candidate to BD Review. Check console logs for details.');
+      }
     } catch (err) {
       console.error('[TopMatches] sendToBdReviewWithOutput error', err);
+      window.alert('Could not send this candidate to BD Review. Check console logs for details.');
     } finally {
       setModalSending(false);
     }
