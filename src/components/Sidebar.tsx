@@ -1,4 +1,4 @@
-import { LayoutDashboard, Briefcase, Users, GitBranch, Star, ClipboardList, ClipboardCheck, LogOut } from 'lucide-react';
+import { LayoutDashboard, Briefcase, Users, GitBranch, Star, ClipboardList, ClipboardCheck, LogOut, BarChart2 } from 'lucide-react';
 import { useRole, type AppRole } from '../store/RoleContext';
 
 interface NavItem {
@@ -11,10 +11,13 @@ interface NavItem {
 const ALL_NAV_ITEMS: NavItem[] = [
   { id: 'dashboard',  label: 'Dashboard',  icon: LayoutDashboard, roles: ['recruiter', 'bd', 'admin'] },
   { id: 'jobs',       label: 'Jobs',       icon: Briefcase,       roles: ['recruiter', 'bd', 'admin'] },
+  { id: 'active-jobs', label: 'Active Jobs', icon: ClipboardList, roles: ['recruiter', 'admin'] },
+  { id: 'hiring-intelligence', label: 'Hiring Intel', icon: BarChart2, roles: ['bd', 'admin'] },
   { id: 'candidates', label: 'Candidates', icon: Users,           roles: ['recruiter', 'admin'] },
   { id: 'pipeline',   label: 'Pipeline',   icon: GitBranch,       roles: ['recruiter', 'bd', 'admin'] },
   { id: 'top-matches',label: 'Top Matches',icon: Star,            roles: ['recruiter', 'admin'] },
   { id: 'bd-queue',   label: 'BD Queue',   icon: ClipboardCheck,  roles: ['bd', 'admin'] },
+  { id: 'bd-relationships', label: 'BD Relationships', icon: Users, roles: ['bd', 'admin'] },
   { id: 'job-intake', label: 'Job Intake', icon: ClipboardList,   roles: ['recruiter', 'admin'] },
 ];
 

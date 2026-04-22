@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { CheckCircle, XCircle, UserCheck, Send, Eye, MapPin, Briefcase, ArrowLeft } from 'lucide-react';
+import { CheckCircle, XCircle, UserCheck, Send, Eye, MapPin, Briefcase, ArrowLeft, Search } from 'lucide-react';
 import { getJobById } from '../lib/jobs';
 import { fetchCandidatesForUI } from '../lib/candidates';
 import { useStore } from '../store/StoreContext';
@@ -19,13 +19,14 @@ import {
   buildCandidateSkillMap,
   type JobRequirementRow,
 } from '../lib/skillMatch';
+import { classifyRoleTrustPolicy, type RoleTrustPolicy } from '../lib/roleTrustPolicy';
 
 interface Job {
   id: string;
   job_title: string;
   company_name: string;
   location: string;
-  status?: string;
+  operational_status?: string;
 }
 
 interface RankedCandidate extends Candidate {
@@ -39,6 +40,9 @@ interface RankedCandidate extends Candidate {
 }
 
 type SupplyStatus = 'No viable candidates' | 'Strong supply' | 'Limited supply';
+type JobDetailView = 'top-matches' | 'sourcing-plan';
+type ChannelStatus = 'Not started' | 'In progress' | 'Posted' | 'Paused';
+type ChannelPriority = 'HIGH' | 'MEDIUM' | 'LOW';
 
 interface SupplyAssessment {
   proceed: number;
@@ -48,9 +52,25 @@ interface SupplyAssessment {
   status: SupplyStatus;
 }
 
+interface SourcingChannel {
+  channel: string;
+  priority: ChannelPriority;
+  reason: string;
+  status: ChannelStatus;
+  leads: number;
+  addedToJob: number;
+  nextAction: string;
+}
+
+type SourcingChannelStateByJob = Record<string, SourcingChannel[]>;
+
 interface Props {
   jobId?: string;
-  onNavigate: (page: string, jobId?: string, sourcingContext?: { role: string; skills: string[] }) => void;
+  onNavigate: (
+    page: string,
+    jobId?: string,
+    sourcingContext?: { jobId?: string; role: string; skills: string[] }
+  ) => void;
 }
 
 const avatarColors: string[] = [
@@ -70,6 +90,7 @@ const STAGE_LABEL: Partial<Record<SubmissionStage, string>> = {
   interview: 'Interview',
   offer: 'Offer',
   rejected: 'Rejected',
+  hold: 'Hold',
   hired: 'Hired',
 };
 
@@ -81,6 +102,7 @@ const STAGE_STYLE: Partial<Record<SubmissionStage, string>> = {
   interview: 'bg-amber-50 text-amber-700',
   offer: 'bg-emerald-50 text-emerald-700',
   rejected: 'bg-red-50 text-red-700',
+  hold: 'bg-gray-100 text-gray-500',
   hired: 'bg-green-50 text-green-700',
 };
 
@@ -89,6 +111,66 @@ const SUPPLY_STYLE: Record<SupplyStatus, string> = {
   'Strong supply': 'bg-emerald-50 text-emerald-700 border-emerald-100',
   'Limited supply': 'bg-amber-50 text-amber-700 border-amber-100',
 };
+
+const CHANNEL_PRIORITY_STYLE: Record<ChannelPriority, string> = {
+  HIGH: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  MEDIUM: 'bg-blue-50 text-blue-700 border-blue-100',
+  LOW: 'bg-gray-100 text-gray-600 border-gray-200',
+};
+
+const CHANNEL_STATUS_OPTIONS: ChannelStatus[] = ['Not started', 'In progress', 'Posted', 'Paused'];
+
+const SOURCING_CHANNELS: SourcingChannel[] = [
+  {
+    channel: 'Internal Database',
+    priority: 'HIGH',
+    reason: 'Fastest candidates, already in system',
+    status: 'In progress',
+    leads: 18,
+    addedToJob: 3,
+    nextAction: 'Search and shortlist strongest matches',
+  },
+  {
+    channel: 'LinkedIn Outreach',
+    priority: 'HIGH',
+    reason: 'Best for targeted outreach',
+    status: 'Not started',
+    leads: 0,
+    addedToJob: 0,
+    nextAction: 'Build target list by role keywords',
+  },
+  {
+    channel: 'JobStreet',
+    priority: 'MEDIUM',
+    reason: 'Useful for broader inbound reach',
+    status: 'Not started',
+    leads: 0,
+    addedToJob: 0,
+    nextAction: 'Post once job requirements are stable',
+  },
+  {
+    channel: 'Hiredly',
+    priority: 'MEDIUM',
+    reason: 'Useful for white-collar / professional inbound',
+    status: 'Paused',
+    leads: 0,
+    addedToJob: 0,
+    nextAction: 'Resume if internal search is thin',
+  },
+  {
+    channel: 'Referrals',
+    priority: 'LOW',
+    reason: 'Useful when warm network access is available',
+    status: 'Not started',
+    leads: 0,
+    addedToJob: 0,
+    nextAction: 'Ask team for warm intros if needed',
+  },
+];
+
+function createDefaultSourcingChannels(): SourcingChannel[] {
+  return SOURCING_CHANNELS.map(channel => ({ ...channel }));
+}
 
 const matchConfig = (score: number) => {
   if (score >= 90) {
@@ -186,12 +268,359 @@ function getSourcingSkills(jobRequirements: JobRequirementRow[]): string[] {
     .slice(0, 5);
 }
 
+function SourcingPlan({
+  job,
+  jobRequirements,
+  channelRows,
+  onChannelStatusChange,
+  onSearchInternalCandidates,
+  onViewTopMatches,
+}: {
+  job: Job;
+  jobRequirements: JobRequirementRow[];
+  channelRows: SourcingChannel[];
+  onChannelStatusChange: (channel: string, status: ChannelStatus) => void;
+  onSearchInternalCandidates: () => void;
+  onViewTopMatches: () => void;
+}) {
+  const priorityLabel = job.operational_status === 'active' ? 'Active' : 'Not prioritized';
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <ContextItem label="Job" value={job.job_title} />
+          <ContextItem label="Company" value={job.company_name} />
+          <ContextItem label="Priority" value={priorityLabel} />
+          <ContextItem label="Sourcing Mode" value="Database First" emphasis />
+        </div>
+      </div>
+
+      <section className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Recommended Channels</h2>
+            <p className="text-xs text-gray-500 mt-1">
+              Lightweight V1 playbook for where recruiters should hunt first.
+            </p>
+          </div>
+          {jobRequirements.length > 0 && (
+            <span className="text-xs font-medium text-blue-600 bg-blue-50 rounded-full px-2.5 py-1">
+              {jobRequirements.length} requirements loaded
+            </span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+          {channelRows.map(row => (
+            <div key={row.channel} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm font-semibold text-gray-900">{row.channel}</p>
+                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${CHANNEL_PRIORITY_STYLE[row.priority]}`}>
+                  {row.priority}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 leading-relaxed mt-3">{row.reason}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="text-sm font-semibold text-gray-900">Channel Tracker</h2>
+          <p className="text-xs text-gray-500 mt-1">
+            Mock tracker only. Changes are local to this page and are not saved yet.
+          </p>
+        </div>
+
+        <div className="hidden lg:grid grid-cols-[1.1fr_0.9fr_0.6fr_0.75fr_1.5fr] gap-3 bg-gray-50 border-b border-gray-100 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          <span>Channel</span>
+          <span>Status</span>
+          <span>Leads</span>
+          <span>Added to Job</span>
+          <span>Next Action</span>
+        </div>
+
+        <div className="divide-y divide-gray-100">
+          {channelRows.map(row => (
+            <div
+              key={row.channel}
+              className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr_0.6fr_0.75fr_1.5fr] gap-3 px-5 py-4 text-sm lg:items-center"
+            >
+              <p className="font-semibold text-gray-900">{row.channel}</p>
+              <select
+                value={row.status}
+                onChange={(event) =>
+                  onChannelStatusChange(row.channel, event.target.value as ChannelStatus)
+                }
+                className="w-fit rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-200"
+              >
+                {CHANNEL_STATUS_OPTIONS.map(status => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+              <p className="text-gray-600">{row.leads}</p>
+              <p className="text-gray-600">{row.addedToJob}</p>
+              <p className="text-gray-600">{row.nextAction}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900">Next recruiter action</h2>
+          <p className="text-xs text-gray-500 mt-1">
+            Start with internal candidates, then use Top Matches to narrow and progress.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={onSearchInternalCandidates}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
+          >
+            <Search size={13} />
+            Search Internal Candidates
+          </button>
+          <button
+            onClick={onViewTopMatches}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            View Top Matches
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ContextItem({
+  label,
+  value,
+  emphasis = false,
+}: {
+  label: string;
+  value: string;
+  emphasis?: boolean;
+}) {
+  return (
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{label}</p>
+      <p className={`text-sm mt-1 ${emphasis ? 'font-semibold text-blue-700' : 'font-semibold text-gray-900'}`}>
+        {value || '-'}
+      </p>
+    </div>
+  );
+}
+
+function getNoViableCopy(policy: RoleTrustPolicy): { title: string; body: string } {
+  if (policy === 'STRICT') {
+    return {
+      title: 'No viable candidates found',
+      body: 'This role appears regulated or requirement-critical, so Terrer will not show exploratory candidates as substitutes.',
+    };
+  }
+
+  if (policy === 'SEMI_STRICT') {
+    return {
+      title: 'No strong matches found. Showing limited near matches for review.',
+      body: 'These candidates are partial matches only and need recruiter judgment before any progression.',
+    };
+  }
+
+  return {
+    title: 'No strong matches found. Showing exploratory profiles for sourcing.',
+    body: 'These are not strong matches but may be useful for sourcing.',
+  };
+}
+
+function TrustPolicyBadge({ policy }: { policy: RoleTrustPolicy }) {
+  const style: Record<RoleTrustPolicy, string> = {
+    STRICT: 'bg-red-50 text-red-700 border-red-100',
+    SEMI_STRICT: 'bg-orange-50 text-orange-700 border-orange-100',
+    FLEX: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  };
+
+  return (
+    <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${style[policy]}`}>
+      {policy === 'SEMI_STRICT' ? 'SEMI-STRICT' : policy}
+    </span>
+  );
+}
+
+type ProfileSignalCategory =
+  | 'backend'
+  | 'frontend'
+  | 'software'
+  | 'data'
+  | 'product'
+  | 'medical'
+  | 'legal'
+  | 'finance'
+  | 'operations';
+
+const PROFILE_SIGNAL_LABEL: Record<ProfileSignalCategory, string> = {
+  backend: 'backend engineering',
+  frontend: 'frontend engineering',
+  software: 'software engineering',
+  data: 'data',
+  product: 'product',
+  medical: 'medical / clinical',
+  legal: 'legal',
+  finance: 'finance / compliance',
+  operations: 'operations',
+};
+
+function detectProfileSignal(values: string[]): ProfileSignalCategory | null {
+  const text = values.join(' ').toLowerCase();
+
+  if (/\b(backend|back end|node|java|php|python|api|server|database)\b/.test(text)) return 'backend';
+  if (/\b(frontend|front end|react|vue|angular|ui developer|web developer)\b/.test(text)) return 'frontend';
+  if (/\b(software|developer|engineer|programmer|full stack|fullstack)\b/.test(text)) return 'software';
+  if (/\b(data|analytics|analyst|bi|business intelligence|sql|machine learning|ml)\b/.test(text)) return 'data';
+  if (/\b(product manager|product owner|tpm|technical product|product)\b/.test(text)) return 'product';
+  if (/\b(medical|doctor|clinical|clinic|hospital|nurse|pharma|healthcare)\b/.test(text)) return 'medical';
+  if (/\b(legal|lawyer|counsel|solicitor|litigation|chambering)\b/.test(text)) return 'legal';
+  if (/\b(finance|accounting|audit|tax|compliance|risk|regulatory)\b/.test(text)) return 'finance';
+  if (/\b(operations|ops|supply chain|logistics|coordinator)\b/.test(text)) return 'operations';
+
+  return null;
+}
+
+function getNearMatchReasons(
+  candidate: RankedCandidate,
+  job: Job,
+  policy: Exclude<RoleTrustPolicy, 'STRICT'>
+): string[] {
+  const reasons: string[] = [];
+  const jobSignal = detectProfileSignal([job.job_title]);
+  const candidateSignal = detectProfileSignal([candidate.role, ...candidate.skills, ...candidate.structuredSkills]);
+
+  if (!candidate.roleMatch) {
+    if (jobSignal && candidateSignal && jobSignal !== candidateSignal) {
+      reasons.push(
+        `${PROFILE_SIGNAL_LABEL[candidateSignal]} signal is adjacent to the ${PROFILE_SIGNAL_LABEL[jobSignal]} requirement`
+      );
+    } else {
+      reasons.push(
+        policy === 'SEMI_STRICT'
+          ? 'Role alignment is partial or unclear for this requirement'
+          : 'Role alignment is exploratory rather than direct'
+      );
+    }
+  }
+
+  if (candidate.missingSkills.length > 0) {
+    reasons.push(`Missing required signals: ${candidate.missingSkills.slice(0, 2).join(', ')}`);
+  }
+
+  if (candidate.matchedSkills.length > 0 && (candidate.missingSkills.length > 0 || !candidate.roleMatch)) {
+    reasons.push('Some relevant skills are present, but fit remains incomplete');
+  }
+
+  if (!candidate.locationMatch && job.location && candidate.location) {
+    reasons.push('Location fit may need manual validation');
+  }
+
+  if (reasons.length === 0) {
+    reasons.push(
+      policy === 'SEMI_STRICT'
+        ? 'Partial match only; validate requirements before progressing'
+        : 'Exploratory profile only; useful for manual sourcing, not a strong match'
+    );
+  }
+
+  return reasons.slice(0, 3);
+}
+
+function ExploratoryCandidateSection({
+  policy,
+  candidates,
+  job,
+}: {
+  policy: Exclude<RoleTrustPolicy, 'STRICT'>;
+  candidates: RankedCandidate[];
+  job: Job;
+}) {
+  const title =
+    policy === 'SEMI_STRICT'
+      ? 'Near matches for review'
+      : 'Exploratory profiles for manual sourcing';
+  const helper =
+    policy === 'SEMI_STRICT'
+      ? 'Partial matches only. Review carefully before deciding whether to source or shortlist.'
+      : 'These are not strong matches but may be useful for sourcing.';
+
+  return (
+    <section className="mt-6 rounded-xl border border-dashed border-gray-300 bg-white p-5">
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
+          <p className="text-xs text-gray-500 mt-1">{helper}</p>
+        </div>
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          Not recommended
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        {candidates.map(candidate => {
+          const reasons = getNearMatchReasons(candidate, job, policy);
+
+          return (
+            <div key={candidate.id} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">{candidate.name}</p>
+                  <p className="text-xs text-gray-500 mt-0.5 truncate">{candidate.role}</p>
+                </div>
+                <span className="shrink-0 rounded-lg bg-white px-2 py-1 text-xs font-semibold text-gray-500 border border-gray-200">
+                  {candidate.matchScore}
+                </span>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {candidate.skills.slice(0, 4).map(skill => (
+                  <span
+                    key={skill}
+                    className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-gray-500 border border-gray-200"
+                  >
+                    {skill}
+                  </span>
+                ))}
+              </div>
+
+              <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                  Why shown
+                </p>
+                <ul className="mt-2 space-y-1.5">
+                  {reasons.map(reason => (
+                    <li key={reason} className="text-xs leading-relaxed text-gray-500">
+                      {reason}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <p className="mt-3 text-xs text-gray-400">
+                Manual review only. Do not treat as a strong match.
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 export default function TopMatches({ jobId, onNavigate }: Props) {
   const {
     submissions,
     getSubmission,
     shortlist,
-    submitToClientWithOutput,
+    sendToBdReviewWithOutput,
     resetSubmissionsForJob,
     deleteSubmissionsForJob,
   } = useStore();
@@ -215,22 +644,15 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
   const [modalSending, setModalSending] = useState(false);
   const [bulkResetStage, setBulkResetStage] = useState<SubmissionStage>('shortlisted');
   const [bulkBusy, setBulkBusy] = useState(false);
-
-  useEffect(() => {
-    console.log('[TopMatches][state]', {
-      jobId,
-      loadingJob,
-      invalidJob,
-      job,
-    });
-  }, [jobId, loadingJob, invalidJob, job]);
+  const [jobDetailView, setJobDetailView] = useState<JobDetailView>('top-matches');
+  const [sourcingChannelsByJob, setSourcingChannelsByJob] = useState<SourcingChannelStateByJob>({});
 
   useEffect(() => {
     let cancelled = false;
     let resolvedValidJob = false;
 
-    console.log('[TopMatches][effect:start]', { jobId });
-
+    // Opening Top Matches from a job card should always show the candidate list first.
+    setJobDetailView('top-matches');
     setJob(null);
     setInvalidJob(false);
     setReviews({});
@@ -239,30 +661,24 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
     setLiveCandidates([]);
 
     if (!jobId) {
-      console.log('[TopMatches][effect:no-job-id]', { jobId });
       setLoadingJob(false);
       return;
     }
 
     const selectedJobId = jobId;
-    console.log('[TopMatches][effect:resolve-job]', { selectedJobId });
     setLoadingJob(true);
 
     async function loadTopMatches() {
       try {
-        console.log('[TopMatches][getJobById:call]', { selectedJobId });
         const jobData = await getJobById(selectedJobId);
-        console.log('[TopMatches][getJobById:return]', { selectedJobId, jobData });
         if (cancelled) return;
 
         if (!jobData) {
-          console.log('[TopMatches][invalidJob:no-row]', { selectedJobId });
           setInvalidJob(true);
           return;
         }
 
         resolvedValidJob = true;
-        console.log('[TopMatches][setJob:success]', { selectedJobId, jobData });
         setJob(jobData as Job);
 
         const [assessments, requirements, loadedCandidates] = await Promise.all([
@@ -289,12 +705,10 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
       } catch (err) {
         console.error('[TopMatches] load error:', err);
         if (!cancelled && !resolvedValidJob) {
-          console.log('[TopMatches][invalidJob:catch]', { selectedJobId, err });
           setInvalidJob(true);
         }
       } finally {
         if (!cancelled) {
-          console.log('[TopMatches][effect:loading-false]', { selectedJobId });
           setLoadingJob(false);
         }
       }
@@ -303,7 +717,6 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
     loadTopMatches();
 
     return () => {
-      console.log('[TopMatches][effect:cleanup]', { selectedJobId, cancelled: true });
       cancelled = true;
     };
   }, [jobId]);
@@ -313,10 +726,27 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
     return rankCandidates(liveCandidates, job, jobRequirements, skillMap);
   }, [job, jobRequirements, liveCandidates, skillMap]);
 
+  const roleTrustPolicy = useMemo<RoleTrustPolicy>(() => {
+    if (!job) return 'FLEX';
+    return classifyRoleTrustPolicy(job.job_title);
+  }, [job]);
+
   const jobSubmissionCount = useMemo(() => {
     if (!job) return 0;
     return submissions.filter(s => s.job_id === job.id).length;
   }, [job, submissions]);
+
+  const sourcingChannels = useMemo<SourcingChannel[]>(() => {
+    if (!job) return createDefaultSourcingChannels();
+
+    const jobChannels = sourcingChannelsByJob[job.id] ?? createDefaultSourcingChannels();
+
+    return jobChannels.map(row =>
+      row.channel === 'Internal Database'
+        ? { ...row, addedToJob: jobSubmissionCount }
+        : row
+    );
+  }, [job, jobSubmissionCount, sourcingChannelsByJob]);
 
   const supplyAssessment = useMemo<SupplyAssessment>(() => {
     const counts: Record<Decision, number> = {
@@ -340,87 +770,61 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
       counts[review.decision] += 1;
     }
 
+    const total = counts.Proceed + counts.Review + counts.Reject;
+
+    // A job with loaded candidates but no saved reviews is pending review, not "no viable".
+    if (total === 0 && ranked.length > 0) {
+      return {
+        proceed: 0,
+        review: 0,
+        reject: 0,
+        total: 0,
+        status: 'Limited supply',
+      };
+    }
+
     return {
       proceed: counts.Proceed,
       review: counts.Review,
       reject: counts.Reject,
-      total: counts.Proceed + counts.Review + counts.Reject,
+      total,
       status: deriveSupplyStatus(counts.Proceed, counts.Review),
     };
-  }, [job, reviews]);
+  }, [job, ranked.length, reviews]);
 
   const handle = async (key: string, fn: () => Promise<void>) => {
-    console.log('[TopMatches][action:handle:start]', { key });
     setBusy(b => ({ ...b, [key]: true }));
     try {
       await fn();
-      console.log('[TopMatches][action:handle:success]', { key });
     } catch (err) {
       console.error('[TopMatches]', key, err);
     } finally {
-      console.log('[TopMatches][action:handle:finally]', { key });
       setBusy(b => ({ ...b, [key]: false }));
     }
   };
 
-  const handleSubmitToClient = (candidate: RankedCandidate) => {
-    console.log('[TopMatches][action:submitToClient:open:start]', {
-      candidateId: candidate?.id,
-      hasJob: !!job,
-      candidate,
-    });
+  const handleSendToBdReview = (candidate: RankedCandidate) => {
     if (!job) return;
 
     const key = `${candidate.id}-${job.id}`;
     const review = reviews[key] ?? null;
     const output = generateSubmissionOutput(candidate, job, review);
 
-    console.log('[TopMatches][action:submitToClient:open:resolved]', {
-      key,
-      hasJob: !!job,
-      hasCandidate: !!candidate,
-      hasOutput: !!output,
-      review,
-      output,
-    });
-
     setModalCandidate(candidate);
     setModalOutput(output);
     setModalOpen(true);
-    console.log('[TopMatches][action:submitToClient:open:set-state]', {
-      modalOpen: true,
-      candidateId: candidate.id,
-      jobId: job.id,
-    });
   };
 
   const handleModalSend = async (notes: string) => {
-    console.log('[TopMatches][action:submitToClient:submit:start]', {
-      notes,
-      hasModalCandidate: !!modalCandidate,
-      hasJob: !!job,
-      hasModalOutput: !!modalOutput,
-      candidateId: modalCandidate?.id,
-      jobId: job?.id,
-    });
     if (!modalCandidate || !job || !modalOutput) return;
 
     setModalSending(true);
     try {
-      const result = await submitToClientWithOutput(modalCandidate.id, job.id, modalOutput, notes);
-      console.log('[TopMatches][action:submitToClient:submit:success]', {
-        candidateId: modalCandidate.id,
-        jobId: job.id,
-        result,
-      });
+      await sendToBdReviewWithOutput(modalCandidate.id, job.id, modalOutput, notes);
       setModalOpen(false);
     } catch (err) {
-      console.error('[TopMatches] submitToClientWithOutput error', err);
+      console.error('[TopMatches] sendToBdReviewWithOutput error', err);
     } finally {
-      console.log('[TopMatches][action:submitToClient:submit:finally]', {
-        candidateId: modalCandidate?.id,
-        jobId: job?.id,
-      });
       setModalSending(false);
     }
   };
@@ -485,6 +889,18 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
     }
   };
 
+  const handleChannelStatusChange = (channel: string, status: ChannelStatus) => {
+    if (!job) return;
+
+    setSourcingChannelsByJob(prev => {
+      const currentRows = prev[job.id] ?? createDefaultSourcingChannels();
+      return {
+        ...prev,
+        [job.id]: currentRows.map(row => (row.channel === channel ? { ...row, status } : row)),
+      };
+    });
+  };
+
   if (loadingJob) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -493,32 +909,47 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
     );
   }
 
-  if (!job) {
+  const hasSelectedJob = Boolean(jobId);
+
+  if (!hasSelectedJob || !job) {
     return (
       <div>
         <div className="mb-7">
           <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Top Matches</h1>
-          {invalidJob && (
+          {hasSelectedJob && invalidJob && (
             <p className="text-sm text-amber-600 mt-1">That job could not be found.</p>
           )}
           <p className="text-sm text-gray-500 mt-1">
-            Top Matches works on a specific job. Choose a role from Jobs to review ranked
-            candidates, shortlist them, and send them into the submission workflow.
+            Top Matches works on a specific job. Choose a job from Jobs or Active Jobs to review
+            ranked candidates, shortlist them, and send them into the submission workflow.
           </p>
         </div>
-        <button
-          onClick={() => onNavigate('jobs')}
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-        >
-          <ArrowLeft size={14} />
-          Go to Jobs
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => onNavigate('jobs')}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <ArrowLeft size={14} />
+            Go to Jobs
+          </button>
+          <button
+            onClick={() => onNavigate('active-jobs')}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+          >
+            Active Jobs
+          </button>
+        </div>
       </div>
     );
   }
 
   const hasStructuredRequirements = jobRequirements.length > 0;
   const isNoViableCandidates = supplyAssessment.status === 'No viable candidates';
+  const noViableCopy = getNoViableCopy(roleTrustPolicy);
+  const exploratoryCandidates = isNoViableCandidates
+    ? ranked.slice(0, roleTrustPolicy === 'SEMI_STRICT' ? 3 : 5)
+    : [];
+  const shouldRenderCandidateCards = jobDetailView === 'top-matches' && !isNoViableCandidates;
 
   return (
     <div>
@@ -552,23 +983,13 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
             </span>
           )}
 
-          {job.status && (
-            <span
-              className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                job.status === 'Open'
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-gray-100 text-gray-500'
-              }`}
-            >
-              {job.status}
-            </span>
-          )}
-
           {hasStructuredRequirements && (
             <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
               {jobRequirements.length} requirements loaded
             </span>
           )}
+
+          <TrustPolicyBadge policy={roleTrustPolicy} />
         </div>
         <p className="text-sm text-gray-500 mt-3">
           Reviewing candidates for this role only. Submission status and actions below apply to{' '}
@@ -628,24 +1049,72 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
         )}
       </div>
 
+      <div className="inline-flex items-center bg-gray-100 rounded-lg p-1 mb-6">
+        <button
+          onClick={() => setJobDetailView('top-matches')}
+          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+            jobDetailView === 'top-matches'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Top Matches
+        </button>
+        <button
+          onClick={() => setJobDetailView('sourcing-plan')}
+          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+            jobDetailView === 'sourcing-plan'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Sourcing Plan
+        </button>
+      </div>
+
+      {jobDetailView === 'sourcing-plan' && (
+        <SourcingPlan
+          job={job}
+          jobRequirements={jobRequirements}
+          channelRows={sourcingChannels}
+          onChannelStatusChange={handleChannelStatusChange}
+          onSearchInternalCandidates={() =>
+            onNavigate('candidates', undefined, {
+              jobId: job.id,
+              role: job.job_title,
+              skills: getSourcingSkills(jobRequirements),
+            })
+          }
+          onViewTopMatches={() => setJobDetailView('top-matches')}
+        />
+      )}
+
+      {jobDetailView === 'top-matches' && (
+      <>
       <div className={`mb-6 rounded-xl border p-4 ${SUPPLY_STYLE[supplyAssessment.status]}`}>
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide">Supply Assessment</p>
-            <p className="text-base font-semibold mt-1">{supplyAssessment.status}</p>
+            <p className="text-base font-semibold mt-1">
+              {isNoViableCandidates ? noViableCopy.title : supplyAssessment.status}
+            </p>
             <p className="text-sm mt-1 opacity-90">
-              {supplyAssessment.status === 'No viable candidates'
-                ? supplyAssessment.total === 0
-                  ? 'No Terrer AI Reviews have identified viable candidates for this job yet. Try sourcing new candidates or refine job requirements.'
-                  : 'Terrer AI Review has not found any Proceed or Review candidates for this job. Try sourcing new candidates or refine job requirements.'
+              {isNoViableCandidates
+                ? noViableCopy.body
                 : supplyAssessment.status === 'Strong supply'
                   ? 'At least one candidate is ready to progress based on Terrer AI Review decisions.'
                   : 'There are candidates worth reviewing, but no clear Proceed decision yet.'}
             </p>
+            {isNoViableCandidates && roleTrustPolicy === 'STRICT' && (
+              <p className="text-xs mt-2 opacity-80">
+                STRICT role: exploratory candidates are hidden to preserve recruiter trust.
+              </p>
+            )}
             {isNoViableCandidates && (
               <button
                 onClick={() =>
                   onNavigate('candidates', undefined, {
+                    jobId: job.id,
                     role: job.job_title,
                     skills: getSourcingSkills(jobRequirements),
                   })
@@ -664,7 +1133,7 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
         </div>
       </div>
 
-      {!isNoViableCandidates && (
+      {shouldRenderCandidateCards && (
         <SubmissionModal
           open={modalOpen}
           candidate={modalCandidate}
@@ -676,7 +1145,15 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
         />
       )}
 
-      {!isNoViableCandidates && (
+      {isNoViableCandidates && roleTrustPolicy !== 'STRICT' && exploratoryCandidates.length > 0 && (
+        <ExploratoryCandidateSection
+          policy={roleTrustPolicy}
+          candidates={exploratoryCandidates}
+          job={job}
+        />
+      )}
+
+      {shouldRenderCandidateCards && (
         <div className="space-y-4">
           {ranked.map((m, i) => {
           const mc = matchConfig(m.matchScore);
@@ -687,13 +1164,14 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
           const isSubmitted = stage === 'submitted_to_client';
           const isInterview = stage === 'interview';
           const isOffer = stage === 'offer';
+          const isHold = stage === 'hold';
           const isHired = stage === 'hired';
           const isRejected = stage === 'rejected';
           const isBusy = !!busy[`${m.id}-${job.id}`];
           const shortlistDisabled =
-            isShortlisted || isSentToBd || isSubmitted || isInterview || isOffer || isHired || isRejected;
-          const submitToClientDisabled =
-            isSentToBd || isSubmitted || isInterview || isOffer || isHired || isRejected;
+            isShortlisted || isSentToBd || isSubmitted || isInterview || isOffer || isHold || isHired || isRejected;
+          const sendToBdReviewDisabled =
+            isSentToBd || isSubmitted || isInterview || isOffer || isHold || isHired || isRejected;
 
           let shortlistLabel = 'Shortlist';
           if (isShortlisted) shortlistLabel = 'Shortlisted';
@@ -701,16 +1179,18 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
           else if (isSubmitted) shortlistLabel = 'Submitted';
           else if (isInterview) shortlistLabel = 'Interview';
           else if (isOffer) shortlistLabel = 'Offer';
+          else if (isHold) shortlistLabel = 'Hold';
           else if (isHired) shortlistLabel = 'Hired';
           else if (isRejected) shortlistLabel = 'Rejected';
 
-          let submitToClientLabel = 'Submit to Client';
-          if (isSentToBd) submitToClientLabel = 'Forwarded';
-          else if (isSubmitted) submitToClientLabel = 'Submitted to Client';
-          else if (isInterview) submitToClientLabel = 'Interview';
-          else if (isOffer) submitToClientLabel = 'Offer';
-          else if (isHired) submitToClientLabel = 'Hired';
-          else if (isRejected) submitToClientLabel = 'Rejected';
+          let sendToBdReviewLabel = 'Send to BD Review';
+          if (isSentToBd) sendToBdReviewLabel = 'Sent to BD Review';
+          else if (isSubmitted) sendToBdReviewLabel = 'Submitted to Client';
+          else if (isInterview) sendToBdReviewLabel = 'Interview';
+          else if (isOffer) sendToBdReviewLabel = 'Offer';
+          else if (isHold) sendToBdReviewLabel = 'Hold';
+          else if (isHired) sendToBdReviewLabel = 'Hired';
+          else if (isRejected) sendToBdReviewLabel = 'Rejected';
 
           const strengths: string[] = [];
           const gaps: string[] = [];
@@ -941,16 +1421,16 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
 
                 {canRecruit && (
                   <button
-                    onClick={() => handleSubmitToClient(m)}
-                    disabled={submitToClientDisabled}
+                    onClick={() => handleSendToBdReview(m)}
+                    disabled={sendToBdReviewDisabled}
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ml-auto ${
-                      submitToClientDisabled
+                      sendToBdReviewDisabled
                         ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-default'
                         : 'bg-blue-600 border-blue-600 text-white hover:bg-blue-700'
                     }`}
                   >
                     <Send size={12} />
-                    {submitToClientLabel}
+                    {sendToBdReviewLabel}
                   </button>
                 )}
 
@@ -968,6 +1448,8 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
           );
           })}
         </div>
+      )}
+      </>
       )}
     </div>
   );

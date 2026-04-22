@@ -1,11 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { MapPin, BarChart2 } from 'lucide-react';
-import {
-  fetchAllJobs,
-  updateJobOperationalStatus,
-  type JobListRow,
-  type JobOperationalStatus,
-} from '../lib/jobs';
+import { useEffect, useState } from 'react';
+import { BarChart2, MapPin } from 'lucide-react';
+import { fetchAllJobs, type JobListRow } from '../lib/jobs';
 import { supabase } from '../lib/supabase';
 
 type Job = JobListRow;
@@ -23,13 +18,6 @@ interface JobMetrics {
 }
 
 type JobUrgency = 'overdue' | 'due_today' | 'upcoming' | 'none';
-
-const OPERATIONAL_STATUS_OPTIONS: JobOperationalStatus[] = [
-  'not_started',
-  'active',
-  'paused',
-  'closed',
-];
 
 interface Props {
   onViewTopMatches: (jobId: string) => void;
@@ -161,74 +149,45 @@ function buildJobMetricsMap(submissions: SubmissionMetricRow[]): Map<string, Job
   return nextMetricsMap;
 }
 
-async function loadJobsData(): Promise<{ jobs: Job[]; metrics: Map<string, JobMetrics> }> {
-  const [jobsData, submissionsResult] = await Promise.all([
-    fetchAllJobs(),
-    supabase
-      .from('submissions')
-      .select('job_id, submission_stage, next_action_date'),
-  ]);
-
-  if (submissionsResult.error) {
-    console.warn('[Jobs] submissions metrics unavailable:', submissionsResult.error);
-  }
-
-  const submissions = submissionsResult.error
-    ? []
-    : ((submissionsResult.data ?? []) as SubmissionMetricRow[]);
-
-  return {
-    jobs: jobsData as Job[],
-    metrics: buildJobMetricsMap(submissions),
-  };
-}
-
-export default function Jobs({ onViewTopMatches }: Props) {
+export default function ActiveJobs({ onViewTopMatches }: Props) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobMetricsMap, setJobMetricsMap] = useState<Map<string, JobMetrics>>(new Map());
   const [loading, setLoading] = useState(true);
-  const [updatingJobId, setUpdatingJobId] = useState<string | null>(null);
-
-  const refreshJobs = useCallback(async () => {
-    try {
-      const data = await loadJobsData();
-      setJobs(data.jobs);
-      setJobMetricsMap(data.metrics);
-    } catch (error) {
-      console.error('[Jobs] loadJobs error:', error);
-      setJobs([]);
-      setJobMetricsMap(new Map());
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   useEffect(() => {
-    refreshJobs();
-  }, [refreshJobs]);
+    async function loadJobs() {
+      try {
+        const [jobsData, submissionsResult] = await Promise.all([
+          fetchAllJobs(),
+          supabase
+            .from('submissions')
+            .select('job_id, submission_stage, next_action_date'),
+        ]);
 
-  const handleOperationalStatusChange = async (
-    jobId: string,
-    operationalStatus: JobOperationalStatus
-  ) => {
-    setUpdatingJobId(jobId);
+        if (submissionsResult.error) {
+          console.warn('[ActiveJobs] submissions metrics unavailable:', submissionsResult.error);
+        }
 
-    try {
-      await updateJobOperationalStatus(jobId, operationalStatus);
-      await refreshJobs();
-    } catch (error) {
-      console.error('[Jobs] update operational status error', {
-        jobId,
-        attemptedOperationalStatus: operationalStatus,
-        error,
-      });
-      window.alert('Could not update operational status. Please try again.');
-    } finally {
-      setUpdatingJobId(null);
+        const submissions = submissionsResult.error
+          ? []
+          : ((submissionsResult.data ?? []) as SubmissionMetricRow[]);
+        setJobs(jobsData);
+        setJobMetricsMap(buildJobMetricsMap(submissions));
+      } catch (error) {
+        console.error('[ActiveJobs] loadJobs error:', error);
+        setJobs([]);
+        setJobMetricsMap(new Map());
+      } finally {
+        setLoading(false);
+      }
     }
-  };
 
-  const sortedJobs = [...jobs].sort((a, b) => {
+    loadJobs();
+  }, []);
+
+  const activeJobs = jobs.filter(job => job.operational_status === 'active');
+
+  const sortedJobs = [...activeJobs].sort((a, b) => {
     const metricsA = jobMetricsMap.get(a.id);
     const metricsB = jobMetricsMap.get(b.id);
     const nextActionDateA = metricsA?.nextActionDate ?? null;
@@ -237,29 +196,18 @@ export default function Jobs({ onViewTopMatches }: Props) {
     const urgencyB = getJobUrgency(nextActionDateB);
     const urgencyPriorityDiff = URGENCY_PRIORITY[urgencyA] - URGENCY_PRIORITY[urgencyB];
 
-    if (urgencyPriorityDiff !== 0) {
-      return urgencyPriorityDiff;
-    }
+    if (urgencyPriorityDiff !== 0) return urgencyPriorityDiff;
 
     if (nextActionDateA && nextActionDateB) {
       const nextActionDiff = nextActionDateA.getTime() - nextActionDateB.getTime();
-      if (nextActionDiff !== 0) {
-        return nextActionDiff;
-      }
+      if (nextActionDiff !== 0) return nextActionDiff;
     }
 
-    if (nextActionDateA && !nextActionDateB) {
-      return -1;
-    }
-
-    if (!nextActionDateA && nextActionDateB) {
-      return 1;
-    }
+    if (nextActionDateA && !nextActionDateB) return -1;
+    if (!nextActionDateA && nextActionDateB) return 1;
 
     const updatedAtDiff = getUpdatedAtTime(b) - getUpdatedAtTime(a);
-    if (updatedAtDiff !== 0) {
-      return updatedAtDiff;
-    }
+    if (updatedAtDiff !== 0) return updatedAtDiff;
 
     return (a.job_title ?? '').localeCompare(b.job_title ?? '');
   });
@@ -268,14 +216,18 @@ export default function Jobs({ onViewTopMatches }: Props) {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-800">Jobs</h1>
+          <h1 className="text-2xl font-semibold text-gray-800">Active Jobs</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {jobs.length} jobs from Supabase
+            {activeJobs.length} jobs marked active for Terrer execution
           </p>
         </div>
-        <button className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors">
-          + New Job
-        </button>
+      </div>
+
+      <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-5">
+        <p className="text-sm font-semibold text-blue-900">Operational status</p>
+        <p className="text-xs text-blue-700 mt-1">
+          This view shows jobs where <span className="font-semibold">operational_status = active</span>.
+        </p>
       </div>
 
       <div className="space-y-4">
@@ -283,9 +235,9 @@ export default function Jobs({ onViewTopMatches }: Props) {
           <div className="bg-white rounded-lg border border-gray-200 flex items-center justify-center py-16">
             <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : jobs.length === 0 ? (
+        ) : activeJobs.length === 0 ? (
           <div className="bg-white rounded-lg border border-gray-200 flex flex-col items-center justify-center py-16 text-center">
-            <p className="text-sm text-gray-400">No jobs found in Supabase yet.</p>
+            <p className="text-sm text-gray-400">No active jobs found yet. Mark a job active for Terrer execution to show it here.</p>
           </div>
         ) : (
           sortedJobs.map(job => {
@@ -323,27 +275,6 @@ export default function Jobs({ onViewTopMatches }: Props) {
                     </div>
 
                     <p className="text-xs text-gray-400 mt-2">Updated: {timeAgo(job.updated_at)}</p>
-
-                    <div className="mt-3 flex items-center gap-2">
-                      <span className="text-xs text-gray-400">Operational:</span>
-                      <select
-                        value={job.operational_status}
-                        disabled={updatingJobId === job.id}
-                        onChange={(event) =>
-                          handleOperationalStatusChange(
-                            job.id,
-                            event.target.value as JobOperationalStatus
-                          )
-                        }
-                        className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-200 disabled:opacity-60"
-                      >
-                        {OPERATIONAL_STATUS_OPTIONS.map(status => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
                   </div>
 
                   <div className="flex flex-col gap-3 lg:items-end lg:text-right">

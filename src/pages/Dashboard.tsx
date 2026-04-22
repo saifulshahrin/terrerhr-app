@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   AlertCircle, Clock, TrendingUp, Briefcase, Users,
   Send, Star, MapPin, CalendarClock, ChevronRight,
-  CheckCircle2, AlertTriangle, ClipboardCheck, MessageSquare, XCircle,
+  CheckCircle2, AlertTriangle, ClipboardCheck, MessageSquare, XCircle, PauseCircle,
 } from 'lucide-react';
 import {
   fetchDashboardData,
@@ -12,7 +12,6 @@ import {
   type OpportunityItem,
   type BdQueueItem,
 } from '../lib/dashboardData';
-import { updateSubmissionStage } from '../lib/submissions';
 import { useStore } from '../store/StoreContext';
 import { useRole } from '../store/RoleContext';
 
@@ -42,6 +41,7 @@ function stageLabel(stage: string): string {
     interview: 'Interview',
     offer: 'Offer',
     rejected: 'Rejected',
+    hold: 'Hold',
     hired: 'Hired',
   };
   return map[stage] ?? stage;
@@ -54,7 +54,7 @@ const attentionStatusStyle: Record<string, string> = {
 };
 
 export default function Dashboard() {
-  const { approveAndSubmitToClient } = useStore();
+  const { updateSubmissionInStore } = useStore();
   const { role } = useRole();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -65,6 +65,7 @@ export default function Dashboard() {
   const [expandedBd, setExpandedBd] = useState<string | null>(null);
   const [approvingBd, setApprovingBd] = useState<Record<string, boolean>>({});
   const [rejectingBd, setRejectingBd] = useState<Record<string, boolean>>({});
+  const [holdingBd, setHoldingBd] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetchDashboardData().then(data => {
@@ -79,16 +80,38 @@ export default function Dashboard() {
 
   const handleApprove = async (item: BdQueueItem) => {
     setApprovingBd(p => ({ ...p, [item.submissionId]: true }));
-    await approveAndSubmitToClient(item.candidateId, item.jobId);
-    setBdQueue(prev => prev.filter(i => i.submissionId !== item.submissionId));
-    setApprovingBd(p => ({ ...p, [item.submissionId]: false }));
+    try {
+      const updatedSubmission = await updateSubmissionInStore(item.submissionId, 'submitted_to_client');
+      if (updatedSubmission) {
+        setBdQueue(prev => prev.filter(i => i.submissionId !== updatedSubmission.id));
+      }
+    } finally {
+      setApprovingBd(p => ({ ...p, [item.submissionId]: false }));
+    }
   };
 
   const handleReject = async (item: BdQueueItem) => {
     setRejectingBd(p => ({ ...p, [item.submissionId]: true }));
-    const updatedSubmission = await updateSubmissionStage(item.submissionId, 'shortlisted');
-    setBdQueue(prev => prev.filter(i => i.submissionId !== updatedSubmission.id));
-    setRejectingBd(p => ({ ...p, [item.submissionId]: false }));
+    try {
+      const updatedSubmission = await updateSubmissionInStore(item.submissionId, 'rejected');
+      if (updatedSubmission) {
+        setBdQueue(prev => prev.filter(i => i.submissionId !== updatedSubmission.id));
+      }
+    } finally {
+      setRejectingBd(p => ({ ...p, [item.submissionId]: false }));
+    }
+  };
+
+  const handleHold = async (item: BdQueueItem) => {
+    setHoldingBd(p => ({ ...p, [item.submissionId]: true }));
+    try {
+      const updatedSubmission = await updateSubmissionInStore(item.submissionId, 'hold');
+      if (updatedSubmission) {
+        setBdQueue(prev => prev.filter(i => i.submissionId !== updatedSubmission.id));
+      }
+    } finally {
+      setHoldingBd(p => ({ ...p, [item.submissionId]: false }));
+    }
   };
 
   const overdueCount = actionQueue.filter(a => a.urgency === 'overdue').length;
@@ -96,9 +119,11 @@ export default function Dashboard() {
 
   const isBD = role === 'bd';
   const isRecruiter = role === 'recruiter';
-  const isAdmin = role === 'admin' || role === null;
+  const isAdmin = role === 'admin';
+  const canRecruiter = isRecruiter || isAdmin;
+  const canBD = isBD || isAdmin;
 
-  const dashTitle = isBD ? 'BD Dashboard' : isRecruiter ? 'Recruiter Dashboard' : 'Dashboard';
+  const dashTitle = isBD ? 'BD Dashboard' : isRecruiter ? 'Recruiter Dashboard' : 'Admin Dashboard';
 
   return (
     <div>
@@ -112,7 +137,7 @@ export default function Dashboard() {
           label="Active Jobs"
           value={loading ? '—' : String(stats?.activeJobs ?? 0)}
           icon={<Briefcase size={15} className="text-blue-500" />}
-          sub="Open roles"
+          sub="Operational jobs"
           loading={loading}
         />
         <StatCard
@@ -126,7 +151,7 @@ export default function Dashboard() {
           label="Submissions"
           value={loading ? '—' : String(stats?.totalSubmissions ?? 0)}
           icon={<Send size={15} className="text-sky-500" />}
-          sub="Across all jobs"
+          sub="Active jobs only"
           loading={loading}
         />
         <StatCard
@@ -138,7 +163,7 @@ export default function Dashboard() {
         />
       </div>
 
-      {!isBD && opportunities.length > 0 && (
+      {canRecruiter && opportunities.length > 0 && (
         <div className="mb-6 bg-white rounded-lg border border-blue-200 overflow-hidden">
           <div className="px-5 py-4 border-b border-blue-100 flex items-center gap-2 bg-blue-50">
             <Star size={15} className="text-blue-600" />
@@ -208,6 +233,7 @@ export default function Dashboard() {
                 const isExpanded = expandedBd === item.submissionId;
                 const isApproving = approvingBd[item.submissionId];
                 const isRejecting = rejectingBd[item.submissionId];
+                const isHolding = holdingBd[item.submissionId];
                 const sentDate = new Date(item.sentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 return (
                   <div key={item.submissionId}>
@@ -255,11 +281,23 @@ export default function Dashboard() {
                           <ChevronRight size={13} className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                           {isExpanded ? 'Hide' : 'Review'}
                         </button>
-                        {!isRecruiter && (
+                        {canBD && (
                           <>
                             <button
+                              onClick={() => handleHold(item)}
+                              disabled={isHolding || isRejecting || isApproving}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                                isHolding
+                                  ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-default'
+                                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                              }`}
+                            >
+                              <PauseCircle size={11} />
+                              {isHolding ? 'Holding...' : 'Hold'}
+                            </button>
+                            <button
                               onClick={() => handleReject(item)}
-                              disabled={isRejecting || isApproving}
+                              disabled={isRejecting || isApproving || isHolding}
                               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
                                 isRejecting
                                   ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-default'
@@ -271,7 +309,7 @@ export default function Dashboard() {
                             </button>
                             <button
                               onClick={() => handleApprove(item)}
-                              disabled={isApproving || isRejecting}
+                              disabled={isApproving || isRejecting || isHolding}
                               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
                                 isApproving
                                   ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-default'
@@ -332,11 +370,23 @@ export default function Dashboard() {
                             </div>
                           </div>
                         )}
-                        {!isRecruiter && (
+                        {canBD && (
                           <div className="flex items-center justify-end gap-2 pt-1 border-t border-gray-200">
                             <button
+                              onClick={() => handleHold(item)}
+                              disabled={isHolding || isRejecting || isApproving}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                                isHolding
+                                  ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-default'
+                                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                              }`}
+                            >
+                              <PauseCircle size={11} />
+                              {isHolding ? 'Holding...' : 'Hold'}
+                            </button>
+                            <button
                               onClick={() => handleReject(item)}
-                              disabled={isRejecting || isApproving}
+                              disabled={isRejecting || isApproving || isHolding}
                               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
                                 isRejecting
                                   ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-default'
@@ -344,11 +394,11 @@ export default function Dashboard() {
                               }`}
                             >
                               <XCircle size={11} />
-                              {isRejecting ? 'Rejecting...' : 'Reject — Send Back'}
+                              {isRejecting ? 'Rejecting...' : 'Reject'}
                             </button>
                             <button
                               onClick={() => handleApprove(item)}
-                              disabled={isApproving || isRejecting}
+                              disabled={isApproving || isRejecting || isHolding}
                               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
                                 isApproving
                                   ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-default'
@@ -371,7 +421,7 @@ export default function Dashboard() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {!isBD && <div className="lg:col-span-3 bg-white rounded-lg border border-gray-200 overflow-hidden">
+        {canRecruiter && <div className="lg:col-span-3 bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
             <AlertCircle size={15} className="text-red-500" />
             <h2 className="text-sm font-semibold text-gray-700">Action Queue</h2>
@@ -438,7 +488,7 @@ export default function Dashboard() {
           )}
         </div>}
 
-        <div className={`${isBD ? 'lg:col-span-5' : 'lg:col-span-2'} bg-white rounded-lg border border-gray-200 overflow-hidden`}>
+        <div className={`${canRecruiter ? 'lg:col-span-2' : 'lg:col-span-5'} bg-white rounded-lg border border-gray-200 overflow-hidden`}>
           <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
             <Clock size={15} className="text-yellow-500" />
             <h2 className="text-sm font-semibold text-gray-700">Jobs Needing Attention</h2>

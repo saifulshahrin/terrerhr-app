@@ -80,9 +80,9 @@ export default function SubmissionModal({ open, candidate, job, output, onClose,
               <FileText size={15} className="text-blue-600" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-gray-900">Review & Submit to Client</h2>
+              <h2 className="text-sm font-semibold text-gray-900">Review & Send to BD Review</h2>
               <p className="text-xs text-gray-400">
-                Finalize the recruiter submission before it moves to the submitted stage.
+                Finalize the recruiter submission before it moves to BD approval.
               </p>
             </div>
           </div>
@@ -206,7 +206,7 @@ export default function SubmissionModal({ open, candidate, job, output, onClose,
               }`}
             >
               <Send size={12} />
-              {sending ? 'Submitting...' : 'Submit to Client'}
+              {sending ? 'Sending...' : 'Send to BD Review'}
             </button>
           </div>
         </div>

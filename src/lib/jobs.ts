@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 
+export type JobOperationalStatus = 'not_started' | 'active' | 'paused' | 'closed';
+
 export interface CreateJobParams {
   title: string;
   company: string;
@@ -23,8 +25,7 @@ export interface JobListRow {
   company_name: string;
   location: string;
   source: string;
-  status: string;
-  created_at: string;
+  operational_status: JobOperationalStatus;
   updated_at: string;
 }
 
@@ -34,12 +35,22 @@ interface CreatedJobRow {
   company_name: string;
   location: string;
   source: string;
+  operational_status: JobOperationalStatus;
   updated_at: string;
 }
 
 interface CreatedJobIntakeRow {
   job_id: string;
 }
+
+const CREATED_JOB_SELECT =
+  'id, job_title, company_name, location, source, operational_status, updated_at';
+
+const JOB_LIST_SELECT =
+  'id, job_title, company_name, location, source, operational_status, updated_at';
+
+const JOB_DETAIL_SELECT =
+  'id, job_title, company_name, location, operational_status';
 
 function deriveWorkMode(location?: string, rawInput?: string): string {
   const text = `${location ?? ''} ${rawInput ?? ''}`.toLowerCase();
@@ -103,9 +114,10 @@ export async function createJob(params: CreateJobParams) {
       company_name: params.company,
       location: params.location ?? null,
       source: 'manual_intake',
+      operational_status: 'active',
       updated_at: new Date().toISOString(),
     })
-    .select('id, job_title, company_name, location, source, updated_at')
+    .select(CREATED_JOB_SELECT)
     .single();
 
   if (error) throw error;
@@ -116,6 +128,7 @@ export async function createJob(params: CreateJobParams) {
     canonicalTable: 'public.jobs',
     jobId: job.id,
     jobTitle: job.job_title,
+    operationalStatus: job.operational_status,
   });
 
   const intakePayload = {
@@ -167,24 +180,11 @@ export async function createJob(params: CreateJobParams) {
 export async function getJobById(jobId: string) {
   const normalizedJobId = typeof jobId === 'string' ? jobId.trim() : '';
 
-  console.log('[jobs.getJobById] input', {
-    jobId,
-    type: typeof jobId,
-    normalizedJobId,
-  });
-
-  console.log('[jobs.getJobById] query', { normalizedJobId });
   const { data, error } = await supabase
     .from('jobs')
-    .select('id, job_title, company_name, location')
+    .select(JOB_DETAIL_SELECT)
     .eq('id', normalizedJobId)
     .maybeSingle();
-
-  console.log('[jobs.getJobById] result', {
-    normalizedJobId,
-    data,
-    error,
-  });
 
   if (error) throw error;
   return data;
@@ -201,9 +201,54 @@ export async function fetchAllJobsBasic() {
 export async function fetchAllJobs(): Promise<JobListRow[]> {
   const { data, error } = await supabase
     .from('jobs')
-    .select('*')
+    .select(JOB_LIST_SELECT)
     .order('updated_at', { ascending: false });
 
   if (error) throw error;
   return (data ?? []) as JobListRow[];
+}
+
+export async function updateJobOperationalStatus(
+  jobId: string,
+  operationalStatus: JobOperationalStatus
+): Promise<JobListRow> {
+  const updatePayload = {
+    operational_status: operationalStatus,
+    updated_at: new Date().toISOString(),
+  };
+
+  console.log('[jobs.updateJobOperationalStatus] request', {
+    table: 'public.jobs',
+    jobId,
+    payload: updatePayload,
+  });
+
+  const { data, error } = await supabase
+    .from('jobs')
+    .update(updatePayload)
+    .eq('id', jobId)
+    .select(JOB_LIST_SELECT)
+    .single();
+
+  if (error) {
+    console.error('[jobs.updateJobOperationalStatus] Supabase update failed', {
+      table: 'public.jobs',
+      jobId,
+      payload: updatePayload,
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+      error,
+    });
+    throw error;
+  }
+
+  console.log('[jobs.updateJobOperationalStatus] success', {
+    jobId,
+    operationalStatus: data?.operational_status,
+    row: data,
+  });
+
+  return data as JobListRow;
 }

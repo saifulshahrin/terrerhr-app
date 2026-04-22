@@ -386,14 +386,14 @@ export default function BDQueue() {
 
   const handleAction = async (submissionId: string, action: 'approve' | 'reject' | 'hold') => {
     const stageMap: Record<'approve' | 'reject' | 'hold', SubmissionStage> = {
-  approve: 'submitted_to_client',
-  reject: 'rejected',
-  hold: 'ready_for_bd_review',
-};
+      approve: 'submitted_to_client',
+      reject: 'rejected',
+      hold: 'hold',
+    };
     const newStage = stageMap[action];
     const updatedSubmission = await updateSubmissionInStore(submissionId, newStage);
 
-    if (updatedSubmission && action !== 'hold') {
+    if (updatedSubmission) {
       setItems(prev => prev.filter(i => i.submissionId !== updatedSubmission.id));
     }
   };

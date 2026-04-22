@@ -5,7 +5,6 @@ import { CalendarClock } from 'lucide-react';
 import { useRole } from '../store/RoleContext';
 import { buildCandidateMap, createFallbackCandidate, fetchCandidatesByIds } from '../lib/candidates';
 import { fetchAllJobsBasic } from '../lib/jobs';
-import { generateSubmissionOutput } from '../lib/submissionOutput';
 
 const PIPELINE_STAGES: { key: SubmissionStage; name: string; color: string; headerColor: string }[] = [
   { key: 'new',                 name: 'New',           color: 'border-gray-300',   headerColor: 'bg-gray-100' },
@@ -14,6 +13,7 @@ const PIPELINE_STAGES: { key: SubmissionStage; name: string; color: string; head
   { key: 'submitted_to_client', name: 'Submitted',     color: 'border-yellow-300', headerColor: 'bg-yellow-50' },
   { key: 'interview',           name: 'Interview',     color: 'border-orange-300', headerColor: 'bg-orange-50' },
   { key: 'offer',               name: 'Offer',         color: 'border-green-300',  headerColor: 'bg-green-50' },
+  { key: 'hold',                name: 'Hold',          color: 'border-gray-300',   headerColor: 'bg-gray-50' },
   { key: 'rejected',            name: 'Rejected',      color: 'border-red-300',    headerColor: 'bg-red-50' },
   { key: 'hired',               name: 'Hired',         color: 'border-emerald-300', headerColor: 'bg-emerald-50' },
 ];
@@ -25,6 +25,7 @@ const RESETTABLE_STAGES: SubmissionStage[] = [
   'submitted_to_client',
   'interview',
   'offer',
+  'hold',
 ];
 
 const scoreColor = (s: number) =>
@@ -75,6 +76,8 @@ function formatStageLabel(stage: SubmissionStage): string {
       return 'BD Review';
     case 'submitted_to_client':
       return 'Submitted';
+    case 'hold':
+      return 'Hold';
     default:
       return stage.charAt(0).toUpperCase() + stage.slice(1);
   }
@@ -91,7 +94,7 @@ function getRecommendedAction(
     case 'new':
       return 'Review match';
     case 'shortlisted':
-      return 'Submit to client';
+      return 'Send to BD review';
     case 'ready_for_bd_review':
       return 'BD review';
     case 'submitted_to_client':
@@ -100,6 +103,8 @@ function getRecommendedAction(
       return 'Prepare candidate / confirm schedule';
     case 'offer':
       return 'Close offer';
+    case 'hold':
+      return 'Review hold status';
     case 'rejected':
       return 'Archive / reset if needed';
     case 'hired':
@@ -113,7 +118,7 @@ export default function Pipeline() {
   const {
     submissions,
     moveSubmissionStage,
-    submitToClientWithOutput,
+    sendSubmissionToBdReviewInStore,
     resetSubmissionToStage,
     deleteSubmissionById,
   } = useStore();
@@ -184,16 +189,12 @@ export default function Pipeline() {
     }
   };
 
-  const handleSubmitToClient = async (sub: Submission, card: Candidate) => {
+  const handleSendToBdReview = async (sub: Submission) => {
     const draft = noteDrafts[sub.id] ?? sub.notes ?? '';
-    const jobContext = jobMap.get(sub.job_id);
-    if (!jobContext) return;
-
-    const output = generateSubmissionOutput(card, jobContext, null);
 
     setBusy(prev => ({ ...prev, [sub.id]: true }));
     try {
-      const result = await submitToClientWithOutput(sub.candidate_id, sub.job_id, output, draft);
+      const result = await sendSubmissionToBdReviewInStore(sub.id, draft, sub.notes);
       if (result) {
         setNoteDrafts(prev => {
           const next = { ...prev };
@@ -342,15 +343,15 @@ export default function Pipeline() {
                             className="w-full text-[10px] text-gray-600 border border-gray-200 rounded px-2 py-1 resize-none focus:outline-none focus:ring-1 focus:ring-blue-200 focus:border-blue-300 disabled:bg-gray-50"
                           />
                           <button
-                            onClick={() => handleSubmitToClient(sub, card)}
-                            disabled={submissionBusy || !jobContext}
+                            onClick={() => handleSendToBdReview(sub)}
+                            disabled={submissionBusy}
                             className={`px-2 py-1 text-[10px] font-medium rounded border transition-colors ${
-                              submissionBusy || !jobContext
+                              submissionBusy
                                 ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-default'
                                 : 'bg-white border-blue-200 text-blue-700 hover:bg-blue-50'
                             }`}
                           >
-                            {submissionBusy ? 'Submitting...' : 'Submit to Client'}
+                            {submissionBusy ? 'Sending...' : 'Send to BD Review'}
                           </button>
                         </div>
                       )}

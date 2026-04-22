@@ -536,3 +536,293 @@
 - click the same target again or `Clear filter`
 - confirm the full drill-down list returns
 - confirm `Top Hiring Companies`, `Top Roles in Demand`, `Role Families`, and raw job cards still work as before
+
+## Candidates Sourcing Workspace
+- Candidates now works better as a simple sourcing workspace
+- implementation is local to `src/pages/Candidates.tsx`
+- no schema, backend, route, shared store, Top Matches, or Pipeline changes were made
+- Candidates still loads from the existing live candidate helper
+- added role filter buttons:
+  - `All`
+  - `Software Engineer`
+  - `Frontend`
+  - `Data`
+  - `Product`
+- candidates sort by score descending by default
+- if opened from Top Matches `Source Candidates`, the selected job title preselects the closest role filter when possible
+- the sourcing banner remains visible with job title and key skills
+
+## Owner Testing For Candidates Sourcing
+- open Candidates directly
+- confirm `All` is selected and candidates are sorted by score descending
+- click each role filter and confirm the list narrows without page reload
+- confirm the count reads as filtered candidates out of total loaded candidates
+- open a no-viable Top Matches state and click `Source Candidates`
+- confirm Candidates opens with the sourcing banner
+- confirm the role filter preselects a matching bucket for software, frontend, data, or product-style jobs
+- confirm if no matching role bucket exists, Candidates safely remains on `All`
+
+## BD Dashboard
+- added a separate BD-focused dashboard component:
+  - `src/pages/BDDashboard.tsx`
+- BD users now see this dashboard through the existing `Dashboard` navigation slot
+- recruiter/admin dashboard behavior was not rewritten
+- no schema, backend, Supabase query, Top Matches, Pipeline, or submission write logic changed
+- current data is realistic placeholder/mock operating data, intentionally structured for later Supabase wiring
+- dashboard sections:
+  - Header with `Add New Lead`, `Log Conversation`, and `Create Job Intake`
+  - KPI strip
+  - Companies to Target Today
+  - Active Opportunities
+  - Deals at Risk
+  - Candidates Ready to Send
+  - Quick Hiring Insights
+  - Quick Actions
+- working navigation actions:
+  - `Create Job Intake` opens Job Intake
+  - `Open BD Queue` opens BD Queue
+  - `Review Hiring Intelligence` opens Jobs
+  - `Check Pipeline` opens Pipeline
+- `Add New Lead` and `Log Conversation` are present as UI-only actions for this first pass
+
+## Owner Testing For BD Dashboard
+- switch role to `BD`
+- click `Dashboard`
+- confirm the page title is `BD Dashboard`
+- confirm the page is BD/revenue focused rather than recruiter focused
+- confirm the KPI strip and all requested sections are visible
+- click `Create Job Intake` and confirm it navigates to Job Intake
+- click `Open BD Queue` from Quick Actions and confirm it navigates to BD Queue
+- click `Review Hiring Intelligence` and confirm it navigates to Jobs
+- click `Check Pipeline` and confirm it navigates to Pipeline
+- switch role to `Recruiter`
+- confirm recruiter still sees the existing recruiter dashboard flow
+
+## BD Relationships UI
+- added a new BD relationship memory screen:
+  - `src/pages/BDRelationships.tsx`
+- wired through:
+  - `src/App.tsx`
+  - `src/components/Sidebar.tsx`
+- sidebar visibility:
+  - visible for BD
+  - visible for Admin
+  - hidden for Recruiter
+- current data is realistic mock relationship/contact data only
+- no Supabase schema, backend, modal system, recruiter workflow, Top Matches, Pipeline, or submission write logic changed
+- page includes:
+  - header actions: `Add New Contact`, `Log Interaction`, `Link Contact to Opportunity`
+  - KPI strip
+  - contacts / relationship list
+  - selected-contact detail panel
+  - owner field on selected contact
+  - contact tags and notes
+  - lightweight linked opportunities
+  - interaction timeline
+  - quick relationship actions
+- intentional v1 constraints:
+  - warmth is only `Hot`, `Warm`, or `Cold`
+  - linked opportunities show only role, company, and stage
+  - no scores, complex filters, charts, candidate widgets, CRM edit forms, or BD Playbook content
+
+## Owner Testing For BD Relationships
+- switch role to `BD`
+- confirm `BD Relationships` appears in the sidebar
+- open `BD Relationships`
+- confirm the page title and relationship-memory subtitle appear
+- confirm KPI strip shows Companies, Contacts, Active Relationships, and Follow-ups Due
+- click different contacts in the list
+- confirm the right-side detail panel updates
+- confirm warmth labels are only `Hot`, `Warm`, or `Cold`
+- confirm `Next Step` and `Follow-up Due` are easier to scan than `Last Interaction`
+- confirm selected contact shows `Owner`
+- confirm linked opportunities show only role, company, and stage
+- switch role to `Recruiter`
+- confirm `BD Relationships` is not visible in the sidebar
+
+## Candidates Job-Aware Sourcing Action
+- Candidates sourcing context now includes:
+  - `jobId`
+  - `role`
+  - `skills`
+- `TopMatches` passes the selected job id when opening Candidates from `Source Candidates`
+- Candidates still preserves existing sourcing behavior:
+  - role/skills banner
+  - role prefiltering
+  - score sorting
+  - role filters
+  - filtered count
+- when Candidates has `sourcingContext.jobId`, candidate cards show:
+  - `Shortlist for this Job`
+- button behavior:
+  - calls existing `StoreContext.shortlist(candidateId, jobId)`
+  - shows `Adding...` while saving
+  - after successful shortlist, the card becomes disabled with `Already Shortlisted`
+  - if the candidate is already further along for that job, it shows `Already [Stage]`
+- when Candidates is opened directly or without job context:
+  - no job-aware button is shown
+  - Candidates remains a passive sourcing/browsing workspace
+- no backend, schema, new API, search, skill filter, or generic job picker was added
+
+## Owner Testing For Candidates Job-Aware Sourcing
+- open a no-viable Top Matches state
+- click `Source Candidates`
+- confirm Candidates opens with the sourcing banner
+- confirm candidate cards show `Shortlist for this Job`
+- click `Shortlist for this Job` on one candidate
+- confirm the button briefly shows `Adding...`
+- confirm the same card then shows `Already Shortlisted`
+- return to Top Matches or Pipeline and confirm the candidate is now in the selected job flow
+- open Candidates directly from the sidebar
+- confirm candidate cards do not show the job-aware shortlist button
+
+## Job Detail Sourcing Plan V1
+- Sourcing Plan lives inside the existing job-scoped Top Matches page
+- there is no separate Job Detail route in the current app architecture
+- after opening a job from Jobs into Top Matches, the selected-job view now has two tabs:
+  - `Top Matches`
+  - `Sourcing Plan`
+- Sourcing Plan V1 is mock/UI-only:
+  - no schema changes
+  - no backend changes
+  - no persistence
+  - no automation
+  - no outreach generation
+- blocks included:
+  - Job Context Strip
+  - Recommended Channels
+  - Channel Tracker
+  - Action Bar
+- Channel Tracker rows:
+  - Internal Database
+  - LinkedIn Outreach
+  - JobStreet
+  - Hiredly
+  - Referrals
+- Channel Tracker status changes are local React state only and reset when the page reloads
+- `Search Internal Candidates` opens Candidates using the existing sourcing context:
+  - selected `jobId`
+  - selected job title as role context
+  - loaded required skills where available
+- `View Top Matches` switches back to the Top Matches tab for the same selected job
+- existing Top Matches candidate ranking, Terrer AI Review, shortlist, submit, and admin cleanup flows remain unchanged
+
+## Owner Testing For Sourcing Plan
+- open Jobs
+- choose an active job and click `View Top Matches`
+- confirm the selected job header still appears
+- click the `Sourcing Plan` tab
+- confirm the Job Context Strip shows job title, company, priority, and `Database First`
+- confirm all five recommended channels appear with priority badges and one-line reasons
+- change a Channel Tracker status and confirm the UI updates locally
+- click `Search Internal Candidates`
+- confirm Candidates opens with the sourcing banner and job-aware shortlist buttons
+- return to the same job in Top Matches and click `Sourcing Plan`
+- click `View Top Matches`
+- confirm it switches back to the existing Top Matches candidate ranking view
+
+## Sourcing Plan V1 Light Wiring
+- Sourcing Plan remains frontend-only:
+  - no schema changes
+  - no backend changes
+  - no persistence
+  - no new APIs
+- action wiring:
+  - `Search Internal Candidates` opens Candidates with selected `jobId`, job title, and required skills
+  - Candidates then shows the existing sourcing banner and job-aware `Shortlist for this Job` buttons
+  - `View Top Matches` switches back to the same job's Top Matches tab
+- Channel Tracker state currently lives in local React state inside `src/pages/TopMatches.tsx`
+- tracker state is scoped by job id:
+  - changing a channel status for one selected job does not affect another selected job in the same app session
+  - values reset on page reload because there is no persistence yet
+- `Added to Job` behavior:
+  - Internal Database is derived from current submissions for the selected job
+  - this means candidates shortlisted/submitted into the job update the Internal Database added count
+  - other channels remain mock/manual values because the app does not yet store source channel per submission
+- still mock/manual for later wiring:
+  - leads
+  - next action
+  - non-internal added-to-job counts
+  - persisted channel status
+- later backend wiring should add a real job-scoped sourcing tracker table or equivalent once the product model is ready
+
+## Top Matches 3-Tier Trust Logic
+- added frontend-only helper:
+  - `src/lib/roleTrustPolicy.ts`
+- helper exports:
+  - `RoleTrustPolicy`
+  - `classifyRoleTrustPolicy(jobTitle)`
+- policies:
+  - `STRICT`
+  - `SEMI_STRICT`
+  - `FLEX`
+- STRICT keyword coverage includes clear regulated / licensed signals across:
+  - medical / healthcare / lab
+  - legal
+  - regulated finance / accounting / audit / tax / compliance
+  - aviation
+  - licensed engineering
+  - safety / HSE / DOSH / OSHA
+  - public enforcement
+- SEMI_STRICT keyword coverage includes important-but-not-absolute roles such as:
+  - compliance manager
+  - risk
+  - internal audit
+  - QA / QC / quality assurance
+  - regulatory affairs
+  - finance manager
+  - tax manager
+  - safety manager
+  - regulated-sector operations manager
+  - clinical sales / medical device / pharma sales
+- default is `FLEX` when no clear regulated or semi-strict signal is found
+- per-tier behavior:
+  - `STRICT` = no compromise
+  - `SEMI_STRICT` = controlled near matches
+  - `FLEX` = exploratory allowed
+- no-viable behavior:
+  - STRICT shows `No viable candidates found`, hides all candidate lists, and blocks exploratory suggestions
+  - SEMI_STRICT shows `No strong matches found. Showing limited near matches for review.` and renders a clearly separated `Near matches for review` section
+  - FLEX shows `No strong matches found. Showing exploratory profiles for sourcing.` and renders a clearly separated `Exploratory profiles for manual sourcing` section
+- near/exploratory sections:
+  - reuse existing ranked candidates
+  - do not mix into the main candidate list
+  - do not use the phrase `Top Matches`
+  - are labeled `Not recommended`
+  - are read-only and do not include shortlist or submit buttons
+- existing viable candidate display, shortlist, submit, Terrer AI Review, and Sourcing Plan behavior remains unchanged
+
+## Owner Testing For 3-Tier Trust Logic
+- open Top Matches for a strict role such as Medical Officer, lawyer, accountant, pharmacist, pilot, safety officer, or structural engineer
+- if there are no viable candidates, confirm candidate lists are hidden and no exploratory section appears
+- open Top Matches for a semi-strict role such as Risk Manager, Internal Audit, QA, Regulatory Affairs, Finance Manager, or pharma sales
+- if there are no viable candidates, confirm `Near matches for review` appears as a separate read-only section
+- open Top Matches for a flexible role such as Software Engineer, Product Manager, Designer, or Marketing role
+- if there are no viable candidates, confirm `Exploratory profiles for manual sourcing` appears as a separate read-only section
+- confirm viable jobs with Proceed / Review candidates still show the normal candidate cards and actions
+
+## Near / Exploratory Candidate Reasoning
+- near/exploratory candidate explanations are implemented locally in `src/pages/TopMatches.tsx`
+- helper behavior:
+  - compares the selected job title with candidate role / skill signals using coarse rule-based categories
+  - uses existing ranked-candidate fields such as `roleMatch`, `matchedSkills`, `missingSkills`, and `locationMatch`
+  - returns up to three short `Why shown` lines per near/exploratory card
+- shown only in:
+  - SEMI_STRICT `Near matches for review`
+  - FLEX `Exploratory profiles for manual sourcing`
+- STRICT behavior is unchanged:
+  - STRICT roles still do not show exploratory candidates when no viable candidates exist
+- this is not a new scoring engine:
+  - it does not change Terrer AI Review decisions
+  - it does not change supply assessment
+  - it does not change candidate ranking thresholds
+  - it does not introduce Gemini or another AI provider
+- current limitations:
+  - reasoning quality depends on available candidate role, skills, structured skills, job title, and job requirements
+  - explanations are intentionally conservative and should not be treated as definitive evidence
+
+## Owner Testing For Near / Exploratory Reasoning
+- open a SEMI_STRICT job with no viable candidates and confirm each near-match card has a `Why shown` block
+- open a FLEX job with no viable candidates and confirm each exploratory card has a `Why shown` block
+- confirm strict jobs such as Medical Officer or legal roles still hide candidate cards entirely when no viable candidates exist
+- confirm the normal Top Matches list for viable roles remains unchanged and still shows actions

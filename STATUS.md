@@ -710,3 +710,201 @@ Finish approved live-candidate workflow iteration in approved scope only:
 - validation:
   - `npm run typecheck` still reports only the unrelated pre-existing error:
     - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Candidates Sourcing Workspace
+- improved `src/pages/Candidates.tsx` as a lightweight recruiter sourcing workspace
+- no schema, backend, route, or shared store changes were made
+- Candidates still uses existing live candidate data from `fetchCandidatesForUI()`
+- added simple role filter buttons:
+  - `All`
+  - `Software Engineer`
+  - `Frontend`
+  - `Data`
+  - `Product`
+- candidate cards are now sorted by score descending by default, with candidate name as the deterministic tie-break
+- sourcing context from Top Matches now preselects the closest role filter based on the selected job title when possible
+- page count now shows filtered candidates against total loaded candidates
+- empty filter state now shows a simple `No candidates found for this role filter.` message
+- existing card UI, stage badges, loading state, error state, and sourcing banner were preserved
+- validation:
+  - `npm run typecheck` still reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## BD Dashboard
+- implemented a separate BD-focused dashboard page in `src/pages/BDDashboard.tsx`
+- wired BD users through the existing `dashboard` route in `src/App.tsx`
+- no schema, backend, Supabase query, recruiter page, Top Matches, Pipeline, or submission write logic was changed
+- dashboard is action-first and uses realistic placeholder data structured for future Supabase wiring
+- sections implemented:
+  - header with BD focus and quick actions
+  - KPI strip for companies to target, active opportunities, deals at risk, and candidates ready
+  - `Companies to Target Today`
+  - `Active Opportunities`
+  - `Deals at Risk`
+  - `Candidates Ready to Send`
+  - `Quick Hiring Insights`
+  - `Quick Actions`
+- quick actions use existing app navigation where safe:
+  - `Create Job Intake` -> Job Intake
+  - `Open BD Queue` -> BD Queue
+  - `Review Hiring Intelligence` -> Jobs
+  - `Check Pipeline` -> Pipeline
+- `Add New Lead` and `Log Conversation` are present as UI actions only for this placeholder pass
+- validation:
+  - `npm run typecheck` reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## BD Relationships UI
+- implemented the first-pass BD relationship memory layer in `src/pages/BDRelationships.tsx`
+- wired the page into existing in-memory navigation via `src/App.tsx`
+- added `BD Relationships` to the existing role-aware sidebar in `src/components/Sidebar.tsx`
+- visibility:
+  - BD users can access it
+  - Admin users can access it
+  - Recruiter users do not see it
+- no schema, backend, Supabase query, modal system, recruiter workflow, Top Matches, Pipeline, or submission write logic was changed
+- first pass uses realistic page-local mock contact and interaction data structured for future Supabase replacement
+- UI includes:
+  - header actions: `Add New Contact`, `Log Interaction`, `Link Contact to Opportunity`
+  - KPI strip: `Companies`, `Contacts`, `Active Relationships`, `Follow-ups Due`
+  - contact / relationship list
+  - selected-contact detail panel
+  - interaction timeline
+  - quick relationship actions
+- v1 guardrails enforced:
+  - warmth is only `Hot`, `Warm`, or `Cold`
+  - `Next Step` and `Follow-up Due` are visually stronger than `Last Interaction`
+  - linked opportunities show only role, company, and stage
+  - selected contact includes an `Owner` field for future multi-user support
+  - no scoring systems, complex filters, charts, candidate widgets, CRM edit forms, or BD Playbook content
+- validation:
+  - `npm run typecheck` reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Candidates Job-Aware Sourcing Action
+- completed the missing candidate-to-job action in the existing Candidates sourcing workspace
+- confirmed before implementation that Candidates already had:
+  - score-descending sort
+  - role filters
+  - Source Candidates context banner
+  - role prefiltering from sourcing context
+  - filtered count
+- no schema, backend, route, sorting, role-filter, search, skill-filter, or layout redesign changes were made
+- extended existing sourcing context to include `jobId`
+- `TopMatches` now passes the selected `job.id` when opening Candidates from `Source Candidates`
+- `App` preserves `sourcingContext.jobId` through existing in-memory navigation state
+- `Candidates` now shows a job-aware `Shortlist for this Job` button on candidate cards only when `sourcingContext.jobId` exists
+- action uses existing `StoreContext.shortlist(candidateId, jobId)` and does not introduce a new backend API
+- stage-aware behavior:
+  - candidates not yet in that job show `Shortlist for this Job`
+  - while saving, the button shows `Adding...`
+  - candidates already in that job flow show disabled `Already [Stage]`
+- when Candidates is opened without job context:
+  - no job-aware action is shown
+  - existing passive browsing behavior remains unchanged
+- validation:
+  - `npm run typecheck` reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Job Detail Sourcing Plan V1
+- added a mock-only recruiter sourcing playbook/tracker inside the existing job-scoped Top Matches page
+- current architecture has no separate Job Detail route, so `src/pages/TopMatches.tsx` now provides job-level tabs:
+  - `Top Matches`
+  - `Sourcing Plan`
+- no schema, backend, Supabase query, persistence, automation, outreach generation, or multi-posting workflow was added
+- Sourcing Plan V1 includes exactly the requested blocks:
+  - job context strip with job title, company, priority placeholder, and `Database First` sourcing mode
+  - recommended channel cards for Internal Database, LinkedIn Outreach, JobStreet, Hiredly, and Referrals
+  - mock/local Channel Tracker with status, leads, added-to-job count, and next action
+  - action bar with `Search Internal Candidates` and `View Top Matches`
+- Channel Tracker status changes are local React state only and are not saved
+- `Search Internal Candidates` reuses existing Candidates sourcing flow with:
+  - current `job.id`
+  - current job title as role context
+  - current required job skills
+- `View Top Matches` switches back to the existing Top Matches tab for the same job
+- existing Top Matches ranking, Terrer AI Review, supply assessment, shortlist, submit, and admin cleanup behavior were preserved
+- validation:
+  - `npm run typecheck` reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Sourcing Plan V1 Light Wiring
+- lightly wired Sourcing Plan V1 without schema, backend, persistence, new APIs, automation, or routing changes
+- existing action wiring confirmed and preserved:
+  - `Search Internal Candidates` opens Candidates with current `jobId`, job title, and required skills
+  - `View Top Matches` switches back to the current job's Top Matches tab
+- Channel Tracker state is now scoped by selected job id in local React state inside `src/pages/TopMatches.tsx`
+- each job gets its own local tracker rows for the fixed channels:
+  - Internal Database
+  - LinkedIn Outreach
+  - JobStreet
+  - Hiredly
+  - Referrals
+- tracked per channel:
+  - status
+  - leads
+  - addedToJob
+  - nextAction
+- `Added to Job` behavior:
+  - Internal Database derives from existing `submissions` count for the current job
+  - other channels remain seeded mock/manual values because the app does not currently track candidate source per submission
+- still mock/manual:
+  - leads
+  - nextAction
+  - non-internal `addedToJob`
+  - all tracker state after page reload
+- validation:
+  - `npm run typecheck` reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Top Matches 3-Tier Trust Logic
+- added frontend-only role trust classification in `src/lib/roleTrustPolicy.ts`
+- supported policies:
+  - `STRICT`
+  - `SEMI_STRICT`
+  - `FLEX`
+- classification is keyword-based and Malaysia-aware for regulated / licensed roles
+- no schema, backend, API, Candidates page, navigation, scoring, submission, shortlist, or Pipeline changes were made
+- existing viable-candidate logic and Terrer AI Review decision logic were preserved
+- Top Matches now shows the trust policy badge in the selected-job header
+- no-viable behavior now depends on trust policy:
+  - `STRICT`: shows `No viable candidates found`, hides all candidate lists, and does not show exploratory candidates
+  - `SEMI_STRICT`: shows `No strong matches found. Showing limited near matches for review.` and renders a separated `Near matches for review` section
+  - `FLEX`: shows `No strong matches found. Showing exploratory profiles for sourcing.` and renders a separated `Exploratory profiles for manual sourcing` section
+- SEMI_STRICT and FLEX near/exploratory sections:
+  - reuse existing ranked candidates
+  - are visually separated from the main candidate list
+  - are labeled as not recommended
+  - are read-only and do not include shortlist / submit actions
+- STRICT roles block exploratory suggestions to preserve recruiter trust for regulated or no-compromise requirements
+- validation:
+  - `npm run typecheck` reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Near / Exploratory Candidate Reasoning
+- added short rule-based explanation text to the read-only near/exploratory sections in `src/pages/TopMatches.tsx`
+- this is explanation logic only:
+  - no scoring changes
+  - no viable-threshold changes
+  - no schema changes
+  - no backend changes
+  - no Gemini / provider changes
+- STRICT behavior is unchanged:
+  - if there are no viable candidates, STRICT roles still show only the strict empty state and no candidate cards
+- SEMI_STRICT and FLEX behavior now includes a `Why shown` block on each displayed near/exploratory card
+- explanation signals are generated from already-available ranked-card data:
+  - role/title alignment
+  - missing required skills/signals
+  - partial matched skills
+  - coarse role-signal mismatch
+  - location uncertainty
+- examples of explanation patterns:
+  - `Role alignment is partial or unclear for this requirement`
+  - `Role alignment is exploratory rather than direct`
+  - `Missing required signals: ...`
+  - `Some relevant skills are present, but fit remains incomplete`
+  - `Location fit may need manual validation`
+- near/exploratory cards remain visually separated, read-only, labeled as not recommended, and do not include shortlist / submit actions
+- validation:
+  - `npm run typecheck` reports only the unrelated pre-existing error:
+    - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`

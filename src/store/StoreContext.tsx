@@ -6,6 +6,7 @@ import {
   fetchSubmissions,
   upsertSubmission as upsertSubmissionDB,
   updateSubmissionStage,
+  sendSubmissionToBdReview,
   deleteSubmission,
   bulkResetSubmissionsForJob,
   bulkDeleteSubmissionsForJob,
@@ -24,6 +25,17 @@ interface AppStore {
   deleteSubmissionsForJob: (jobId: string) => Promise<number>;
   moveSubmissionStage: (submissionId: string, stage: SubmissionStage) => Promise<Submission | null>;
   updateSubmissionInStore: (submissionId: string, stage: SubmissionStage) => Promise<Submission | null>;
+  sendSubmissionToBdReviewInStore: (
+    submissionId: string,
+    notes?: string,
+    existingNotes?: string | null
+  ) => Promise<Submission | null>;
+  sendToBdReviewWithOutput: (
+    candidateId: string,
+    jobId: string,
+    output: SubmissionOutput,
+    notes?: string
+  ) => Promise<Submission | null>;
   approveAndSubmitToClient: (candidateId: string, jobId: string) => Promise<void>;
   submitToClient: (candidateId: string, jobId: string) => Promise<void>;
   submitToClientWithOutput: (
@@ -219,6 +231,62 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const sendSubmissionToBdReviewInStore = useCallback(async (
+    submissionId: string,
+    notes?: string,
+    existingNotes?: string | null
+  ): Promise<Submission | null> => {
+    try {
+      const result = await sendSubmissionToBdReview(submissionId, notes, existingNotes);
+      const submission = result as Submission;
+
+      setSubmissions(prev =>
+        mergeSubmission(prev, submission, submission.candidate_id, submission.job_id)
+      );
+
+      return submission;
+    } catch (error) {
+      console.error('[sendSubmissionToBdReviewInStore] error:', error);
+      return null;
+    }
+  }, []);
+
+  const sendToBdReviewWithOutput = useCallback(
+    async (
+      candidateId: string,
+      jobId: string,
+      output: SubmissionOutput,
+      notes?: string
+    ): Promise<Submission | null> => {
+      try {
+        const finalOutput = mergeRecruiterNotesIntoOutput(output, notes);
+
+        const result = await upsertSubmissionDB({
+          candidate_id: candidateId,
+          job_id: jobId,
+          submission_stage: 'ready_for_bd_review',
+          next_action_date: getTodayIsoDate(),
+          submission_summary: finalOutput.submission_summary,
+          submission_strengths: finalOutput.submission_strengths,
+          submission_concerns: finalOutput.submission_concerns,
+          submission_full_text: finalOutput.submission_full_text,
+          submission_generated_at: finalOutput.submission_generated_at,
+          notes: notes ?? null,
+        });
+
+        setSubmissions(prev =>
+          mergeSubmission(prev, result as Submission, candidateId, jobId)
+        );
+
+        return result as Submission;
+      } catch (error) {
+        console.error('[sendToBdReviewWithOutput] error:', error);
+        return null;
+      }
+    },
+    []
+  );
+
   const resetSubmissionToStage = useCallback(async (
     submissionId: string,
     stage: SubmissionStage
@@ -338,6 +406,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         deleteSubmissionsForJob,
         moveSubmissionStage,
         updateSubmissionInStore,
+        sendSubmissionToBdReviewInStore,
+        sendToBdReviewWithOutput,
         approveAndSubmitToClient,
         submitToClient,
         submitToClientWithOutput,

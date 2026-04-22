@@ -7,6 +7,7 @@ export interface DashboardJob {
   company_name: string;
   location: string;
   source: string;
+  operational_status: string;
   updated_at: string;
 }
 
@@ -131,7 +132,7 @@ export async function fetchDashboardData(): Promise<{
   const [jobsResult, submissionsResult, assessmentsResult] = await Promise.all([
     supabase
       .from('jobs')
-      .select('id, job_title, company_name, location, source, updated_at'),
+      .select('id, job_title, company_name, location, source, operational_status, updated_at'),
     supabase
       .from('submissions')
       .select('id, job_id, candidate_id, submission_stage, next_action_date, stage_updated_at, created_at, submission_summary, submission_strengths, submission_concerns, submission_full_text, submission_generated_at, notes'),
@@ -141,9 +142,12 @@ export async function fetchDashboardData(): Promise<{
   ]);
 
   const jobs: DashboardJob[] = ((jobsResult.data ?? []) as DashboardJob[]).filter(
-    job => job.source === 'manual_intake'
+    job => job.operational_status === 'active'
   );
-  const submissions: DashboardSubmission[] = (submissionsResult.data ?? []) as DashboardSubmission[];
+  const activeJobIds = new Set(jobs.map(job => job.id));
+  const submissions: DashboardSubmission[] = ((submissionsResult.data ?? []) as DashboardSubmission[]).filter(
+    submission => activeJobIds.has(submission.job_id)
+  );
   const assessments: DashboardAssessment[] = (assessmentsResult.data ?? []) as DashboardAssessment[];
   const candidateMap = await fetchCandidateMapByIds(submissions.map(sub => sub.candidate_id));
 
@@ -300,7 +304,7 @@ export async function fetchDashboardData(): Promise<{
     return b.aiScore - a.aiScore;
   });
 
-  const advancedStages = new Set(['interview', 'offer', 'hired']);
+  const advancedStages = new Set(['interview', 'offer']);
   const advancedCandidates = new Set(
     submissions
       .filter(s => advancedStages.has(s.submission_stage))
