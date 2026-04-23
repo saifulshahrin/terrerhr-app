@@ -1,6 +1,23 @@
 import { supabase } from './supabase';
 import type { Candidate } from '../store/types';
 
+export type CandidateSource =
+  | 'LinkedIn'
+  | 'GitHub'
+  | 'JobStreet'
+  | 'Hiredly'
+  | 'Maukerja / Ricebowl'
+  | 'Other';
+
+export const CANDIDATE_SOURCES: CandidateSource[] = [
+  'LinkedIn',
+  'GitHub',
+  'JobStreet',
+  'Hiredly',
+  'Maukerja / Ricebowl',
+  'Other',
+];
+
 export interface CandidateSearchRow {
   candidate_id: string;
   display_name: string | null;
@@ -15,6 +32,16 @@ export interface CandidateSearchRow {
   score_reason: string | null;
   top_skills: string | null;
   capabilities: string | null;
+}
+
+export interface CreateCandidateInput {
+  name: string;
+  role: string;
+  source: CandidateSource;
+  sourceUrl: string;
+  skillsText?: string;
+  location?: string;
+  notes?: string;
 }
 
 export function parseSkillText(value: string | null | undefined): string[] {
@@ -69,6 +96,182 @@ export function createFallbackCandidate(candidateId: string): Candidate {
 
 export function buildCandidateMap(candidates: Candidate[]): Map<string, Candidate> {
   return new Map(candidates.map(candidate => [candidate.id, candidate]));
+}
+
+export function detectCandidateSourceFromUrl(url: string | null | undefined): CandidateSource {
+  const normalized = (url ?? '').toLowerCase();
+
+  if (normalized.includes('linkedin.com')) return 'LinkedIn';
+  if (normalized.includes('github.com')) return 'GitHub';
+  if (normalized.includes('jobstreet')) return 'JobStreet';
+  if (normalized.includes('hiredly')) return 'Hiredly';
+  if (normalized.includes('maukerja') || normalized.includes('ricebowl')) {
+    return 'Maukerja / Ricebowl';
+  }
+
+  return 'Other';
+}
+
+function extractLastPathSegment(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+
+  try {
+    const parsed = new URL(trimmed);
+    const segments = parsed.pathname
+      .split('/')
+      .map(segment => segment.trim())
+      .filter(Boolean);
+
+    return segments.length > 0 ? segments[segments.length - 1] : '';
+  } catch {
+    const sanitized = trimmed.split('?')[0].split('#')[0];
+    const segments = sanitized
+      .split('/')
+      .map(segment => segment.trim())
+      .filter(Boolean);
+
+    return segments.length > 0 ? segments[segments.length - 1] : '';
+  }
+}
+
+export function extractCandidateNameFallback(
+  url: string | null | undefined,
+  source: CandidateSource
+): string {
+  if (!url) return '';
+
+  const slug = extractLastPathSegment(url);
+  if (!slug) return '';
+
+  if (source === 'GitHub') {
+    return slug;
+  }
+
+  if (source === 'LinkedIn') {
+    return slug
+      .replace(/^in\//i, '')
+      .replace(/[-_]+/g, ' ')
+      .trim();
+  }
+
+  return '';
+}
+
+export function extractSourceHandle(
+  url: string | null | undefined,
+  source: CandidateSource
+): string | null {
+  const slug = extractLastPathSegment(url ?? '');
+  if (!slug) return null;
+
+  if (source === 'GitHub' || source === 'LinkedIn') {
+    return slug;
+  }
+
+  return null;
+}
+
+function buildManualCandidate(input: CreateCandidateInput, candidateId: string): Candidate {
+  const skills = parseSkillText(input.skillsText);
+
+  return {
+    id: candidateId,
+    name: input.name.trim() || 'Unknown Candidate',
+    role: input.role.trim() || 'Unknown Role',
+    company: input.source,
+    location: input.location?.trim() || 'Unknown Location',
+    skills,
+    score: 0,
+    applied: deriveAppliedLabel(),
+    linkedin: input.source === 'LinkedIn' ? input.sourceUrl.trim() || undefined : undefined,
+    github: input.source === 'GitHub' ? input.sourceUrl.trim() || undefined : undefined,
+  };
+}
+
+export async function createCandidateFromIntake(input: CreateCandidateInput): Promise<Candidate> {
+  const candidateId = crypto.randomUUID();
+  const profileId = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const name = input.name.trim() || extractCandidateNameFallback(input.sourceUrl, input.source) || 'Unknown Candidate';
+  const role = input.role.trim() || 'Unknown Role';
+  const sourceUrl = input.sourceUrl.trim();
+  const location = input.location?.trim() || null;
+  const notes = input.notes?.trim() || null;
+  const sourceHandle = extractSourceHandle(sourceUrl, input.source);
+  const skills = parseSkillText(input.skillsText);
+  const capabilityText = skills.length > 0 ? skills.join(', ') : null;
+
+  const candidatePayload = {
+    candidate_id: candidateId,
+    display_name: name,
+    full_name: name,
+    city: location,
+    primary_role: role,
+    created_at: now,
+    updated_at: now,
+    linkedin_url: input.source === 'LinkedIn' ? sourceUrl || null : null,
+    github_url: input.source === 'GitHub' ? sourceUrl || null : null,
+    source_type: input.source,
+    notes,
+    candidate_status: 'active',
+  };
+
+  const scorePayload = {
+    candidate_id: candidateId,
+    display_name: name,
+    full_name: name,
+    city: location,
+    primary_role: role,
+    capabilities: capabilityText,
+    score: 0,
+    score_reason: 'Manual intake',
+    scored_at: now,
+  };
+
+  const sourceProfilePayload = {
+    profile_id: profileId,
+    candidate_id: candidateId,
+    source_name: input.source,
+    source_profile_url: sourceUrl || null,
+    source_handle: sourceHandle,
+    source_user_id: null,
+    scraped_at: now,
+  };
+
+  const { error: candidateError } = await supabase.from('candidates').insert(candidatePayload);
+  if (candidateError) throw candidateError;
+
+  try {
+    const { error: scoreError } = await supabase.from('candidate_scores').insert(scorePayload);
+    if (scoreError) throw scoreError;
+
+    const { error: sourceError } = await supabase.from('source_profiles').insert(sourceProfilePayload);
+    if (sourceError) throw sourceError;
+
+    if (skills.length > 0) {
+      const skillRows = skills.map(skill => ({
+        candidate_id: candidateId,
+        skill,
+        proficiency: 'intermediate',
+      }));
+
+      const { error: skillError } = await supabase.from('candidate_skills').insert(skillRows);
+      if (skillError) {
+        // Skills are helpful for matching, but the candidate record should still be saved.
+        console.error('[candidates] candidate_skills insert error:', skillError);
+      }
+    }
+  } catch (error) {
+    await supabase.from('source_profiles').delete().eq('candidate_id', candidateId);
+    await supabase.from('candidate_scores').delete().eq('candidate_id', candidateId);
+    await supabase.from('candidate_skills').delete().eq('candidate_id', candidateId);
+    await supabase.from('candidates').delete().eq('candidate_id', candidateId);
+    throw error;
+  }
+
+  const insertedCandidate = (await fetchCandidatesByIds([candidateId]))[0];
+  return insertedCandidate ?? buildManualCandidate(input, candidateId);
 }
 
 export async function fetchCandidatesForUI(): Promise<Candidate[]> {

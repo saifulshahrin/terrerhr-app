@@ -33,6 +33,7 @@ const OPERATIONAL_STATUS_OPTIONS: JobOperationalStatus[] = [
 
 interface Props {
   onViewTopMatches: (jobId: string) => void;
+  onNewJobIntake: () => void;
 }
 
 function timeAgo(dateStr: string): string {
@@ -183,7 +184,7 @@ async function loadJobsData(): Promise<{ jobs: Job[]; metrics: Map<string, JobMe
   };
 }
 
-export default function Jobs({ onViewTopMatches }: Props) {
+export default function Jobs({ onViewTopMatches, onNewJobIntake }: Props) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobMetricsMap, setJobMetricsMap] = useState<Map<string, JobMetrics>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -273,8 +274,11 @@ export default function Jobs({ onViewTopMatches }: Props) {
             {jobs.length} jobs from Supabase
           </p>
         </div>
-        <button className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors">
-          + New Job
+        <button
+          onClick={onNewJobIntake}
+          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+        >
+          + New Job Intake
         </button>
       </div>
 

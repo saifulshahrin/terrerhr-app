@@ -1,6 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
-import { MapPin, Clock } from 'lucide-react';
-import { fetchCandidatesForUI } from '../lib/candidates';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { MapPin, Clock, X } from 'lucide-react';
+import {
+  CANDIDATE_SOURCES,
+  createCandidateFromIntake,
+  detectCandidateSourceFromUrl,
+  extractCandidateNameFallback,
+  fetchCandidatesForUI,
+  type CandidateSource,
+} from '../lib/candidates';
 import { useStore } from '../store/StoreContext';
 import type { Candidate, SubmissionStage } from '../store/types';
 
@@ -78,11 +85,39 @@ interface Props {
   };
 }
 
+interface CandidateFormState {
+  name: string;
+  role: string;
+  source: CandidateSource;
+  sourceUrl: string;
+  skills: string;
+  location: string;
+  notes: string;
+  addAndShortlist: boolean;
+}
+
+const DEFAULT_FORM_STATE = (hasJobContext: boolean): CandidateFormState => ({
+  name: '',
+  role: '',
+  source: 'Other',
+  sourceUrl: '',
+  skills: '',
+  location: '',
+  notes: '',
+  addAndShortlist: hasJobContext,
+});
+
 export default function Candidates({ sourcingContext }: Props) {
   const { getStage, shortlist } = useStore();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('All');
   const [shortlisting, setShortlisting] = useState<Record<string, boolean>>({});
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [isSavingCandidate, setIsSavingCandidate] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [candidateForm, setCandidateForm] = useState<CandidateFormState>(() =>
+    DEFAULT_FORM_STATE(Boolean(sourcingContext?.jobId))
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -132,6 +167,13 @@ export default function Candidates({ sourcingContext }: Props) {
 
   const sourcingJobId = sourcingContext?.jobId;
 
+  useEffect(() => {
+    if (!showAddModal) {
+      setCandidateForm(DEFAULT_FORM_STATE(Boolean(sourcingContext?.jobId)));
+      setSaveError(null);
+    }
+  }, [showAddModal, sourcingContext?.jobId]);
+
   const handleShortlistForJob = async (candidateId: string) => {
     if (!sourcingJobId) return;
 
@@ -140,6 +182,65 @@ export default function Candidates({ sourcingContext }: Props) {
       await shortlist(candidateId, sourcingJobId);
     } finally {
       setShortlisting(prev => ({ ...prev, [candidateId]: false }));
+    }
+  };
+
+  const openAddCandidateModal = () => {
+    setCandidateForm(DEFAULT_FORM_STATE(Boolean(sourcingJobId)));
+    setSaveError(null);
+    setShowAddModal(true);
+  };
+
+  const handleSourceUrlChange = (value: string) => {
+    setCandidateForm(prev => {
+      const detectedSource = detectCandidateSourceFromUrl(value);
+      const nextNameFallback =
+        !prev.name.trim() ? extractCandidateNameFallback(value, detectedSource) : prev.name;
+
+      return {
+        ...prev,
+        sourceUrl: value,
+        source: detectedSource,
+        name: nextNameFallback,
+      };
+    });
+  };
+
+  const updateCandidateForm = <K extends keyof CandidateFormState>(
+    key: K,
+    value: CandidateFormState[K]
+  ) => {
+    setCandidateForm(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleAddCandidate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    setIsSavingCandidate(true);
+    setSaveError(null);
+
+    try {
+      const createdCandidate = await createCandidateFromIntake({
+        name: candidateForm.name,
+        role: candidateForm.role,
+        source: candidateForm.source,
+        sourceUrl: candidateForm.sourceUrl,
+        skillsText: candidateForm.skills,
+        location: candidateForm.location,
+        notes: candidateForm.notes,
+      });
+
+      if (candidateForm.addAndShortlist && sourcingJobId) {
+        await shortlist(createdCandidate.id, sourcingJobId);
+      }
+
+      setCandidates(prev => [createdCandidate, ...prev.filter(candidate => candidate.id !== createdCandidate.id)]);
+      setShowAddModal(false);
+    } catch (saveCandidateError) {
+      console.error('[Candidates] createCandidateFromIntake error:', saveCandidateError);
+      setSaveError('Unable to add this candidate right now.');
+    } finally {
+      setIsSavingCandidate(false);
     }
   };
 
@@ -152,7 +253,10 @@ export default function Candidates({ sourcingContext }: Props) {
             {filteredCandidates.length} of {candidates.length} candidates shown
           </p>
         </div>
-        <button className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
+        <button
+          onClick={openAddCandidateModal}
+          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+        >
           + Add Candidate
         </button>
       </div>
@@ -288,6 +392,150 @@ export default function Candidates({ sourcingContext }: Props) {
             })}
           </div>
         )
+      )}
+
+      {showAddModal && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-900/35 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl ring-1 ring-gray-200">
+            <div className="flex items-start justify-between border-b border-gray-100 px-6 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Add Candidate</h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Add a candidate manually and capture their source profile for Terrer.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                aria-label="Close add candidate modal"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddCandidate} className="px-6 py-5">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-gray-700">Name</span>
+                  <input
+                    required
+                    value={candidateForm.name}
+                    onChange={event => updateCandidateForm('name', event.target.value)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    placeholder="Candidate name"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-gray-700">Role / Title</span>
+                  <input
+                    required
+                    value={candidateForm.role}
+                    onChange={event => updateCandidateForm('role', event.target.value)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    placeholder="e.g. Backend Engineer"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-gray-700">Source</span>
+                  <select
+                    value={candidateForm.source}
+                    onChange={event => updateCandidateForm('source', event.target.value as CandidateSource)}
+                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  >
+                    {CANDIDATE_SOURCES.map(source => (
+                      <option key={source} value={source}>
+                        {source}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-gray-700">Source URL</span>
+                  <input
+                    required
+                    value={candidateForm.sourceUrl}
+                    onChange={event => handleSourceUrlChange(event.target.value)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    placeholder="Paste LinkedIn, GitHub, JobStreet, or other source URL"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-gray-700">Skills</span>
+                  <input
+                    value={candidateForm.skills}
+                    onChange={event => updateCandidateForm('skills', event.target.value)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    placeholder="React, Node.js, SQL"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-gray-700">Location</span>
+                  <input
+                    value={candidateForm.location}
+                    onChange={event => updateCandidateForm('location', event.target.value)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    placeholder="Kuala Lumpur, Malaysia"
+                  />
+                </label>
+              </div>
+
+              <label className="mt-4 block">
+                <span className="mb-1.5 block text-sm font-medium text-gray-700">Notes</span>
+                <textarea
+                  value={candidateForm.notes}
+                  onChange={event => updateCandidateForm('notes', event.target.value)}
+                  rows={3}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  placeholder="Optional recruiter notes"
+                />
+              </label>
+
+              {sourcingJobId && (
+                <label className="mt-4 flex items-start gap-3 rounded-lg bg-blue-50 px-3 py-3 text-sm text-blue-900">
+                  <input
+                    type="checkbox"
+                    checked={candidateForm.addAndShortlist}
+                    onChange={event => updateCandidateForm('addAndShortlist', event.target.checked)}
+                    className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>
+                    Add and shortlist this candidate to the current sourcing job
+                  </span>
+                </label>
+              )}
+
+              {saveError && (
+                <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {saveError}
+                </div>
+              )}
+
+              <div className="mt-5 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingCandidate}
+                  className={`rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors ${
+                    isSavingCandidate ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                >
+                  {isSavingCandidate ? 'Saving...' : 'Add Candidate'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

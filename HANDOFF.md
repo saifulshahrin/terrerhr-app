@@ -826,3 +826,37 @@
 - open a FLEX job with no viable candidates and confirm each exploratory card has a `Why shown` block
 - confirm strict jobs such as Medical Officer or legal roles still hide candidate cards entirely when no viable candidates exist
 - confirm the normal Top Matches list for viable roles remains unchanged and still shows actions
+
+## Universal Candidate Intake V1
+- `Candidates` now has a lightweight `+ Add Candidate` modal rather than a new page
+- modal fields:
+  - required: `Name`, `Role / Title`, `Source`, `Source URL`
+  - optional: `Skills`, `Location`, `Notes`
+- source detection rules:
+  - URL containing `linkedin.com` -> `LinkedIn`
+  - URL containing `github.com` -> `GitHub`
+  - URL containing `jobstreet` -> `JobStreet`
+  - URL containing `hiredly` -> `Hiredly`
+  - URL containing `maukerja` or `ricebowl` -> `Maukerja / Ricebowl`
+  - otherwise -> `Other`
+- autofill limitations:
+  - GitHub URL: uses the last path segment as a fallback Name only when the Name field is still empty
+  - LinkedIn URL: uses the last slug segment with hyphens converted to spaces as a fallback Name only when the Name field is still empty
+  - no external fetches, scraping, or provider/API calls are used
+  - recruiters can still manually edit every field after detection/autofill
+- real save path:
+  - canonical candidate row is inserted into `candidates`
+  - search-layer row is inserted into `candidate_scores`
+  - source context is inserted into `source_profiles`
+  - optional parsed skills are inserted into `candidate_skills`
+- current job-aware behavior:
+  - if `Candidates` is opened with `sourcingContext.jobId`, the modal shows an `Add and shortlist this candidate to the current sourcing job` checkbox
+  - when checked, successful save is followed by the existing `shortlist(candidateId, jobId)` flow
+  - if `Candidates` is opened without job context, this checkbox is hidden and the candidate is only added to the system
+- sourcing context remains lightweight:
+  - current banner/context still uses the existing `jobId`, role, and skills handoff
+  - this task did not add scraping automation or a multi-job picker
+- known limitations:
+  - score is seeded as `0` for manual intake candidates
+  - free-text skills are parsed by simple splitting only
+  - matching quality for manual candidates depends on the provided role/skills text rather than external enrichment

@@ -908,3 +908,38 @@ Finish approved live-candidate workflow iteration in approved scope only:
 - validation:
   - `npm run typecheck` reports only the unrelated pre-existing error:
     - `src/pages/Dashboard.tsx(99,9): error TS6133: 'isAdmin' is declared but its value is never read.`
+
+## Universal Candidate Intake V1
+- added a lightweight `Add Candidate` modal on `src/pages/Candidates.tsx`
+- this is manual-assisted intake only:
+  - no scraping
+  - no external APIs
+  - no schema changes
+  - no backend redesign
+- supported source detection rules from `Source URL`:
+  - `linkedin.com` -> `LinkedIn`
+  - `github.com` -> `GitHub`
+  - `jobstreet` -> `JobStreet`
+  - `hiredly` -> `Hiredly`
+  - `maukerja` or `ricebowl` -> `Maukerja / Ricebowl`
+  - everything else -> `Other`
+- supported light autofill:
+  - GitHub URL -> username becomes fallback Name if Name is still empty
+  - LinkedIn URL -> last slug segment becomes rough fallback Name if Name is still empty
+  - all fields remain manually editable after autofill
+- real write path now uses the existing live candidate tables already behind the current app:
+  - `candidates`
+  - `candidate_scores`
+  - `source_profiles`
+  - optional `candidate_skills`
+- skills are parsed from free text only and inserted as simple `candidate_skills` rows when provided
+- if Candidates is opened with `sourcingContext.jobId`, the modal shows:
+  - `Add and shortlist this candidate to the current sourcing job`
+- when checked, the newly added candidate is immediately shortlised into the current job using the existing store `shortlist(candidateId, jobId)` flow
+- failures remain graceful:
+  - invalid URLs still allow manual input
+  - detection falls back to `Other`
+  - source-profile parsing never locks fields
+  - if the main multi-table candidate insert fails, the helper attempts cleanup of partial rows
+- validation:
+  - `npm run typecheck` passes

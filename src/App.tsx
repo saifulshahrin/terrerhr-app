@@ -54,7 +54,7 @@ function AppShell() {
   function renderPage({ page, jobId, sourcingContext }: NavState) {
     switch (page) {
       case 'dashboard':   return role === 'bd' ? <BDDashboard onNavigate={navigate} /> : <Dashboard />;
-      case 'jobs':        return <Jobs onViewTopMatches={(id) => navigate('top-matches', id)} />;
+      case 'jobs':        return <Jobs onViewTopMatches={(id) => navigate('top-matches', id)} onNewJobIntake={() => navigate('job-intake')} />;
       case 'active-jobs': return <ActiveJobs onViewTopMatches={(id) => navigate('top-matches', id)} />;
       case 'hiring-intelligence': return <HiringIntelligence onViewTopMatches={(id) => navigate('top-matches', id)} />;
       case 'candidates':  return <Candidates sourcingContext={sourcingContext} />;
