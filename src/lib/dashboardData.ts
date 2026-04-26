@@ -79,6 +79,18 @@ export interface DashboardStats {
   advancedStageCount: number;
 }
 
+export interface DashboardStageCounts {
+  new: number;
+  shortlisted: number;
+  ready_for_bd_review: number;
+  submitted_to_client: number;
+  interview: number;
+  offer: number;
+  hold: number;
+  rejected: number;
+  hired: number;
+}
+
 export interface BdQueueItem {
   submissionId: string;
   candidateId: string;
@@ -124,6 +136,7 @@ function daysAgo(iso: string): number {
 
 export async function fetchDashboardData(): Promise<{
   stats: DashboardStats;
+  stageCounts: DashboardStageCounts;
   actionQueue: ActionQueueItem[];
   attentionJobs: AttentionJob[];
   opportunities: OpportunityItem[];
@@ -318,6 +331,26 @@ export async function fetchDashboardData(): Promise<{
     advancedStageCount: advancedCandidates.size,
   };
 
+  const initialStageCounts: DashboardStageCounts = {
+    new: 0,
+    shortlisted: 0,
+    ready_for_bd_review: 0,
+    submitted_to_client: 0,
+    interview: 0,
+    offer: 0,
+    hold: 0,
+    rejected: 0,
+    hired: 0,
+  };
+
+  const stageCounts = submissions.reduce<DashboardStageCounts>((acc, submission) => {
+    if (submission.submission_stage in acc) {
+      const key = submission.submission_stage as keyof DashboardStageCounts;
+      acc[key] += 1;
+    }
+    return acc;
+  }, initialStageCounts);
+
   const bdQueue: BdQueueItem[] = [];
   for (const sub of submissions) {
     if (sub.submission_stage !== 'ready_for_bd_review') continue;
@@ -347,5 +380,5 @@ export async function fetchDashboardData(): Promise<{
   }
   bdQueue.sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
 
-  return { stats, actionQueue, attentionJobs, opportunities, bdQueue };
+  return { stats, stageCounts, actionQueue, attentionJobs, opportunities, bdQueue };
 }

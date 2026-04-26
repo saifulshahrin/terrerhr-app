@@ -860,3 +860,67 @@
   - score is seeded as `0` for manual intake candidates
   - free-text skills are parsed by simple splitting only
   - matching quality for manual candidates depends on the provided role/skills text rather than external enrichment
+
+## Candidate Intake V2
+- the `Add Candidate` modal now has two clear entry modes at the top:
+  - `Paste LinkedIn URL`
+  - `Paste Resume Text`
+- LinkedIn mode keeps the existing URL-assisted detection behavior
+- Resume Text mode adds a large `Paste resume or profile text` textarea
+- parser implementation:
+  - located in `src/lib/candidateIntakeParser.ts`
+  - fully rule-based and frontend-only
+  - does not call external APIs or scrape any sites
+- parser suggestions:
+  - `Name`: first name-like capitalized line
+  - `Role / Title`: first match from a lightweight keyword list such as Engineer, Associate, Manager, Analyst, etc.
+  - `Skills`: fixed keyword detection for common tech and general professional terms
+  - `Location`: fixed detection for common Malaysia locations such as Kuala Lumpur, Selangor, Johor Bahru, Penang, Cyberjaya, etc.
+  - `Notes`: compact summary from the first few useful lines
+- suggestion UX:
+  - parsed fields are marked `Suggested (please confirm)`
+  - suggestions do not overwrite manually edited fields
+  - recruiters can always edit every field before saving
+- current limitations:
+  - parser is intentionally lightweight and may miss names or titles in messy text
+  - no PDF/document parsing yet
+  - no OCR
+  - no deep skills normalization
+  - no confidence scoring
+- save path remains unchanged from V1:
+  - canonical candidate row in `candidates`
+  - search-layer row in `candidate_scores`
+  - source context in `source_profiles`
+  - optional `candidate_skills`
+
+## Hybrid Candidate Intake Parser
+- hybrid parsing now layers AI refinement on top of the existing rule-based candidate parser
+- trigger conditions for AI refinement:
+  - parsed name is empty
+  - parsed role is weak/generic such as `Associate`, `Manager`, `Executive`, `Officer`, `Coordinator`, or `Specialist`
+  - pasted resume/profile text is longer than 200 characters
+- merge behavior:
+  - rule parser always runs first
+  - AI can upgrade weak or missing fields
+  - rule output stays in place when AI returns empty values
+  - user-edited form fields are never overwritten
+- current AI request shape:
+  - uses the existing `job-intake-parser` edge function with `mode: 'candidate'`
+  - requests strict JSON:
+    - `full_name`
+    - `current_role`
+    - `key_skills`
+    - `location`
+    - `summary`
+  - prompt explicitly forbids hallucination and guessing
+- rate-limit handling:
+  - AI refinement only runs on resume textarea paste events
+  - debounce is 650ms
+  - ordinary typing does not trigger AI calls repeatedly
+- UI labels:
+  - rule-only suggestions show `Suggested (please confirm)`
+  - AI-assisted suggestions show `Suggested (AI-assisted, please confirm)`
+- important deployment note:
+  - local source for `supabase/functions/job-intake-parser/index.ts` has been updated to support candidate refinement
+  - `npm run typecheck` passes locally
+  - function deploy attempts timed out in this environment, so live AI refinement may still require a successful redeploy before it is active against the hosted function

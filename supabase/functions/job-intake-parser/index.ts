@@ -40,6 +40,21 @@ const PARSED_JOB_SCHEMA = {
   ],
 } as const;
 
+const PARSED_CANDIDATE_SCHEMA = {
+  type: 'object',
+  properties: {
+    full_name: { type: 'string' },
+    current_role: { type: 'string' },
+    key_skills: {
+      type: 'array',
+      items: { type: 'string' },
+    },
+    location: { type: 'string' },
+    summary: { type: 'string' },
+  },
+  required: ['full_name', 'current_role', 'key_skills', 'location', 'summary'],
+} as const;
+
 const GEMINI_SYSTEM_PROMPT = `You are Terrer's job intake parser.
 Extract structured recruitment fields from raw job intake text.
 Return JSON only.
@@ -47,12 +62,31 @@ Do not include markdown, explanations, scores, or extra keys.
 Preserve recruiter-usable wording.
 If a field is missing, return an empty string for string fields and [] for arrays.`;
 
+const CANDIDATE_REFINEMENT_SYSTEM_PROMPT = `You are Terrer's candidate intake refinement assistant.
+Extract candidate details from raw resume or profile text.
+Return strict JSON only.
+Do not include markdown, explanations, scores, or extra keys.
+Do not hallucinate or guess.
+If unsure, return an empty string for string fields and [] for arrays.
+Only include clearly supported facts from the input.`;
+
 function buildUserPrompt(input: string): string {
   return [
     'Parse the following raw job intake text into the required JSON schema.',
     'Use concise recruiter-friendly values.',
     'Do not invent salary or experience if missing.',
     'Extract 3 to 8 skills when possible.',
+    'Raw input:',
+    input,
+  ].join('\n\n');
+}
+
+function buildCandidatePrompt(input: string): string {
+  return [
+    'Extract candidate details from the following raw resume or profile text.',
+    'Return only the requested JSON fields.',
+    'Do not infer unsupported credentials or missing details.',
+    'Use up to 8 concrete skills when clearly present.',
     'Raw input:',
     input,
   ].join('\n\n');
@@ -89,11 +123,12 @@ Deno.serve(async request => {
   }
 
   try {
-    const { input } = await request.json();
+    const { input, mode } = await request.json();
     console.log('[job-intake-parser] Incoming request:', {
       method: request.method,
       hasInput: typeof input === 'string',
       inputLength: typeof input === 'string' ? input.length : 0,
+      mode: typeof mode === 'string' ? mode : 'job',
     });
 
     if (typeof input !== 'string' || !input.trim()) {
@@ -125,17 +160,17 @@ Deno.serve(async request => {
         },
         body: JSON.stringify({
           systemInstruction: {
-            parts: [{ text: GEMINI_SYSTEM_PROMPT }],
+            parts: [{ text: mode === 'candidate' ? CANDIDATE_REFINEMENT_SYSTEM_PROMPT : GEMINI_SYSTEM_PROMPT }],
           },
           contents: [
             {
               role: 'user',
-              parts: [{ text: buildUserPrompt(input.trim()) }],
+              parts: [{ text: mode === 'candidate' ? buildCandidatePrompt(input.trim()) : buildUserPrompt(input.trim()) }],
             },
           ],
           generationConfig: {
             responseMimeType: 'application/json',
-            responseSchema: PARSED_JOB_SCHEMA,
+            responseSchema: mode === 'candidate' ? PARSED_CANDIDATE_SCHEMA : PARSED_JOB_SCHEMA,
             temperature: 0.2,
           },
         }),
@@ -163,9 +198,9 @@ Deno.serve(async request => {
       throw new Error('Gemini returned an empty response body.');
     }
 
-    let parsedJob: unknown;
+    let parsedPayload: unknown;
     try {
-      parsedJob = JSON.parse(rawJson);
+      parsedPayload = JSON.parse(rawJson);
     } catch (error) {
       console.error('[job-intake-parser] Failed to parse Gemini JSON text:', {
         model,
@@ -175,11 +210,18 @@ Deno.serve(async request => {
       throw new Error('Gemini returned invalid JSON.');
     }
 
-    if (!parsedJob || typeof parsedJob !== 'object') {
-      throw new Error('Gemini returned an invalid parsed job payload.');
+    if (!parsedPayload || typeof parsedPayload !== 'object') {
+      throw new Error('Gemini returned an invalid parsed payload.');
     }
 
-    return new Response(JSON.stringify({ parsedJob }), {
+    if (mode === 'candidate') {
+      return new Response(JSON.stringify({ parsedCandidate: parsedPayload }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ parsedJob: parsedPayload }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

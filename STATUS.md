@@ -943,3 +943,62 @@ Finish approved live-candidate workflow iteration in approved scope only:
   - if the main multi-table candidate insert fails, the helper attempts cleanup of partial rows
 - validation:
   - `npm run typecheck` passes
+
+## Candidate Intake V2
+- upgraded the `Add Candidate` modal in `src/pages/Candidates.tsx` with clearer input modes:
+  - `Paste LinkedIn URL`
+  - `Paste Resume Text`
+- added lightweight rule-based parsing in `src/lib/candidateIntakeParser.ts`
+- parsing remains frontend-only:
+  - no backend changes
+  - no schema changes
+  - no external APIs
+  - no scraping
+  - no file parsing libraries
+- resume/profile text parser extracts best-effort suggestions for:
+  - name
+  - role / title
+  - skills
+  - location
+  - notes
+- extraction rules are deliberately simple:
+  - name from the first name-like capitalized line
+  - role from common role keywords such as engineer / associate / manager / analyst
+  - skills from a fixed keyword list across tech and general professional roles
+  - location from common Malaysia location strings
+  - notes from the first few useful lines
+- parsed fields are shown as `Suggested (please confirm)` and do not overwrite manually edited fields
+- recruiters can still edit every field before saving
+- save behavior remains the same as V1:
+  - `candidates`
+  - `candidate_scores`
+  - `source_profiles`
+  - optional `candidate_skills`
+- validation:
+  - `npm run typecheck` passes
+
+## Hybrid Candidate Intake Parser
+- added hybrid candidate intake parsing on top of Candidate Intake V2
+- current flow:
+  - rule parser runs first in `src/lib/candidateIntakeParser.ts`
+  - AI refinement is only attempted when:
+    - extracted name is empty, or
+    - extracted role is weak/generic, or
+    - pasted text length is greater than 200 characters
+- AI is a refinement layer only:
+  - rule output stays primary
+  - AI only upgrades weak or missing fields
+  - user-edited fields are never overwritten
+- rate-limit protection:
+  - AI refinement is only triggered from resume textarea paste events
+  - paste handling is debounced at 650ms
+  - normal typing updates text only and does not call AI on every keystroke
+- UI labels now differentiate suggestions:
+  - rule-only: `Suggested (please confirm)`
+  - AI-assisted: `Suggested (AI-assisted, please confirm)`
+- frontend code changes are complete and `npm run typecheck` passes
+- deployment status:
+  - updated `supabase/functions/job-intake-parser/index.ts` locally to support `mode: 'candidate'`
+  - attempted live deploy multiple times
+  - deployment command timed out in this environment without returning completion logs
+  - live AI refinement may still require a successful function deploy before it is active in production

@@ -11,6 +11,7 @@ import Pipeline from './pages/Pipeline';
 import TopMatches from './pages/TopMatches';
 import JobIntake from './pages/JobIntake';
 import BDQueue from './pages/BDQueue';
+import InterestedCandidates from './pages/InterestedCandidates';
 import LoginScreen from './pages/LoginScreen';
 import { StoreProvider } from './store/StoreContext';
 import { RoleProvider, useRole } from './store/RoleContext';
@@ -25,7 +26,8 @@ type Page =
   | 'top-matches'
   | 'job-intake'
   | 'bd-queue'
-  | 'bd-relationships';
+  | 'bd-relationships'
+  | 'interested-candidates';
 
 interface SourcingContext {
   jobId?: string;
@@ -53,7 +55,7 @@ function AppShell() {
 
   function renderPage({ page, jobId, sourcingContext }: NavState) {
     switch (page) {
-      case 'dashboard':   return role === 'bd' ? <BDDashboard onNavigate={navigate} /> : <Dashboard />;
+      case 'dashboard':   return role === 'bd' ? <BDDashboard onNavigate={navigate} /> : <Dashboard onNavigate={navigate} />;
       case 'jobs':        return <Jobs onViewTopMatches={(id) => navigate('top-matches', id)} onNewJobIntake={() => navigate('job-intake')} />;
       case 'active-jobs': return <ActiveJobs onViewTopMatches={(id) => navigate('top-matches', id)} />;
       case 'hiring-intelligence': return <HiringIntelligence onViewTopMatches={(id) => navigate('top-matches', id)} />;
@@ -63,6 +65,7 @@ function AppShell() {
       case 'job-intake':  return <JobIntake onNavigate={navigate} />;
       case 'bd-queue':    return <BDQueue />;
       case 'bd-relationships': return <BDRelationships onNavigate={navigate} />;
+      case 'interested-candidates': return <InterestedCandidates />;
     }
   }
 
