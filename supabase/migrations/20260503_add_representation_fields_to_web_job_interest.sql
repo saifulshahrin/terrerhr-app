@@ -1,0 +1,9 @@
+ALTER TABLE public.web_job_interest ADD COLUMN IF NOT EXISTS "representation_requested" boolean;
+ALTER TABLE public.web_job_interest ADD COLUMN IF NOT EXISTS "representation_requested_at" timestamptz;
+ALTER TABLE public.web_job_interest ADD COLUMN IF NOT EXISTS "representation_request_status" text;
+ALTER TABLE public.web_job_interest ADD COLUMN IF NOT EXISTS "representation_consent_text" text;
+ALTER TABLE public.web_job_interest ADD COLUMN IF NOT EXISTS "representation_consent_version" text;
+ALTER TABLE public.web_job_interest ADD COLUMN IF NOT EXISTS "representation_notes" text;
+ALTER TABLE public.web_job_interest ADD COLUMN IF NOT EXISTS "recruiter_review_status" text;
+ALTER TABLE public.web_job_interest ADD COLUMN IF NOT EXISTS "recruiter_reviewed_at" timestamptz;
+ALTER TABLE public.web_job_interest ADD COLUMN IF NOT EXISTS "recruiter_decision" text;
