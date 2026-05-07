@@ -37,6 +37,16 @@ interface MergedInterestRow {
   createdAt: string | null;
 }
 
+type InterestStatus = 'new' | 'reviewed' | 'contacted' | 'shortlisted' | 'rejected';
+
+const INTEREST_STATUS_OPTIONS: { value: InterestStatus; label: string }[] = [
+  { value: 'new', label: 'New' },
+  { value: 'reviewed', label: 'Reviewed' },
+  { value: 'contacted', label: 'Contacted' },
+  { value: 'shortlisted', label: 'Shortlisted' },
+  { value: 'rejected', label: 'Rejected' },
+];
+
 function formatDate(value: string | null) {
   if (!value) return 'Date unavailable';
 
@@ -54,6 +64,8 @@ export default function InterestedCandidates() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<MergedInterestRow[]>([]);
+  const [savingRows, setSavingRows] = useState<Record<string, boolean>>({});
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let active = true;
@@ -139,6 +151,52 @@ export default function InterestedCandidates() {
 
   const totalCount = useMemo(() => rows.length, [rows]);
 
+  const handleStatusChange = async (rowId: string, nextStatus: InterestStatus) => {
+    const previousStatus = rows.find(row => row.id === rowId)?.interestStatus ?? 'new';
+
+    setSavingRows(prev => ({ ...prev, [rowId]: true }));
+    setRowErrors(prev => {
+      const next = { ...prev };
+      delete next[rowId];
+      return next;
+    });
+
+    const { error: updateError } = await supabase
+      .from('web_job_interest')
+      .update({ interest_status: nextStatus })
+      .eq('id', rowId);
+
+    if (updateError) {
+      console.error('[InterestedCandidates] failed to update interest status', {
+        rowId,
+        nextStatus,
+        updateError,
+      });
+      setRows(prev =>
+        prev.map(row =>
+          row.id === rowId
+            ? { ...row, interestStatus: previousStatus }
+            : row
+        )
+      );
+      setRowErrors(prev => ({
+        ...prev,
+        [rowId]: 'Could not update status right now.',
+      }));
+      setSavingRows(prev => ({ ...prev, [rowId]: false }));
+      return;
+    }
+
+    setRows(prev =>
+      prev.map(row =>
+        row.id === rowId
+          ? { ...row, interestStatus: nextStatus }
+          : row
+      )
+    );
+    setSavingRows(prev => ({ ...prev, [rowId]: false }));
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -207,9 +265,36 @@ export default function InterestedCandidates() {
                     <td className="px-5 py-4 text-sm text-gray-900">{row.jobTitle}</td>
                     <td className="px-5 py-4 text-sm text-gray-600">{row.companyName}</td>
                     <td className="px-5 py-4">
-                      <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-200">
-                        {row.interestStatus}
-                      </span>
+                      <div className="space-y-2">
+                        <select
+                          value={(row.interestStatus as InterestStatus) || 'new'}
+                          onChange={event => {
+                            const nextStatus = event.target.value as InterestStatus;
+                            setRows(prev =>
+                              prev.map(currentRow =>
+                                currentRow.id === row.id
+                                  ? { ...currentRow, interestStatus: nextStatus }
+                                  : currentRow
+                              )
+                            );
+                            void handleStatusChange(row.id, nextStatus);
+                          }}
+                          disabled={Boolean(savingRows[row.id])}
+                          className="w-full min-w-[140px] rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:cursor-not-allowed disabled:bg-gray-50"
+                        >
+                          {INTEREST_STATUS_OPTIONS.map(option => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        {savingRows[row.id] && (
+                          <p className="text-xs text-gray-500">Saving...</p>
+                        )}
+                        {rowErrors[row.id] && (
+                          <p className="text-xs text-red-600">{rowErrors[row.id]}</p>
+                        )}
+                      </div>
                     </td>
                     <td className="px-5 py-4 text-sm text-gray-600">{formatDate(row.createdAt)}</td>
                   </tr>
