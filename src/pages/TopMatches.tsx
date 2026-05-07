@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { CheckCircle, XCircle, UserCheck, Send, Eye, MapPin, Briefcase, ArrowLeft, Search } from 'lucide-react';
 import { getJobById } from '../lib/jobs';
 import { fetchCandidatesForUI } from '../lib/candidates';
+import { supabase } from '../lib/supabase';
 import { useStore } from '../store/StoreContext';
 import { useRole } from '../store/RoleContext';
 import type { Candidate } from '../store/types';
@@ -19,6 +20,7 @@ import {
   buildCandidateSkillMap,
   type JobRequirementRow,
 } from '../lib/skillMatch';
+import { trackCandidateIntent } from '../lib/candidateIntentEvents';
 import { classifyRoleTrustPolicy, type RoleTrustPolicy } from '../lib/roleTrustPolicy';
 
 interface Job {
@@ -26,6 +28,10 @@ interface Job {
   job_title: string;
   company_name: string;
   location: string;
+  source?: string | null;
+  job_source_id?: string | null;
+  role_family?: string | null;
+  seniority?: string | null;
   operational_status?: string;
 }
 
@@ -225,7 +231,8 @@ function rankCandidates(
   candidates: Candidate[],
   job: Job,
   jobRequirements: JobRequirementRow[],
-  skillMap: Map<string, string[]>
+  skillMap: Map<string, string[]>,
+  sourceTier?: string | null
 ): RankedCandidate[] {
   return candidates
     .map(c => {
@@ -251,7 +258,23 @@ function rankCandidates(
         skillBonus: overlap.bonus,
       };
     })
-    .sort((a, b) => b.matchScore - a.matchScore);
+    .sort((a, b) => {
+      const scoreDelta = b.matchScore - a.matchScore;
+      if (scoreDelta !== 0 && Math.abs(scoreDelta) > 2) {
+        return scoreDelta;
+      }
+
+      // Trust-aware tie handling: for near-equal matches from tier_1 sources,
+      // surface candidates with stronger hard-fit signals first.
+      if (sourceTier === 'tier_1') {
+        if (a.roleMatch !== b.roleMatch) return a.roleMatch ? -1 : 1;
+        if (a.locationMatch !== b.locationMatch) return a.locationMatch ? -1 : 1;
+        if (a.skillBonus !== b.skillBonus) return b.skillBonus - a.skillBonus;
+      }
+
+      if (scoreDelta !== 0) return scoreDelta;
+      return b.score - a.score;
+    });
 }
 
 function deriveSupplyStatus(proceed: number, review: number): SupplyStatus {
@@ -433,6 +456,27 @@ function getNoViableCopy(policy: RoleTrustPolicy): { title: string; body: string
     title: 'No strong matches found. Showing exploratory profiles for sourcing.',
     body: 'These are not strong matches but may be useful for sourcing.',
   };
+}
+
+function getSourceTrustLabel(source?: string | null, tier?: string | null): string {
+  const normalizedSource = (source ?? '').toLowerCase();
+  if (tier === 'tier_1' || normalizedSource === 'workday' || normalizedSource === 'oracle') {
+    return 'Direct from employer system';
+  }
+  return 'Sourced opportunity';
+}
+
+function getMatchExplanation(roleFamily?: string | null, seniority?: string | null): string {
+  const family = roleFamily?.trim() || 'relevant domain';
+  const level = seniority?.trim() || 'Not specified';
+  return `Matches your background in ${family} at ${level} level`;
+}
+
+function getConfidenceMessage(tier?: string | null): string {
+  if (tier === 'tier_1') return 'Higher chance this role is actively hiring';
+  if (tier === 'tier_2') return 'Discovery opportunity; validate hiring activity';
+  if (tier === 'tier_3') return 'Exploratory opportunity; hiring signal is weaker';
+  return 'Potential active opportunity';
 }
 
 function TrustPolicyBadge({ policy }: { policy: RoleTrustPolicy }) {
@@ -646,6 +690,8 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [jobDetailView, setJobDetailView] = useState<JobDetailView>('top-matches');
   const [sourcingChannelsByJob, setSourcingChannelsByJob] = useState<SourcingChannelStateByJob>({});
+  const [sourceTier, setSourceTier] = useState<string | null>(null);
+  const viewedEventKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -659,6 +705,8 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
     setJobRequirements([]);
     setSkillMap(new Map());
     setLiveCandidates([]);
+    setSourceTier(null);
+    viewedEventKeysRef.current = new Set();
 
     if (!jobId) {
       setLoadingJob(false);
@@ -679,7 +727,24 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
         }
 
         resolvedValidJob = true;
-        setJob(jobData as Job);
+        const loadedJob = jobData as Job;
+        setJob(loadedJob);
+
+        if (loadedJob.job_source_id) {
+          const { data: sourceData, error: sourceError } = await supabase
+            .from('job_sources')
+            .select('tier')
+            .eq('id', loadedJob.job_source_id)
+            .maybeSingle();
+
+          if (!cancelled) {
+            if (sourceError) {
+              console.warn('[TopMatches] source tier lookup failed', sourceError);
+            } else {
+              setSourceTier((sourceData?.tier as string | null) ?? null);
+            }
+          }
+        }
 
         const [assessments, requirements, loadedCandidates] = await Promise.all([
           fetchAssessmentsForJob(selectedJobId),
@@ -723,8 +788,8 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
 
   const ranked = useMemo<RankedCandidate[]>(() => {
     if (!job) return [];
-    return rankCandidates(liveCandidates, job, jobRequirements, skillMap);
-  }, [job, jobRequirements, liveCandidates, skillMap]);
+    return rankCandidates(liveCandidates, job, jobRequirements, skillMap, sourceTier);
+  }, [job, jobRequirements, liveCandidates, skillMap, sourceTier]);
 
   const roleTrustPolicy = useMemo<RoleTrustPolicy>(() => {
     if (!job) return 'FLEX';
@@ -791,6 +856,22 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
       status: deriveSupplyStatus(counts.Proceed, counts.Review),
     };
   }, [job, ranked.length, reviews]);
+
+  useEffect(() => {
+    if (!job || ranked.length === 0) return;
+
+    ranked.forEach(candidate => {
+      const eventKey = `${job.id}:${candidate.id}:matches_viewed`;
+      if (viewedEventKeysRef.current.has(eventKey)) return;
+      viewedEventKeysRef.current.add(eventKey);
+
+      void trackCandidateIntent({
+        candidate_id: candidate.id,
+        job_id: job.id,
+        action_type: 'matches_viewed',
+      });
+    });
+  }, [job, ranked]);
 
   const handle = async (key: string, fn: () => Promise<void>) => {
     setBusy(b => ({ ...b, [key]: true }));
@@ -1254,6 +1335,17 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
                         <p className="text-sm text-gray-500 mt-0.5">
                           {m.role} &middot; {m.location}
                         </p>
+                        <div className="mt-2 space-y-1">
+                          <p className="text-xs text-gray-500">
+                            {getSourceTrustLabel(job.source, sourceTier)}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {getMatchExplanation(job.role_family, job.seniority)}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {getConfidenceMessage(sourceTier)}
+                          </p>
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-3 flex-shrink-0">
@@ -1411,7 +1503,16 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
 
                 {canRecruit && (
                   <button
-                    onClick={() => handle(`${m.id}-${job.id}`, () => shortlist(m.id, job.id))}
+                    onClick={() =>
+                      handle(`${m.id}-${job.id}`, async () => {
+                        await trackCandidateIntent({
+                          candidate_id: m.id,
+                          job_id: job.id,
+                          action_type: 'interest_clicked',
+                        });
+                        await shortlist(m.id, job.id);
+                      })
+                    }
                     disabled={shortlistDisabled || isBusy}
                     className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
                       shortlistDisabled
