@@ -1,4 +1,6 @@
 import { supabase } from './supabase';
+import { resolveJobSource } from './jobSources';
+import { normalizeRoleTitle } from './roleNormalization';
 
 export type JobOperationalStatus = 'not_started' | 'active' | 'paused' | 'closed';
 
@@ -35,6 +37,7 @@ interface CreatedJobRow {
   company_name: string;
   location: string;
   source: string;
+  job_source_id: string | null;
   operational_status: JobOperationalStatus;
   updated_at: string;
 }
@@ -44,13 +47,13 @@ interface CreatedJobIntakeRow {
 }
 
 const CREATED_JOB_SELECT =
-  'id, job_title, company_name, location, source, operational_status, updated_at';
+  'id, job_title, company_name, location, source, job_source_id, operational_status, updated_at';
 
 const JOB_LIST_SELECT =
   'id, job_title, company_name, location, source, operational_status, updated_at';
 
 const JOB_DETAIL_SELECT =
-  'id, job_title, company_name, location, operational_status';
+  'id, job_title, company_name, location, source, job_source_id, role_family, seniority, operational_status';
 
 function deriveWorkMode(location?: string, rawInput?: string): string {
   const text = `${location ?? ''} ${rawInput ?? ''}`.toLowerCase();
@@ -107,6 +110,47 @@ export async function createJob(params: CreateJobParams) {
     createdBy: params.createdBy ?? 'terrer_app',
   });
 
+  let resolvedJobSourceId: string | null = null;
+  try {
+    const jobSource = await resolveJobSource({ source_name: 'manual_intake' });
+
+    if (jobSource) {
+      resolvedJobSourceId = jobSource.id;
+      console.log('[jobs.createJob] source lookup succeeded', {
+        sourceName: jobSource.source_name,
+        tier: jobSource.tier,
+        trustScore: jobSource.trust_score,
+        jobSourceId: jobSource.id,
+      });
+    } else {
+      console.warn('[jobs.createJob] source lookup returned no match', {
+        sourceName: 'manual_intake',
+      });
+    }
+  } catch (error) {
+    console.warn('[jobs.createJob] source lookup failed, continuing job creation', error);
+  }
+
+  let normalizedJobTitle: string | null = null;
+  let roleFamily: string | null = null;
+  let seniority: string | null = null;
+
+  try {
+    const normalizedRole = normalizeRoleTitle(params.title);
+    normalizedJobTitle = normalizedRole.normalized_job_title ?? null;
+    roleFamily = normalizedRole.role_family ?? null;
+    seniority = normalizedRole.seniority ?? null;
+
+    console.log('[jobs.createJob] role normalization succeeded', {
+      rawJobTitle: normalizedRole.raw_job_title,
+      normalizedJobTitle,
+      roleFamily,
+      seniority,
+    });
+  } catch (error) {
+    console.warn('[jobs.createJob] role normalization failed, continuing job creation', error);
+  }
+
   const { data, error } = await supabase
     .from('jobs')
     .insert({
@@ -114,6 +158,10 @@ export async function createJob(params: CreateJobParams) {
       company_name: params.company,
       location: params.location ?? null,
       source: 'manual_intake',
+      job_source_id: resolvedJobSourceId,
+      normalized_job_title: normalizedJobTitle,
+      role_family: roleFamily,
+      seniority,
       operational_status: 'active',
       updated_at: new Date().toISOString(),
     })
