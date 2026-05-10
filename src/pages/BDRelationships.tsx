@@ -33,6 +33,9 @@ interface ContactRow {
   phone: string | null;
   mobile_phone: string | null;
   relationship_status: RelationshipStatus;
+  next_action: string | null;
+  next_action_date: string | null; // date
+  last_contacted_at: string | null;
   notes: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -43,7 +46,7 @@ type EditableContact = Pick<
   'id' | 'full_name' | 'job_title' | 'email' | 'phone' | 'mobile_phone' | 'relationship_status' | 'notes'
 >;
 
-type UiContactStatus = 'new' | 'contacted' | 'responded';
+type UiContactStatus = 'new' | 'contacted' | 'responded' | 'opportunity';
 
 interface UiContactActionState {
   status: UiContactStatus;
@@ -100,6 +103,7 @@ export default function BDRelationships({ onNavigate }: Props) {
 
   // UI-only action layer (no DB writes yet)
   const [contactActions, setContactActions] = useState<Record<string, UiContactActionState>>({});
+  const [followUpDates, setFollowUpDates] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let active = true;
@@ -135,7 +139,7 @@ export default function BDRelationships({ onNavigate }: Props) {
         const { data: contactRows, error: contactError } = await supabase
           .from('bd_contacts')
           .select(
-            'id,company_id,full_name,job_title,email,phone,mobile_phone,relationship_status,notes,created_at,updated_at'
+            'id,company_id,full_name,job_title,email,phone,mobile_phone,relationship_status,next_action,next_action_date,last_contacted_at,notes,created_at,updated_at'
           )
           .order('updated_at', { ascending: false })
           .limit(2000);
@@ -242,6 +246,7 @@ export default function BDRelationships({ onNavigate }: Props) {
     const dbStatus = normalize(contact.relationship_status ?? '');
     if (dbStatus === 'contacted') return 'contacted';
     if (dbStatus === 'responded') return 'responded';
+    if (dbStatus === 'opportunity') return 'opportunity';
     return 'new';
   }
 
@@ -260,7 +265,9 @@ export default function BDRelationships({ onNavigate }: Props) {
 
   function renderStatusTag(status: UiContactStatus) {
     const styles =
-      status === 'responded'
+      status === 'opportunity'
+        ? 'bg-teal-50 text-teal-700'
+        : status === 'responded'
         ? 'bg-emerald-50 text-emerald-700'
         : status === 'contacted'
           ? 'bg-amber-50 text-amber-800'
@@ -270,6 +277,67 @@ export default function BDRelationships({ onNavigate }: Props) {
       <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${styles}`}>
         {status}
       </span>
+    );
+  }
+
+  const actionQueue = useMemo(() => {
+    const today = new Date();
+    const todayIso = today.toISOString().slice(0, 10);
+
+    return contacts
+      .filter((c) => c.next_action_date && c.next_action_date <= todayIso)
+      .sort((a, b) => (a.next_action_date ?? '').localeCompare(b.next_action_date ?? ''));
+  }, [contacts]);
+
+  async function markContacted(contact: ContactRow) {
+    const nowIso = new Date().toISOString();
+    const { error: updateError } = await supabase
+      .from('bd_contacts')
+      .update({ relationship_status: 'contacted', last_contacted_at: nowIso, updated_at: nowIso })
+      .eq('id', contact.id);
+
+    if (updateError) throw updateError;
+
+    setContacts((prev) =>
+      prev.map((c) =>
+        c.id === contact.id
+          ? ({ ...c, relationship_status: 'contacted', last_contacted_at: nowIso, updated_at: nowIso } as ContactRow)
+          : c
+      )
+    );
+  }
+
+  async function markResponded(contact: ContactRow) {
+    const nowIso = new Date().toISOString();
+    const { error: updateError } = await supabase
+      .from('bd_contacts')
+      .update({ relationship_status: 'responded', updated_at: nowIso })
+      .eq('id', contact.id);
+
+    if (updateError) throw updateError;
+
+    setContacts((prev) =>
+      prev.map((c) => (c.id === contact.id ? ({ ...c, relationship_status: 'responded', updated_at: nowIso } as ContactRow) : c))
+    );
+  }
+
+  async function setFollowUp(contact: ContactRow) {
+    const date = followUpDates[contact.id] || new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+    const nowIso = new Date().toISOString();
+
+    const { error: updateError } = await supabase
+      .from('bd_contacts')
+      .update({ next_action: 'follow_up', next_action_date: date, updated_at: nowIso })
+      .eq('id', contact.id);
+
+    if (updateError) throw updateError;
+
+    setContacts((prev) =>
+      prev.map((c) =>
+        c.id === contact.id
+          ? ({ ...c, next_action: 'follow_up', next_action_date: date, updated_at: nowIso } as ContactRow)
+          : c
+      )
     );
   }
 
@@ -361,6 +429,43 @@ export default function BDRelationships({ onNavigate }: Props) {
           </p>
         </div>
       </div>
+
+      <section className="rounded-3xl border border-gray-200 bg-white shadow-sm">
+        <div className="border-b border-gray-100 px-5 py-4">
+          <p className="text-sm font-semibold text-gray-950">Action Queue</p>
+          <p className="mt-1 text-xs text-gray-500">
+            Contacts with follow-ups due today or earlier.
+          </p>
+        </div>
+        {loading ? (
+          <div className="px-5 py-5 text-sm text-gray-500">Loading action queue...</div>
+        ) : actionQueue.length === 0 ? (
+          <div className="px-5 py-5 text-sm text-gray-500">No actions due right now.</div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {actionQueue.slice(0, 20).map((contact) => (
+              <div key={contact.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-gray-950">{contact.full_name}</p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {(companiesById.get(contact.company_id ?? -1)?.company_name) ?? `Company #${contact.company_id ?? '?'}`}
+                    {contact.next_action_date ? ` • Due ${contact.next_action_date}` : ''}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedCompanyId(contact.company_id ? String(contact.company_id) : null)}
+                    className="rounded-2xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
+                  >
+                    View
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <div className="grid gap-6 xl:grid-cols-[1.25fr_1fr]">
         <section className="rounded-3xl border border-gray-200 bg-white shadow-sm">
@@ -525,46 +630,42 @@ export default function BDRelationships({ onNavigate }: Props) {
                           Next Action
                         </p>
                         <input
-                          value={getUiNextAction(contact)}
-                          onChange={(e) => setUiAction(contact.id, { nextAction: e.target.value })}
+                          value={contact.next_action ?? ''}
+                          readOnly
                           placeholder="e.g. Send intro email, ask for hiring plan, schedule call"
                           className="mt-1 w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
                         />
+                        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <input
+                            type="date"
+                            value={followUpDates[contact.id] ?? contact.next_action_date ?? ''}
+                            onChange={(e) => setFollowUpDates((prev) => ({ ...prev, [contact.id]: e.target.value }))}
+                            className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100 sm:w-52"
+                          />
+                          <span className="text-xs text-gray-500">
+                            {contact.next_action_date ? `Current: ${contact.next_action_date}` : 'No follow-up date set'}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
-                          onClick={() =>
-                            setUiAction(contact.id, {
-                              status: 'contacted',
-                              nextAction: getUiNextAction(contact) || 'Follow up in 3 days',
-                            })
-                          }
+                          onClick={() => markContacted(contact).catch((err) => console.error('[BDRelationships] markContacted failed', err))}
                           className="rounded-2xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
                         >
                           Mark Contacted
                         </button>
                         <button
                           type="button"
-                          onClick={() =>
-                            setUiAction(contact.id, {
-                              status: getUiStatus(contact),
-                              nextAction: 'Set follow-up for next week',
-                            })
-                          }
+                          onClick={() => setFollowUp(contact).catch((err) => console.error('[BDRelationships] setFollowUp failed', err))}
                           className="rounded-2xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
                         >
                           Set Follow-up
                         </button>
                         <button
                           type="button"
-                          onClick={() =>
-                            setUiAction(contact.id, {
-                              status: 'responded',
-                              nextAction: getUiNextAction(contact) || 'Qualify hiring needs and open roles',
-                            })
-                          }
+                          onClick={() => markResponded(contact).catch((err) => console.error('[BDRelationships] markResponded failed', err))}
                           className="rounded-2xl bg-teal-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-teal-700"
                         >
                           Mark Responded
