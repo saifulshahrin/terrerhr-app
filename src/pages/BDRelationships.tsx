@@ -1,483 +1,692 @@
-import { useState } from 'react';
-import {
-  ArrowRight,
-  Briefcase,
-  Building2,
-  CalendarClock,
-  Mail,
-  MessageCircle,
-  MessageSquare,
-  Phone,
-  Plus,
-  StickyNote,
-  Tag,
-  UserRound,
-  Users,
-} from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Building2, Mail, Phone, Search, Users } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 interface Props {
   onNavigate: (page: string) => void;
 }
 
-type Warmth = 'Hot' | 'Warm' | 'Cold';
-type InteractionType = 'Call' | 'Email' | 'Meeting' | 'WhatsApp' | 'Note';
+type CompanyStatus = string | null;
+type RelationshipStatus = string | null;
 
-interface Interaction {
-  type: InteractionType;
-  date: string;
-  summary: string;
+interface CompanyRow {
+  id: number;
+  company_name: string;
+  company_slug: string | null;
+  website_url: string | null;
+  linkedin_url: string | null;
+  hq_country: string | null;
+  primary_city: string | null;
+  company_status: CompanyStatus;
+  source_type: string | null;
+  notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
-interface LinkedOpportunity {
-  role: string;
-  company: string;
-  stage: string;
-}
-
-interface RelationshipContact {
+interface ContactRow {
   id: string;
-  name: string;
-  title: string;
-  company: string;
-  email: string;
-  phone: string;
-  owner: string;
-  tags: string[];
-  notes: string;
-  lastInteraction: string;
-  nextStep: string;
-  followUpDue: string;
-  warmth: Warmth;
-  interactions: Interaction[];
-  linkedOpportunities: LinkedOpportunity[];
+  company_id: number | null;
+  full_name: string;
+  job_title: string | null;
+  email: string | null;
+  phone: string | null;
+  mobile_phone: string | null;
+  relationship_status: RelationshipStatus;
+  notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
-const contacts: RelationshipContact[] = [
-  {
-    id: 'maya-tan',
-    name: 'Maya Tan',
-    title: 'Head of Talent Acquisition',
-    company: 'Maybank',
-    email: 'maya.tan@maybank.example',
-    phone: '+60 12-234 1188',
-    owner: 'Aisha Rahman',
-    tags: ['TA', 'Decision maker', 'Digital banking'],
-    notes:
-      'Strong relationship. Maya is open to candidate-led outreach when Terrer can show ready supply for senior engineering and data roles.',
-    lastInteraction: 'Email reply 2 days ago',
-    nextStep: 'Send backend shortlist with 3 strongest profiles',
-    followUpDue: 'Today',
-    warmth: 'Hot',
-    interactions: [
-      {
-        type: 'Email',
-        date: 'Today',
-        summary: 'Asked for a tighter backend shortlist with salary expectations.',
-      },
-      {
-        type: 'Call',
-        date: '2 days ago',
-        summary: 'Discussed digital banking hiring and current platform engineering gaps.',
-      },
-      {
-        type: 'WhatsApp',
-        date: 'Last week',
-        summary: 'Confirmed interest in profiles with payments or high-scale systems experience.',
-      },
-    ],
-    linkedOpportunities: [
-      { role: 'Senior Backend Engineer', company: 'Maybank', stage: 'Conversation' },
-      { role: 'Data Analyst', company: 'Maybank', stage: 'Prospecting' },
-    ],
-  },
-  {
-    id: 'daniel-lim',
-    name: 'Daniel Lim',
-    title: 'Engineering Manager',
-    company: 'Grab',
-    email: 'daniel.lim@grab.example',
-    phone: '+60 17-488 9021',
-    owner: 'Jason Lee',
-    tags: ['Hiring manager', 'Engineering', 'Product platform'],
-    notes:
-      'Technical buyer. Responds best to concise capability notes and GitHub-backed evidence. Avoid generic recruiter copy.',
-    lastInteraction: 'Call 4 days ago',
-    nextStep: 'Share product-platform candidate snapshot',
-    followUpDue: 'Tomorrow',
-    warmth: 'Warm',
-    interactions: [
-      {
-        type: 'Call',
-        date: '4 days ago',
-        summary: 'Explored platform team needs and potential TPM / backend overlap.',
-      },
-      {
-        type: 'Email',
-        date: '1 week ago',
-        summary: 'Sent initial market signal note around backend and product talent.',
-      },
-    ],
-    linkedOpportunities: [
-      { role: 'Product Manager', company: 'Grab', stage: 'Submission Ready' },
-    ],
-  },
-  {
-    id: 'nurul-hassan',
-    name: 'Nurul Hassan',
-    title: 'HR Business Partner',
-    company: 'CIMB',
-    email: 'nurul.hassan@cimb.example',
-    phone: '+60 13-900 4321',
-    owner: 'Aisha Rahman',
-    tags: ['HR', 'Banking', 'Risk technology'],
-    notes:
-      'Early relationship. Needs stronger role clarity before outreach can move beyond general introduction.',
-    lastInteraction: 'Meeting last week',
-    nextStep: 'Ask for priority roles in risk technology',
-    followUpDue: 'Friday',
-    warmth: 'Warm',
-    interactions: [
-      {
-        type: 'Meeting',
-        date: 'Last week',
-        summary: 'Introduced Terrer sourcing model and discussed tech hiring pressure.',
-      },
-      {
-        type: 'Note',
-        date: 'Last week',
-        summary: 'Follow-up should stay focused on risk technology, not branch hiring.',
-      },
-    ],
-    linkedOpportunities: [
-      { role: 'Data Analyst', company: 'CIMB', stage: 'Intake' },
-    ],
-  },
-  {
-    id: 'rachel-ong',
-    name: 'Rachel Ong',
-    title: 'People Operations Lead',
-    company: 'Axiata',
-    email: 'rachel.ong@axiata.example',
-    phone: '+60 18-221 7009',
-    owner: 'Jason Lee',
-    tags: ['HR', 'Digital transformation'],
-    notes:
-      'Low recent engagement. Relationship should be warmed with a relevant digital hiring signal before asking for a role intake.',
-    lastInteraction: 'No reply for 12 days',
-    nextStep: 'Reopen with frontend hiring signal',
-    followUpDue: 'Overdue',
-    warmth: 'Cold',
-    interactions: [
-      {
-        type: 'Email',
-        date: '12 days ago',
-        summary: 'Sent intro around digital transformation roles; no response yet.',
-      },
-      {
-        type: 'Note',
-        date: '2 weeks ago',
-        summary: 'Best angle is candidate supply for frontend and data roles.',
-      },
-    ],
-    linkedOpportunities: [
-      { role: 'Frontend Engineer', company: 'Axiata', stage: 'Prospecting' },
-    ],
-  },
-];
+type EditableContact = Pick<
+  ContactRow,
+  'id' | 'full_name' | 'job_title' | 'email' | 'phone' | 'mobile_phone' | 'relationship_status' | 'notes'
+>;
 
-const warmthStyle: Record<Warmth, string> = {
-  Hot: 'bg-red-50 text-red-700 border-red-200',
-  Warm: 'bg-orange-50 text-orange-700 border-orange-200',
-  Cold: 'bg-gray-100 text-gray-600 border-gray-200',
-};
+type UiContactStatus = 'new' | 'contacted' | 'responded';
 
-const interactionIcon: Record<InteractionType, React.ReactNode> = {
-  Call: <Phone size={13} />,
-  Email: <Mail size={13} />,
-  Meeting: <Users size={13} />,
-  WhatsApp: <MessageCircle size={13} />,
-  Note: <StickyNote size={13} />,
-};
+interface UiContactActionState {
+  status: UiContactStatus;
+  nextAction: string;
+}
+
+function normalize(value: string | null | undefined) {
+  return (value ?? '').trim().toLowerCase();
+}
+
+function formatCompanyLocation(company: CompanyRow) {
+  const parts = [company.primary_city, company.hq_country].filter(Boolean);
+  return parts.join(', ');
+}
+
+function buildCompanyStubsFromContacts(contactRows: ContactRow[]): CompanyRow[] {
+  // Fallback for cases where `companies` is not readable due to RLS policies.
+  // Uses company_id keys from contacts to at least render a company list.
+  const ids = Array.from(
+    new Set(contactRows.map((c) => c.company_id).filter((id): id is number => typeof id === 'number'))
+  );
+
+  return ids
+    .sort((a, b) => a - b)
+    .map((id) => ({
+      id,
+      company_name: `Company #${id}`,
+      company_slug: null,
+      website_url: null,
+      linkedin_url: null,
+      hq_country: 'Malaysia',
+      primary_city: null,
+      company_status: null,
+      source_type: null,
+      notes: 'Company details are currently not readable due to database access policies.',
+      created_at: null,
+      updated_at: null,
+    }));
+}
 
 export default function BDRelationships({ onNavigate }: Props) {
-  const [selectedContactId, setSelectedContactId] = useState(contacts[0].id);
-  const selectedContact = contacts.find(contact => contact.id === selectedContactId) ?? contacts[0];
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [companies, setCompanies] = useState<CompanyRow[]>([]);
+  const [contacts, setContacts] = useState<ContactRow[]>([]);
+  const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [companiesRestricted, setCompaniesRestricted] = useState(false);
+  const [showAllCompanies, setShowAllCompanies] = useState(false);
 
-  const companyCount = new Set(contacts.map(contact => contact.company)).size;
-  const activeRelationships = contacts.filter(contact => contact.warmth !== 'Cold').length;
-  const followUpsDue = contacts.filter(contact =>
-    ['Today', 'Overdue'].includes(contact.followUpDue)
-  ).length;
+  const [editingContact, setEditingContact] = useState<EditableContact | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  // UI-only action layer (no DB writes yet)
+  const [contactActions, setContactActions] = useState<Record<string, UiContactActionState>>({});
+
+  useEffect(() => {
+    let active = true;
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const { data: companyRows, error: companyError } = await supabase
+          .from('companies')
+          .select(
+            `
+              id,
+              company_name,
+              company_slug,
+              website_url,
+              linkedin_url,
+              hq_country,
+              primary_city,
+              company_status,
+              source_type,
+              notes,
+              created_at,
+              updated_at
+            `
+          )
+          .order('company_name', { ascending: true })
+          .limit(500);
+
+        if (companyError) throw companyError;
+
+        const { data: contactRows, error: contactError } = await supabase
+          .from('bd_contacts')
+          .select(
+            'id,company_id,full_name,job_title,email,phone,mobile_phone,relationship_status,notes,created_at,updated_at'
+          )
+          .order('updated_at', { ascending: false })
+          .limit(2000);
+
+        if (contactError) throw contactError;
+
+        if (!active) return;
+
+        const safeContacts = (contactRows ?? []) as ContactRow[];
+        const safeCompanies = (companyRows ?? []) as CompanyRow[];
+
+        // Diagnostics: helps confirm whether companies are empty due to RLS filtering.
+        console.log('[BDRelationships] loaded', {
+          companies: safeCompanies.length,
+          contacts: safeContacts.length,
+          note:
+            safeCompanies.length === 0 && safeContacts.length > 0
+              ? 'companies empty; using contact-derived company stubs (likely RLS on companies)'
+              : undefined,
+        });
+
+        const restricted = safeCompanies.length === 0 && safeContacts.length > 0;
+        setCompaniesRestricted(restricted);
+        setContacts(safeContacts);
+        setCompanies(restricted ? buildCompanyStubsFromContacts(safeContacts) : safeCompanies);
+      } catch (err) {
+        if (!active) return;
+        console.error('[BDRelationships] load error:', err);
+        setError('Unable to load BD relationships right now.');
+      } finally {
+        if (!active) return;
+        setLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const companiesById = useMemo(() => {
+    const map = new Map<number, CompanyRow>();
+    for (const company of companies) {
+      map.set(company.id, company);
+    }
+    return map;
+  }, [companies]);
+
+  const contactsByCompanyId = useMemo(() => {
+    const map = new Map<number, ContactRow[]>();
+    for (const contact of contacts) {
+      if (!contact.company_id) continue;
+      const existing = map.get(contact.company_id) ?? [];
+      existing.push(contact);
+      map.set(contact.company_id, existing);
+    }
+    return map;
+  }, [contacts]);
+
+  const relationshipCompanies = useMemo(() => {
+    return companies.filter((company) => (contactsByCompanyId.get(company.id) ?? []).length > 0);
+  }, [companies, contactsByCompanyId]);
+
+  const relationshipCompaniesCount = relationshipCompanies.length;
+  const contactsCount = contacts.length;
+  const unreviewedCount = contacts.filter((c) => normalize(c.relationship_status ?? '') === 'new').length;
+
+  const filteredCompanies = useMemo(() => {
+    const baseCompanies = showAllCompanies ? companies : relationshipCompanies;
+    const query = normalize(search);
+    if (!query) return baseCompanies;
+
+    return baseCompanies.filter((company) => {
+      const name = normalize(company.company_name);
+      const status = normalize(company.company_status ?? '');
+      const source = normalize(company.source_type ?? '');
+
+      if (name.includes(query) || status.includes(query) || source.includes(query)) return true;
+
+      const companyContacts = contactsByCompanyId.get(company.id) ?? [];
+      return companyContacts.some((contact) => {
+        const contactName = normalize(contact.full_name);
+        const contactTitle = normalize(contact.job_title ?? '');
+        const contactEmail = normalize(contact.email ?? '');
+        return (
+          contactName.includes(query) ||
+          contactTitle.includes(query) ||
+          contactEmail.includes(query)
+        );
+      });
+    });
+  }, [companies, contactsByCompanyId, relationshipCompanies, search, showAllCompanies]);
+
+  const expandedCompany = expandedCompanyId ? companiesById.get(Number(expandedCompanyId)) : null;
+  const expandedContacts = expandedCompanyId
+    ? contactsByCompanyId.get(Number(expandedCompanyId)) ?? []
+    : [];
+
+  function getUiStatus(contact: ContactRow): UiContactStatus {
+    const fromUi = contactActions[contact.id]?.status;
+    if (fromUi) return fromUi;
+
+    const dbStatus = normalize(contact.relationship_status ?? '');
+    if (dbStatus === 'contacted') return 'contacted';
+    if (dbStatus === 'responded') return 'responded';
+    return 'new';
+  }
+
+  function getUiNextAction(contact: ContactRow): string {
+    return contactActions[contact.id]?.nextAction ?? '';
+  }
+
+  function setUiAction(contactId: string, patch: Partial<UiContactActionState>) {
+    setContactActions((prev) => {
+      const next = { ...prev };
+      const existing = next[contactId] ?? { status: 'new' as UiContactStatus, nextAction: '' };
+      next[contactId] = { ...existing, ...patch };
+      return next;
+    });
+  }
+
+  function renderStatusTag(status: UiContactStatus) {
+    const styles =
+      status === 'responded'
+        ? 'bg-emerald-50 text-emerald-700'
+        : status === 'contacted'
+          ? 'bg-amber-50 text-amber-800'
+          : 'bg-gray-100 text-gray-700';
+
+    return (
+      <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${styles}`}>
+        {status}
+      </span>
+    );
+  }
+
+  async function saveContactEdits() {
+    if (!editingContact) return;
+    setEditSaving(true);
+    setEditError(null);
+
+    try {
+      const payload = {
+        full_name: editingContact.full_name?.trim() || null,
+        job_title: editingContact.job_title?.trim() || null,
+        email: editingContact.email?.trim() || null,
+        phone: editingContact.phone?.trim() || null,
+        mobile_phone: editingContact.mobile_phone?.trim() || null,
+        relationship_status: editingContact.relationship_status?.trim() || null,
+        notes: editingContact.notes?.trim() || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error: updateError } = await supabase
+        .from('bd_contacts')
+        .update(payload)
+        .eq('id', editingContact.id);
+
+      if (updateError) throw updateError;
+
+      // Update local state optimistically
+      setContacts((prev) =>
+        prev.map((c) => (c.id === editingContact.id ? ({ ...c, ...payload } as ContactRow) : c))
+      );
+
+      setEditingContact(null);
+    } catch (err) {
+      console.error('[BDRelationships] contact update failed', err);
+      setEditError('Unable to save changes. This may be blocked by database access policies.');
+    } finally {
+      setEditSaving(false);
+    }
+  }
 
   return (
     <div className="space-y-7">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-600">
-            Relationship Memory
+            Relationship Layer
           </p>
-          <h1 className="text-3xl font-semibold tracking-tight text-gray-950 mt-2">
-            BD Relationships
-          </h1>
-          <p className="text-sm text-gray-500 mt-2 max-w-2xl">
-            Track the real people behind hiring conversations, preserve context, and keep every follow-up moving.
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-gray-950">BD Relationships</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-600">
+            Store hiring-side companies and contacts so BD can prioritize outreach and keep relationship memory.
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <HeaderAction icon={<Plus size={14} />} label="Add New Contact" />
-          <HeaderAction icon={<MessageSquare size={14} />} label="Log Interaction" />
-          <HeaderAction icon={<Briefcase size={14} />} label="Link Contact to Opportunity" />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <KpiCard label="Companies" value={companyCount} icon={<Building2 size={16} />} tone="teal" />
-        <KpiCard label="Contacts" value={contacts.length} icon={<UserRound size={16} />} tone="blue" />
-        <KpiCard label="Active Relationships" value={activeRelationships} icon={<Users size={16} />} tone="emerald" />
-        <KpiCard label="Follow-ups Due" value={followUpsDue} icon={<CalendarClock size={16} />} tone="amber" />
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,1.55fr)_minmax(380px,0.9fr)]">
-        <section className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100">
-            <h2 className="text-sm font-semibold text-gray-950">Contacts / Relationships</h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Prioritized relationship memory for BD conversations and next actions.
-            </p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search companies or contacts"
+              className="w-full rounded-2xl border border-gray-200 bg-white px-10 py-2.5 text-sm text-gray-900 shadow-sm outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+            />
           </div>
+          <button
+            type="button"
+            onClick={() => onNavigate('job-intake')}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 shadow-sm transition hover:border-gray-300 hover:bg-gray-50"
+          >
+            <Building2 size={16} />
+            Add Intake
+          </button>
+        </div>
+      </div>
 
-          <div className="hidden xl:grid grid-cols-[1.1fr_0.9fr_0.9fr_1.25fr_0.8fr_0.85fr_0.7fr_0.55fr] gap-3 border-b border-gray-100 bg-gray-50 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-            <span>Contact</span>
-            <span>Company</span>
-            <span>Role</span>
-            <span>Next Step</span>
-            <span>Follow-up Due</span>
-            <span>Last Interaction</span>
-            <span>Warmth</span>
-            <span>Action</span>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Relationship Companies</p>
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-gray-950">{relationshipCompaniesCount}</p>
+        </div>
+        <div className="rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Contacts</p>
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-gray-950">{contactsCount}</p>
+        </div>
+        <div className="rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">Unreviewed</p>
+          <p className="mt-2 text-2xl font-semibold tracking-tight text-gray-950">
+            {unreviewedCount}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1.25fr_1fr]">
+        <section className="rounded-3xl border border-gray-200 bg-white shadow-sm">
+          <div className="border-b border-gray-100 px-5 py-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-950">Companies</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  {showAllCompanies
+                    ? 'All companies (including those without contacts).'
+                    : 'Relationship companies (only companies with contacts).'}{' '}
+                  Click a company to view its contacts.
+                </p>
+                {companiesRestricted ? (
+                  <p className="mt-2 text-xs text-amber-700">
+                    Company details are currently restricted by database access policies. Showing contact-linked company placeholders.
+                  </p>
+                ) : null}
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={showAllCompanies}
+                    onChange={(e) => setShowAllCompanies(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-200"
+                  />
+                  <span>Show all companies</span>
+                </label>
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <Users size={14} />
+                  <span>{filteredCompanies.length} shown</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="divide-y divide-gray-100">
-            {contacts.map(contact => {
-              const selected = contact.id === selectedContact.id;
-              return (
-                <button
-                  key={contact.id}
-                  onClick={() => setSelectedContactId(contact.id)}
-                  className={`w-full px-5 py-4 text-left transition-colors ${
-                    selected ? 'bg-teal-50/70' : 'hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="grid grid-cols-1 gap-3 text-sm xl:grid-cols-[1.1fr_0.9fr_0.9fr_1.25fr_0.8fr_0.85fr_0.7fr_0.55fr] xl:items-center">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-gray-950 truncate">{contact.name}</p>
-                      <p className="text-xs text-gray-400 truncate">{contact.email}</p>
+            {loading ? (
+              <div className="px-5 py-6 text-sm text-gray-500">Loading BD relationships...</div>
+            ) : error ? (
+              <div className="px-5 py-6 text-sm text-red-700">{error}</div>
+            ) : filteredCompanies.length === 0 ? (
+              <div className="px-5 py-6 text-sm text-gray-500">No companies match your search.</div>
+            ) : (
+              filteredCompanies.map((company) => {
+                const companyIdString = String(company.id);
+                const isExpanded = companyIdString === expandedCompanyId;
+                const contactsCount = (contactsByCompanyId.get(company.id) ?? []).length;
+                return (
+                  <button
+                    key={company.id}
+                    type="button"
+                    onClick={() => setExpandedCompanyId(isExpanded ? null : companyIdString)}
+                    className={`w-full px-5 py-4 text-left transition hover:bg-gray-50 ${
+                      isExpanded ? 'bg-teal-50/40' : 'bg-white'
+                    }`}
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-gray-950">{company.company_name}</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {formatCompanyLocation(company) || 'Malaysia'}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-gray-100 px-3 py-1 text-[11px] font-semibold text-gray-700">
+                          {contactsCount} contacts
+                        </span>
+                        <span className="rounded-full bg-teal-50 px-3 py-1 text-[11px] font-semibold text-teal-700">
+                          {company.company_status ?? 'target'}
+                        </span>
+                        <span className="rounded-full bg-gray-50 px-3 py-1 text-[11px] font-semibold text-gray-600">
+                          {company.source_type ?? 'legacy_bd_list'}
+                        </span>
+                      </div>
                     </div>
-                    <p className="text-gray-600">{contact.company}</p>
-                    <p className="text-gray-600">{contact.title}</p>
-                    <p className="font-semibold text-gray-950 leading-snug">{contact.nextStep}</p>
-                    <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${
-                      contact.followUpDue === 'Overdue'
-                        ? 'bg-red-100 text-red-700'
-                        : contact.followUpDue === 'Today'
-                        ? 'bg-teal-100 text-teal-700'
-                        : 'bg-blue-50 text-blue-700'
-                    }`}>
-                      {contact.followUpDue}
-                    </span>
-                    <p className="text-xs text-gray-400">{contact.lastInteraction}</p>
-                    <span className={`w-fit rounded-full border px-2.5 py-1 text-xs font-semibold ${warmthStyle[contact.warmth]}`}>
-                      {contact.warmth}
-                    </span>
-                    <span className="inline-flex w-fit items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white">
-                      View
-                      <ArrowRight size={12} />
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
+                  </button>
+                );
+              })
+            )}
           </div>
         </section>
 
-        <aside className="space-y-5">
-          <section className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="p-5 border-b border-gray-100">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-lg font-semibold text-gray-950">{selectedContact.name}</p>
-                  <p className="text-sm text-gray-500 mt-0.5">
-                    {selectedContact.title} · {selectedContact.company}
+        <section className="rounded-3xl border border-gray-200 bg-white shadow-sm">
+          <div className="border-b border-gray-100 px-5 py-4">
+            <p className="text-sm font-semibold text-gray-950">Contacts</p>
+            <p className="mt-1 text-xs text-gray-500">
+              {expandedCompany
+                ? `Showing contacts for ${expandedCompany.company_name}`
+                : 'Select a company to view contacts.'}
+            </p>
+          </div>
+
+          {!expandedCompany ? (
+            <div className="px-5 py-6 text-sm text-gray-500">No company selected yet.</div>
+          ) : expandedContacts.length === 0 ? (
+            <div className="px-5 py-6 text-sm text-gray-500">No contacts found for this company yet.</div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {expandedContacts.map((contact) => (
+                <div key={contact.id} className="px-5 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm font-semibold text-gray-950">{contact.full_name}</p>
+                    <div className="flex items-center gap-2">
+                      {renderStatusTag(getUiStatus(contact))}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditingContact({
+                            id: contact.id,
+                            full_name: contact.full_name,
+                            job_title: contact.job_title,
+                            email: contact.email,
+                            phone: contact.phone,
+                            mobile_phone: contact.mobile_phone,
+                            relationship_status: contact.relationship_status,
+                            notes: contact.notes,
+                          })
+                        }
+                        className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {contact.job_title ?? 'Contact'}{' '}
+                    {contact.relationship_status ? `• ${contact.relationship_status}` : ''}
                   </p>
-                </div>
-                <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${warmthStyle[selectedContact.warmth]}`}>
-                  {selectedContact.warmth}
-                </span>
-              </div>
 
-              <div className="mt-4 grid grid-cols-1 gap-2 text-sm text-gray-600">
-                <DetailLine label="Owner" value={selectedContact.owner} strong />
-                <DetailLine label="Email" value={selectedContact.email} />
-                <DetailLine label="Phone" value={selectedContact.phone} />
-              </div>
+                  <div className="mt-3 flex flex-col gap-2 text-xs text-gray-600">
+                    {contact.email ? (
+                      <div className="flex items-center gap-2">
+                        <Mail size={14} className="text-gray-400" />
+                        <span className="break-words">{contact.email}</span>
+                      </div>
+                    ) : null}
+                    {contact.phone ? (
+                      <div className="flex items-center gap-2">
+                        <Phone size={14} className="text-gray-400" />
+                        <span className="break-words">Direct: {contact.phone}</span>
+                      </div>
+                    ) : null}
+                    {contact.mobile_phone ? (
+                      <div className="flex items-center gap-2">
+                        <Phone size={14} className="text-gray-400" />
+                        <span className="break-words">Mobile: {contact.mobile_phone}</span>
+                      </div>
+                    ) : null}
+                    {contact.notes ? (
+                      <p className="rounded-2xl bg-gray-50 px-3 py-2 text-xs text-gray-700 whitespace-pre-wrap break-words">
+                        {contact.notes}
+                      </p>
+                    ) : null}
+                  </div>
 
-              <div className="flex flex-wrap gap-2 mt-4">
-                {selectedContact.tags.map(tag => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600"
-                  >
-                    <Tag size={10} />
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
+                  <div className="mt-4 rounded-2xl border border-gray-200 bg-white px-3 py-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+                          Next Action
+                        </p>
+                        <input
+                          value={getUiNextAction(contact)}
+                          onChange={(e) => setUiAction(contact.id, { nextAction: e.target.value })}
+                          placeholder="e.g. Send intro email, ask for hiring plan, schedule call"
+                          className="mt-1 w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                        />
+                      </div>
 
-            <div className="p-5 space-y-5">
-              <div className="rounded-xl border border-teal-100 bg-teal-50 p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-teal-700">
-                  Next Action
-                </p>
-                <p className="text-sm font-semibold text-gray-950 mt-1">{selectedContact.nextStep}</p>
-                <p className="text-xs text-teal-700 mt-2">
-                  Follow-up due: <span className="font-semibold">{selectedContact.followUpDue}</span>
-                </p>
-              </div>
-
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-2">
-                  Relationship Notes
-                </p>
-                <p className="text-sm leading-relaxed text-gray-600">{selectedContact.notes}</p>
-              </div>
-
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-2">
-                  Linked Opportunities
-                </p>
-                <div className="space-y-2">
-                  {selectedContact.linkedOpportunities.map(opportunity => (
-                    <div
-                      key={`${opportunity.company}-${opportunity.role}-${opportunity.stage}`}
-                      className="rounded-xl border border-gray-200 bg-gray-50 p-3"
-                    >
-                      <p className="text-sm font-semibold text-gray-900">{opportunity.role}</p>
-                      <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                        <span>{opportunity.company}</span>
-                        <span>·</span>
-                        <span>{opportunity.stage}</span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setUiAction(contact.id, {
+                              status: 'contacted',
+                              nextAction: getUiNextAction(contact) || 'Follow up in 3 days',
+                            })
+                          }
+                          className="rounded-2xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
+                        >
+                          Mark Contacted
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setUiAction(contact.id, {
+                              status: getUiStatus(contact),
+                              nextAction: 'Set follow-up for next week',
+                            })
+                          }
+                          className="rounded-2xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
+                        >
+                          Set Follow-up
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setUiAction(contact.id, {
+                              status: 'responded',
+                              nextAction: getUiNextAction(contact) || 'Qualify hiring needs and open roles',
+                            })
+                          }
+                          className="rounded-2xl bg-teal-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-teal-700"
+                        >
+                          Mark Responded
+                        </button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="text-sm font-semibold text-gray-950">Interaction History</h2>
-            <div className="mt-4 space-y-4">
-              {selectedContact.interactions.map((interaction, index) => (
-                <div key={`${interaction.type}-${interaction.date}-${index}`} className="flex gap-3">
-                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500">
-                    {interactionIcon[interaction.type]}
-                  </span>
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-gray-900">{interaction.type}</p>
-                      <span className="text-xs text-gray-400">{interaction.date}</span>
-                    </div>
-                    <p className="text-sm text-gray-600 mt-1 leading-relaxed">{interaction.summary}</p>
                   </div>
                 </div>
               ))}
             </div>
-          </section>
+          )}
+        </section>
+      </div>
 
-          <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="text-sm font-semibold text-gray-950 mb-4">Quick Relationship Actions</h2>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <QuickAction label="Log Call" />
-              <QuickAction label="Log Email" />
-              <QuickAction label="Add Note" />
-              <QuickAction label="Set Next Follow-up" />
-              <QuickAction label="Open Company" onClick={() => onNavigate('jobs')} />
-              <QuickAction label="Open Opportunity" onClick={() => onNavigate('pipeline')} />
+      {editingContact ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
+          <div className="w-full max-w-lg rounded-3xl border border-gray-200 bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-950">Edit Contact</p>
+                <p className="mt-1 text-xs text-gray-500">Update details for BD relationship tracking.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingContact(null)}
+                className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
+              >
+                Close
+              </button>
             </div>
-          </section>
-        </aside>
-      </div>
+
+            <div className="space-y-4 px-5 py-4">
+              {editError ? <div className="text-xs text-red-700">{editError}</div> : null}
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Full Name</span>
+                  <input
+                    value={editingContact.full_name ?? ''}
+                    onChange={(e) => setEditingContact({ ...editingContact, full_name: e.target.value })}
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Status</span>
+                  <input
+                    value={editingContact.relationship_status ?? ''}
+                    onChange={(e) => setEditingContact({ ...editingContact, relationship_status: e.target.value })}
+                    placeholder="new / active / ..."
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+              </div>
+
+              <label className="space-y-1 block">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Role / Title</span>
+                <input
+                  value={editingContact.job_title ?? ''}
+                  onChange={(e) => setEditingContact({ ...editingContact, job_title: e.target.value })}
+                  className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                />
+              </label>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Email</span>
+                  <input
+                    value={editingContact.email ?? ''}
+                    onChange={(e) => setEditingContact({ ...editingContact, email: e.target.value })}
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Direct Phone</span>
+                  <input
+                    value={editingContact.phone ?? ''}
+                    onChange={(e) => setEditingContact({ ...editingContact, phone: e.target.value })}
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+              </div>
+
+              <label className="space-y-1 block">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Mobile Phone</span>
+                <input
+                  value={editingContact.mobile_phone ?? ''}
+                  onChange={(e) => setEditingContact({ ...editingContact, mobile_phone: e.target.value })}
+                  className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                />
+              </label>
+
+              <label className="space-y-1 block">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Notes / Address</span>
+                <textarea
+                  value={editingContact.notes ?? ''}
+                  onChange={(e) => setEditingContact({ ...editingContact, notes: e.target.value })}
+                  rows={4}
+                  className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                />
+              </label>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-gray-100 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setEditingContact(null)}
+                className="rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveContactEdits}
+                disabled={editSaving}
+                className="rounded-2xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 disabled:opacity-60"
+              >
+                {editSaving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
-  );
-}
-
-function HeaderAction({ icon, label }: { icon: React.ReactNode; label: string }) {
-  return (
-    <button className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-xs font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50">
-      {icon}
-      {label}
-    </button>
-  );
-}
-
-function KpiCard({
-  label,
-  value,
-  icon,
-  tone,
-}: {
-  label: string;
-  value: number;
-  icon: React.ReactNode;
-  tone: 'teal' | 'blue' | 'emerald' | 'amber';
-}) {
-  const toneClass = {
-    teal: 'bg-teal-50 text-teal-600',
-    blue: 'bg-blue-50 text-blue-600',
-    emerald: 'bg-emerald-50 text-emerald-600',
-    amber: 'bg-amber-50 text-amber-600',
-  }[tone];
-
-  return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">{label}</p>
-        <span className={`rounded-lg p-2 ${toneClass}`}>{icon}</span>
-      </div>
-      <p className="mt-5 text-3xl font-semibold tracking-tight text-gray-950">{value}</p>
-    </div>
-  );
-}
-
-function DetailLine({
-  label,
-  value,
-  strong = false,
-}: {
-  label: string;
-  value: string;
-  strong?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">{label}</span>
-      <span className={`text-right ${strong ? 'font-semibold text-gray-950' : 'text-gray-600'}`}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function QuickAction({ label, onClick }: { label: string; onClick?: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex items-center justify-between rounded-xl border border-gray-200 px-3.5 py-3 text-left text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
-    >
-      {label}
-      <ArrowRight size={14} className="text-gray-400" />
-    </button>
   );
 }
