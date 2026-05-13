@@ -26,7 +26,8 @@ type AppPage =
   | 'job-intake'
   | 'bd-queue'
   | 'bd-relationships'
-  | 'interested-candidates';
+  | 'interested-candidates'
+  | 'autonomous-recruiter';
 
 interface NavItem {
   label: string;
@@ -104,6 +105,7 @@ const ROLE_NAV: Record<AppRole, NavSection[]> = {
         { label: 'Top Matches', icon: Star, targetPage: 'top-matches' },
         { label: 'Job Intake', icon: ClipboardList, targetPage: 'job-intake' },
         { label: 'Interested Candidates', icon: Users, targetPage: 'interested-candidates' },
+        { label: 'Autonomous Recruiter', icon: Sparkles, targetPage: 'autonomous-recruiter' },
       ],
     },
     {
@@ -132,6 +134,7 @@ const ROLE_NAV: Record<AppRole, NavSection[]> = {
         { label: 'Top Matches', icon: Star, targetPage: 'top-matches' },
         { label: 'Job Intake', icon: ClipboardList, targetPage: 'job-intake' },
         { label: 'Interested Candidates', icon: Users, targetPage: 'interested-candidates' },
+        { label: 'Autonomous Recruiter', icon: Sparkles, targetPage: 'autonomous-recruiter' },
       ],
     },
     {

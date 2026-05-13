@@ -12,6 +12,7 @@ import TopMatches from './pages/TopMatches';
 import JobIntake from './pages/JobIntake';
 import BDQueue from './pages/BDQueue';
 import InterestedCandidates from './pages/InterestedCandidates';
+import AutonomousRecruiterRuns from './pages/AutonomousRecruiterRuns';
 import LoginScreen from './pages/LoginScreen';
 import { StoreProvider } from './store/StoreContext';
 import { RoleProvider, useRole } from './store/RoleContext';
@@ -27,7 +28,8 @@ type Page =
   | 'job-intake'
   | 'bd-queue'
   | 'bd-relationships'
-  | 'interested-candidates';
+  | 'interested-candidates'
+  | 'autonomous-recruiter';
 
 interface SourcingContext {
   jobId?: string;
@@ -66,6 +68,7 @@ function AppShell() {
       case 'bd-queue':    return <BDQueue />;
       case 'bd-relationships': return <BDRelationships onNavigate={navigate} />;
       case 'interested-candidates': return <InterestedCandidates />;
+      case 'autonomous-recruiter': return <AutonomousRecruiterRuns />;
     }
   }
 
