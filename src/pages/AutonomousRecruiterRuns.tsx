@@ -6,6 +6,11 @@ type RunRow = {
   created_at: string | null;
   run_timestamp: string | null;
   mode: string | null;
+  iteration_mode?: boolean | null;
+  iteration_count?: number | null;
+  best_iteration?: number | null;
+  stopping_reason?: string | null;
+  iteration_summary?: unknown | null;
   job_title: string | null;
   skills: string | null;
   location: string | null;
@@ -109,6 +114,20 @@ function confidenceLabel(level: string | null | undefined) {
   if (s === 'low') return 'Low sourcing confidence';
   if (s === 'weak') return 'Weak sourcing confidence';
   return 'Sourcing confidence';
+}
+
+function isAutoIterate(row: RunRow | null | undefined) {
+  if (!row) return false;
+  if (row.iteration_mode === true) return true;
+  const mode = (row.mode ?? '').toLowerCase();
+  return mode === 'auto_iterate' || mode === 'auto-iterate';
+}
+
+function getIterationRows(iterationSummary: unknown): Array<Record<string, unknown>> {
+  if (!iterationSummary || typeof iterationSummary !== 'object') return [];
+  const maybeIterations = (iterationSummary as Record<string, unknown>).iterations;
+  if (!Array.isArray(maybeIterations)) return [];
+  return maybeIterations.filter(v => v && typeof v === 'object') as Array<Record<string, unknown>>;
 }
 
 function pill(label: string, className: string) {
@@ -217,6 +236,10 @@ export default function AutonomousRecruiterRuns() {
                 : null}
               {latestSignal?.confidenceLevel
                 ? pill(confidenceLabel(latestSignal.confidenceLevel), badgeForConfidence(latestSignal.confidenceLevel))
+                : null}
+              {isAutoIterate(latest) ? pill('auto-iterate', 'bg-indigo-50 text-indigo-800 ring-1 ring-indigo-200') : null}
+              {isAutoIterate(latest) && typeof latest?.iteration_count === 'number'
+                ? pill(`iters: ${latest.iteration_count}`, 'bg-gray-50 text-gray-700 ring-1 ring-gray-200')
                 : null}
               <span className="text-xs text-gray-500">
                 Latest run: {formatDate(latest?.created_at ?? latest?.run_timestamp ?? null)}
@@ -414,6 +437,10 @@ export default function AutonomousRecruiterRuns() {
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="text-sm font-semibold text-gray-900">{title}</p>
                           {r.mode ? pill(r.mode, 'bg-gray-50 text-gray-700 ring-1 ring-gray-200') : null}
+                          {isAutoIterate(r) ? pill('auto-iterate', 'bg-indigo-50 text-indigo-800 ring-1 ring-indigo-200') : null}
+                          {isAutoIterate(r) && typeof r.iteration_count === 'number'
+                            ? pill(`iters: ${r.iteration_count}`, 'bg-gray-50 text-gray-700 ring-1 ring-gray-200')
+                            : null}
                           {r.run_status ? pill(r.run_status, badgeForRunStatus(r.run_status)) : null}
                           {r.query_quality_label
                             ? pill(r.query_quality_label, badgeForQuality(r.query_quality_label))
@@ -474,9 +501,20 @@ export default function AutonomousRecruiterRuns() {
                     <p className="mt-2 text-base font-semibold text-gray-900">{selected.job_title ?? '—'}</p>
                     <p className="mt-1 text-sm text-gray-600">{stringifySkills(selected.skills)}</p>
                     <p className="mt-2 text-xs text-gray-500">
-                      {selected.location ?? '—'}{selected.seniority ? ` • ${selected.seniority}` : ''}{' '}
+                      {selected.location ?? '—'}
+                      {selected.seniority ? ` • ${selected.seniority}` : ''}{' '}
                       {selected.mode ? ` • ${selected.mode}` : ''}
                     </p>
+                    {isAutoIterate(selected) ? (
+                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                        {typeof selected.iteration_count === 'number'
+                          ? pill(`Iterations: ${selected.iteration_count}`, 'bg-gray-50 text-gray-700 ring-1 ring-gray-200')
+                          : null}
+                        {typeof selected.best_iteration === 'number'
+                          ? pill(`Best: iter${selected.best_iteration}`, 'bg-gray-50 text-gray-700 ring-1 ring-gray-200')
+                          : null}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -506,6 +544,38 @@ export default function AutonomousRecruiterRuns() {
                     </div>
                     <p className="mt-2 text-sm text-gray-700">{selected.sourcing_signal_summary ?? '—'}</p>
                   </div>
+
+                  {isAutoIterate(selected) ? (
+                    <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Auto-iteration</p>
+                      <p className="mt-2 text-sm text-gray-800">{selected.stopping_reason ?? 'â€”'}</p>
+
+                      <div className="mt-4">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Iteration journey</p>
+                        {getIterationRows(selected.iteration_summary).length ? (
+                          <ul className="mt-2 space-y-1.5 text-sm text-gray-800">
+                            {getIterationRows(selected.iteration_summary).slice(0, 10).map((it, idx) => {
+                              const iter = it.iteration ?? idx + 1;
+                              const candidates = it.total_candidates ?? it.totalCandidates ?? 'â€”';
+                              const conf = it.recruiter_confidence_level ?? it.recruiterConfidenceLevel ?? 'â€”';
+                              const priority = it.next_run_priority ?? it.nextRunPriority ?? 'â€”';
+                              return (
+                                <li key={`${idx}`} className="flex gap-2">
+                                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400" />
+                                  <span className="min-w-0 break-words">
+                                    Iter {String(iter)}: {String(candidates)} candidates, {String(conf)} confidence, priority{' '}
+                                    {String(priority)}
+                                  </span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        ) : (
+                          <p className="mt-2 text-sm text-gray-600">â€”</p>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div className="grid grid-cols-1 gap-3">
                     <div className="rounded-2xl border border-gray-200 bg-white p-4">
