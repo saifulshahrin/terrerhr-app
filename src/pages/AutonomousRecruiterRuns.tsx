@@ -26,6 +26,11 @@ type RunRow = {
   candidates_path: string | null;
   agent_report_path: string | null;
   strategy_refinement_path: string | null;
+  recruiter_confidence_level: string | null;
+  recruiter_confidence_score: number | null;
+  sourcing_signal_summary: string | null;
+  sourcing_signal_flags: unknown | null;
+  sourcing_risk_flags: unknown | null;
 };
 
 function formatDate(value: string | null | undefined) {
@@ -86,6 +91,24 @@ function badgeForQuality(label: string | null | undefined) {
   if (['weak', 'low', 'poor'].includes(s)) return 'bg-rose-50 text-rose-700 ring-1 ring-rose-200';
   if (['medium', 'moderate', 'unknown'].includes(s)) return 'bg-amber-50 text-amber-800 ring-1 ring-amber-200';
   return 'bg-gray-50 text-gray-700 ring-1 ring-gray-200';
+}
+
+function badgeForConfidence(level: string | null | undefined) {
+  const s = (level ?? '').toLowerCase();
+  if (s === 'high') return 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200';
+  if (s === 'medium') return 'bg-blue-50 text-blue-800 ring-1 ring-blue-200';
+  if (s === 'low') return 'bg-amber-50 text-amber-800 ring-1 ring-amber-200';
+  if (s === 'weak') return 'bg-rose-50 text-rose-700 ring-1 ring-rose-200';
+  return 'bg-gray-50 text-gray-700 ring-1 ring-gray-200';
+}
+
+function confidenceLabel(level: string | null | undefined) {
+  const s = (level ?? '').toLowerCase();
+  if (s === 'high') return 'High sourcing confidence';
+  if (s === 'medium') return 'Moderate sourcing confidence';
+  if (s === 'low') return 'Low sourcing confidence';
+  if (s === 'weak') return 'Weak sourcing confidence';
+  return 'Sourcing confidence';
 }
 
 function pill(label: string, className: string) {
@@ -167,6 +190,17 @@ export default function AutonomousRecruiterRuns() {
     return { best, weak, nextMove, priority };
   }, [latest]);
 
+  const latestSignal = useMemo(() => {
+    if (!latest) return null;
+    return {
+      confidenceLevel: latest.recruiter_confidence_level ?? null,
+      confidenceScore: typeof latest.recruiter_confidence_score === 'number' ? latest.recruiter_confidence_score : null,
+      signalSummary: latest.sourcing_signal_summary ?? null,
+      signalFlags: toBulletItems(latest.sourcing_signal_flags),
+      riskFlags: toBulletItems(latest.sourcing_risk_flags),
+    };
+  }, [latest]);
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-gray-200 bg-white p-6">
@@ -180,6 +214,9 @@ export default function AutonomousRecruiterRuns() {
               {latest?.run_status ? pill(latest.run_status, badgeForRunStatus(latest.run_status)) : null}
               {latest?.query_quality_label
                 ? pill(`quality: ${latest.query_quality_label}`, badgeForQuality(latest.query_quality_label))
+                : null}
+              {latestSignal?.confidenceLevel
+                ? pill(confidenceLabel(latestSignal.confidenceLevel), badgeForConfidence(latestSignal.confidenceLevel))
                 : null}
               <span className="text-xs text-gray-500">
                 Latest run: {formatDate(latest?.created_at ?? latest?.run_timestamp ?? null)}
@@ -249,6 +286,81 @@ export default function AutonomousRecruiterRuns() {
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Next move</p>
             <p className="mt-1 text-sm font-semibold text-gray-900">{latestIntelligence?.nextMove ?? '—'}</p>
             <p className="mt-1 text-xs text-gray-500">Priority: {latestIntelligence?.priority ?? '—'}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="rounded-xl bg-white p-4 ring-1 ring-gray-200">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Recruiter confidence</p>
+              {latestSignal?.confidenceLevel
+                ? pill(
+                    confidenceLabel(latestSignal.confidenceLevel),
+                    badgeForConfidence(latestSignal.confidenceLevel),
+                  )
+                : pill('—', 'bg-gray-50 text-gray-700 ring-1 ring-gray-200')}
+            </div>
+            <p className="mt-2 text-sm font-semibold text-gray-900">
+              Score: {latestSignal?.confidenceScore ?? '—'}
+            </p>
+            <p className="mt-1 text-sm text-gray-700">{latestSignal?.signalSummary ?? '—'}</p>
+          </div>
+
+          <div className="rounded-xl bg-white p-4 ring-1 ring-gray-200">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Signal quality</p>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="rounded-lg bg-gray-50 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Confidence</p>
+                <p className="mt-0.5 text-sm font-semibold text-gray-900">
+                  {latestSignal?.confidenceScore ?? '—'}
+                </p>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Quality</p>
+                <p className="mt-0.5 text-sm font-semibold text-gray-900">{latest?.query_quality_label ?? '—'}</p>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Candidates</p>
+                <p className="mt-0.5 text-sm font-semibold text-gray-900">{latest?.total_candidates ?? '—'}</p>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Run status</p>
+                <p className="mt-0.5 text-sm font-semibold text-gray-900">{latest?.run_status ?? '—'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="rounded-xl bg-gray-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Signal flags</p>
+            {latestSignal?.signalFlags?.length ? (
+              <ul className="mt-2 space-y-1.5 text-sm text-gray-800">
+                {latestSignal.signalFlags.slice(0, 8).map((item, idx) => (
+                  <li key={`${item}-${idx}`} className="flex gap-2">
+                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400" />
+                    <span className="min-w-0 break-words">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-sm text-gray-600">—</p>
+            )}
+          </div>
+          <div className="rounded-xl bg-gray-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Risk flags</p>
+            {latestSignal?.riskFlags?.length ? (
+              <ul className="mt-2 space-y-1.5 text-sm text-gray-800">
+                {latestSignal.riskFlags.slice(0, 8).map((item, idx) => (
+                  <li key={`${item}-${idx}`} className="flex gap-2">
+                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400" />
+                    <span className="min-w-0 break-words">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-sm text-gray-600">—</p>
+            )}
           </div>
         </div>
       </div>
@@ -351,6 +463,12 @@ export default function AutonomousRecruiterRuns() {
                         {selected.query_quality_label
                           ? pill(selected.query_quality_label, badgeForQuality(selected.query_quality_label))
                           : null}
+                        {selected.recruiter_confidence_level
+                          ? pill(
+                              confidenceLabel(selected.recruiter_confidence_level),
+                              badgeForConfidence(selected.recruiter_confidence_level),
+                            )
+                          : null}
                       </div>
                     </div>
                     <p className="mt-2 text-base font-semibold text-gray-900">{selected.job_title ?? '—'}</p>
@@ -373,6 +491,52 @@ export default function AutonomousRecruiterRuns() {
                       <p className="mt-1 text-base font-semibold text-gray-900">
                         {selected.query_quality_label ?? '—'}
                       </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Recruiter confidence</p>
+                    <div className="mt-2 flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-gray-900">
+                        Score: {typeof selected.recruiter_confidence_score === 'number' ? selected.recruiter_confidence_score : '—'}
+                      </p>
+                      {selected.recruiter_confidence_level
+                        ? pill(confidenceLabel(selected.recruiter_confidence_level), badgeForConfidence(selected.recruiter_confidence_level))
+                        : null}
+                    </div>
+                    <p className="mt-2 text-sm text-gray-700">{selected.sourcing_signal_summary ?? '—'}</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Signal flags</p>
+                      {toBulletItems(selected.sourcing_signal_flags).length ? (
+                        <ul className="mt-2 space-y-1.5 text-sm text-gray-800">
+                          {toBulletItems(selected.sourcing_signal_flags).slice(0, 10).map((item, idx) => (
+                            <li key={`${item}-${idx}`} className="flex gap-2">
+                              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400" />
+                              <span className="min-w-0 break-words">{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 text-sm text-gray-600">—</p>
+                      )}
+                    </div>
+                    <div className="rounded-2xl border border-gray-200 bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Risk flags</p>
+                      {toBulletItems(selected.sourcing_risk_flags).length ? (
+                        <ul className="mt-2 space-y-1.5 text-sm text-gray-800">
+                          {toBulletItems(selected.sourcing_risk_flags).slice(0, 10).map((item, idx) => (
+                            <li key={`${item}-${idx}`} className="flex gap-2">
+                              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400" />
+                              <span className="min-w-0 break-words">{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-2 text-sm text-gray-600">—</p>
+                      )}
                     </div>
                   </div>
 
