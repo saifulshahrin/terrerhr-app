@@ -38,6 +38,25 @@ type RunRow = {
   sourcing_risk_flags: unknown | null;
 };
 
+type MemoryRow = {
+  id: string;
+  created_at: string | null;
+  memory_type: string | null;
+  role_family: string | null;
+  job_title: string | null;
+  skills: string | null;
+  location: string | null;
+  successful_strategy: string | null;
+  failed_strategy: string | null;
+  recommended_query_pattern: string | null;
+  recommended_next_move: string | null;
+  recruiter_confidence_level: string | null;
+  recruiter_confidence_score: number | null;
+  sourcing_signal_flags: unknown | null;
+  sourcing_risk_flags: unknown | null;
+  total_candidates: number | null;
+  successful_run: boolean | null;
+};
 function formatDate(value: string | null | undefined) {
   if (!value) return '—';
   const d = new Date(value);
@@ -140,6 +159,7 @@ function pill(label: string, className: string) {
 
 export default function AutonomousRecruiterRuns() {
   const [runs, setRuns] = useState<RunRow[]>([]);
+  const [memory, setMemory] = useState<MemoryRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -163,6 +183,17 @@ export default function AutonomousRecruiterRuns() {
         const rows = (data ?? []) as RunRow[];
         setRuns(rows);
         setSelectedId(rows[0]?.id ?? null);
+
+        // Recruiter memory signals (read-only, for dashboard context)
+        const { data: memData, error: memErr } = await supabase
+          .from('autonomous_recruiter_memory')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(50);
+
+        if (memErr) throw memErr;
+        if (cancelled) return;
+        setMemory((memData ?? []) as MemoryRow[]);
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? 'Failed to load autonomous recruiter runs.');
       } finally {
@@ -219,6 +250,32 @@ export default function AutonomousRecruiterRuns() {
       riskFlags: toBulletItems(latest.sourcing_risk_flags),
     };
   }, [latest]);
+
+  const memorySignals = useMemo(() => {
+    const successfulPatterns = memory
+      .filter(m => (m.successful_run === true) || (m.memory_type ?? '').toLowerCase().includes('success'))
+      .map(m => (m.recommended_query_pattern || m.successful_strategy || '').trim())
+      .filter(Boolean)
+      .slice(0, 6);
+
+    const nextMoves = memory
+      .map(m => (m.recommended_next_move || '').trim())
+      .filter(Boolean)
+      .slice(0, 6);
+
+    const riskFlagCounts = new Map<string, number>();
+    for (const m of memory) {
+      for (const item of toBulletItems(m.sourcing_risk_flags)) {
+        riskFlagCounts.set(item, (riskFlagCounts.get(item) ?? 0) + 1);
+      }
+    }
+    const repeatedRiskFlags = Array.from(riskFlagCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([flag]) => flag);
+
+    return { successfulPatterns, repeatedRiskFlags, nextMoves };
+  }, [memory]);
 
   return (
     <div className="space-y-6">
@@ -309,6 +366,59 @@ export default function AutonomousRecruiterRuns() {
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Next move</p>
             <p className="mt-1 text-sm font-semibold text-gray-900">{latestIntelligence?.nextMove ?? '—'}</p>
             <p className="mt-1 text-xs text-gray-500">Priority: {latestIntelligence?.priority ?? '—'}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-xl bg-gray-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Recruiter Memory Signals</p>
+          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Successful patterns</p>
+              {memorySignals.successfulPatterns.length ? (
+                <ul className="mt-2 space-y-1.5 text-sm text-gray-800">
+                  {memorySignals.successfulPatterns.map((item, idx) => (
+                    <li key={`${item}-${idx}`} className="flex gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400" />
+                      <span className="min-w-0 break-words">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm text-gray-600">â€”</p>
+              )}
+            </div>
+
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Repeated risk flags</p>
+              {memorySignals.repeatedRiskFlags.length ? (
+                <ul className="mt-2 space-y-1.5 text-sm text-gray-800">
+                  {memorySignals.repeatedRiskFlags.map((item, idx) => (
+                    <li key={`${item}-${idx}`} className="flex gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400" />
+                      <span className="min-w-0 break-words">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm text-gray-600">â€”</p>
+              )}
+            </div>
+
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Next moves</p>
+              {memorySignals.nextMoves.length ? (
+                <ul className="mt-2 space-y-1.5 text-sm text-gray-800">
+                  {memorySignals.nextMoves.map((item, idx) => (
+                    <li key={`${item}-${idx}`} className="flex gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-400" />
+                      <span className="min-w-0 break-words">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-sm text-gray-600">â€”</p>
+              )}
+            </div>
           </div>
         </div>
 
