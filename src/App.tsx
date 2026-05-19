@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import BDDashboard from './pages/BDDashboard';
 import BDRelationships from './pages/BDRelationships';
+import BDTasksFollowUps from './pages/BDTasksFollowUps';
 import Jobs from './pages/Jobs';
 import ActiveJobs from './pages/ActiveJobs';
 import HiringIntelligence from './pages/HiringIntelligence';
@@ -14,6 +15,7 @@ import BDQueue from './pages/BDQueue';
 import InterestedCandidates from './pages/InterestedCandidates';
 import AutonomousRecruiterRuns from './pages/AutonomousRecruiterRuns';
 import LoginScreen from './pages/LoginScreen';
+import CandidateProfile from './pages/CandidateProfile';
 import { StoreProvider } from './store/StoreContext';
 import { RoleProvider, useRole } from './store/RoleContext';
 
@@ -25,9 +27,11 @@ type Page =
   | 'candidates'
   | 'pipeline'
   | 'top-matches'
+  | 'candidate-profile'
   | 'job-intake'
   | 'bd-queue'
   | 'bd-relationships'
+  | 'bd-tasks'
   | 'interested-candidates'
   | 'autonomous-recruiter';
 
@@ -40,6 +44,7 @@ interface SourcingContext {
 interface NavState {
   page: Page;
   jobId?: string;
+  candidateId?: string;
   sourcingContext?: SourcingContext;
 }
 
@@ -51,11 +56,11 @@ function AppShell() {
     return <LoginScreen onSelect={setRole} />;
   }
 
-  function navigate(page: string, jobId?: string, sourcingContext?: SourcingContext) {
-    setNav({ page: page as Page, jobId, sourcingContext });
+  function navigate(page: string, jobId?: string, sourcingContext?: SourcingContext, candidateId?: string) {
+    setNav({ page: page as Page, jobId, sourcingContext, candidateId });
   }
 
-  function renderPage({ page, jobId, sourcingContext }: NavState) {
+  function renderPage({ page, jobId, candidateId, sourcingContext }: NavState) {
     switch (page) {
       case 'dashboard':   return role === 'bd' ? <BDDashboard onNavigate={navigate} /> : <Dashboard onNavigate={navigate} />;
       case 'jobs':        return <Jobs onViewTopMatches={(id) => navigate('top-matches', id)} onNewJobIntake={() => navigate('job-intake')} />;
@@ -64,18 +69,20 @@ function AppShell() {
       case 'candidates':  return <Candidates sourcingContext={sourcingContext} />;
       case 'pipeline':    return <Pipeline />;
       case 'top-matches': return <TopMatches jobId={jobId} onNavigate={navigate} />;
+      case 'candidate-profile': return <CandidateProfile candidateId={candidateId} jobId={jobId} onNavigate={navigate} />;
       case 'job-intake':  return <JobIntake onNavigate={navigate} />;
       case 'bd-queue':    return <BDQueue />;
       case 'bd-relationships': return <BDRelationships onNavigate={navigate} />;
+      case 'bd-tasks': return <BDTasksFollowUps onNavigate={navigate} />;
       case 'interested-candidates': return <InterestedCandidates />;
       case 'autonomous-recruiter': return <AutonomousRecruiterRuns />;
     }
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-slate-100 text-slate-900">
       <Sidebar activePage={nav.page} onNavigate={(p) => navigate(p)} />
-      <main className="flex-1 p-8 overflow-auto">
+      <main className="min-w-0 flex-1 overflow-auto px-5 py-5 lg:px-7 lg:py-6">
         {renderPage(nav)}
       </main>
     </div>

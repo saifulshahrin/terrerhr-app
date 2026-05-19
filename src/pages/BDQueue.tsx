@@ -284,7 +284,7 @@ function BDCard({ item, onAction, canAct }: { item: BDItem; onAction: (id: strin
 
       <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-3 flex-wrap">
         <p className="text-xs text-gray-400">
-          {canAct ? 'BD action required â€” not yet submitted to client' : 'Awaiting BD approval before client submission'}
+          {canAct ? 'BD action required - not yet submitted to client' : 'Awaiting BD approval before client submission'}
         </p>
         {canAct && (
           <div className="flex items-center gap-2">

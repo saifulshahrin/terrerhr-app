@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BarChart2, MapPin } from 'lucide-react';
+import { BarChart2, MapPin, Search, X } from 'lucide-react';
 import { fetchAllJobs, type JobListRow } from '../lib/jobs';
 import { normalizeJobTitles } from '../lib/roleNormalization';
+import { Badge, PageHeader, Panel, SectionHeader } from '../components/visualSystem';
 
 type Job = JobListRow;
 
@@ -38,10 +39,10 @@ interface Props {
   onViewTopMatches: (jobId: string) => void;
 }
 
-const PRIORITY_STYLE: Record<PriorityLabel, string> = {
-  High: 'text-green-700 bg-green-50 border-green-200',
-  Medium: 'text-blue-700 bg-blue-50 border-blue-200',
-  Low: 'text-gray-600 bg-gray-100 border-gray-200',
+const PRIORITY_TONE: Record<PriorityLabel, 'emerald' | 'blue' | 'slate'> = {
+  High: 'emerald',
+  Medium: 'blue',
+  Low: 'slate',
 };
 
 function timeAgo(dateStr: string): string {
@@ -52,31 +53,35 @@ function timeAgo(dateStr: string): string {
   return `${days} days ago`;
 }
 
+function normalizeText(value: unknown): string {
+  return String(value ?? '').toLowerCase().trim();
+}
+
 function SummaryCard({ title, items, activeValue, onSelect }: SummaryCardProps) {
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4">
-      <p className="text-sm font-semibold text-gray-900 mb-3">{title}</p>
+    <Panel className="p-3.5">
+      <p className="mb-2.5 text-sm font-semibold tracking-tight text-slate-950">{title}</p>
       {items.length === 0 ? (
-        <p className="text-xs text-gray-400">No signals yet</p>
+        <p className="text-xs text-slate-400">No signals yet</p>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-1">
           {items.map(item => (
             <button
               key={item.label}
               onClick={() => onSelect(item.label)}
-              className={`w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+              className={`w-full flex items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition-colors ${
                 activeValue === item.label
                   ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-700 hover:bg-gray-50'
+                  : 'text-slate-700 hover:bg-slate-50'
               }`}
             >
               <span className="truncate">{item.label}</span>
-              <span className="shrink-0 text-xs font-semibold text-gray-500">{item.count}</span>
+              <span className="shrink-0 text-xs font-semibold text-slate-500">{item.count}</span>
             </button>
           ))}
         </div>
       )}
-    </div>
+    </Panel>
   );
 }
 
@@ -187,6 +192,7 @@ function buildPriorityTargets(jobs: NormalizedJobForPriority[]): PriorityTarget[
 export default function HiringIntelligence({ onViewTopMatches }: Props) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<{
     type: 'company' | 'role' | 'family';
     value: string;
@@ -208,7 +214,9 @@ export default function HiringIntelligence({ onViewTopMatches }: Props) {
   }, []);
 
   const intelligenceJobs = jobs.filter(job => job.source !== 'manual_intake');
+  const operationalJobCount = jobs.length - intelligenceJobs.length;
   const normalizedJobs = useMemo(() => normalizeJobTitles(intelligenceJobs), [intelligenceJobs]);
+  const normalizedSearch = search.trim().toLowerCase();
 
   const topHiringCompanies = useMemo(
     () => aggregateBy(normalizedJobs.map(job => job.company_name), 6),
@@ -240,98 +248,106 @@ export default function HiringIntelligence({ onViewTopMatches }: Props) {
     });
   }, [filter, normalizedJobs]);
 
+  const visibleJobs = useMemo(() => {
+    if (!normalizedSearch) return filteredJobs;
+
+    return filteredJobs.filter(job => {
+      const haystack = [
+        job.job_title,
+        job.company_name,
+        job.location,
+        job.normalized_job_title,
+        job.role_family,
+        job.seniority,
+      ]
+        .map(normalizeText)
+        .join(' ');
+
+      return haystack.includes(normalizedSearch);
+    });
+  }, [filteredJobs, normalizedSearch]);
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-800">Hiring Intelligence</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {intelligenceJobs.length} discovered market-demand jobs
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Market Signal"
+        title="Hiring Intelligence"
+        description={`${intelligenceJobs.length} discovered market-demand jobs${
+          operationalJobCount > 0 ? ` (${operationalJobCount} operational manual-intake jobs live in Jobs/Active Jobs)` : ''
+        }`}
+      />
 
       {loading ? (
-        <div className="bg-white rounded-lg border border-gray-200 flex items-center justify-center py-16">
-          <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        </div>
+        <Panel className="flex items-center justify-center py-16">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+        </Panel>
       ) : intelligenceJobs.length === 0 ? (
-        <div className="bg-white rounded-lg border border-gray-200 flex flex-col items-center justify-center py-16 text-center">
-          <p className="text-sm text-gray-400">No hiring intelligence jobs found yet.</p>
-        </div>
+        <Panel className="flex flex-col items-center justify-center gap-2 py-16 text-center">
+          <p className="text-sm font-semibold text-slate-700">No hiring intelligence jobs found yet.</p>
+          <p className="max-w-[420px] text-sm text-slate-400">
+            Once Terrer starts collecting market-demand roles, you&apos;ll see hiring hotspots and company targets here.
+          </p>
+        </Panel>
       ) : (
         <>
-          <div className="space-y-5 mb-6">
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between mb-4">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">Priority Targets</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Companies with demand that best overlaps Terrer&apos;s current tech/digital candidate supply.
-                  </p>
-                </div>
-                <p className="text-xs text-gray-400">Rule-based signal, not AI scoring</p>
-              </div>
-
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-                {priorityTargets.map(target => (
-                  <button
-                    key={target.companyName}
-                    onClick={() =>
-                      setFilter(
-                        filter?.type === 'company' && filter.value === target.companyName
-                          ? null
-                          : { type: 'company', value: target.companyName }
-                      )
-                    }
-                    className={`text-left rounded-lg border p-3 transition-colors ${
-                      filter?.type === 'company' && filter.value === target.companyName
-                        ? 'border-blue-300 bg-blue-50'
-                        : 'border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-gray-900 truncate">
-                          {target.companyName}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {target.activeJobCount} active scraped jobs
-                        </p>
-                      </div>
-                      <span
-                        className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${PRIORITY_STYLE[target.priorityLabel]}`}
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+            <div className="space-y-4">
+              <Panel padded={false} className="overflow-hidden">
+                <SectionHeader
+                  title="Priority Targets"
+                  description="Companies with demand overlapping Terrer's current tech/digital supply."
+                  icon={<BarChart2 size={16} className="text-emerald-600" />}
+                  meta={<Badge>Rule-based</Badge>}
+                />
+                <div className="border-t border-slate-200/70 p-3">
+                  <div className="grid grid-cols-1 gap-2">
+                    {priorityTargets.map(target => (
+                      <button
+                        key={target.companyName}
+                        onClick={() =>
+                          setFilter(
+                            filter?.type === 'company' && filter.value === target.companyName
+                              ? null
+                              : { type: 'company', value: target.companyName }
+                          )
+                        }
+                        className={`w-full rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                          filter?.type === 'company' && filter.value === target.companyName
+                            ? 'border-blue-200 bg-blue-50/70'
+                            : 'border-slate-200/70 bg-white/70 hover:bg-slate-50'
+                        }`}
                       >
-                        {target.priorityLabel}
-                      </span>
-                    </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-950">{target.companyName}</p>
+                            <p className="mt-0.5 text-xs text-slate-500 tabular-nums">
+                              {target.activeJobCount} scraped job{target.activeJobCount !== 1 ? 's' : ''}
+                            </p>
+                          </div>
+                          <Badge tone={PRIORITY_TONE[target.priorityLabel]} className="shrink-0">
+                            {target.priorityLabel} priority
+                          </Badge>
+                        </div>
+                        <div className="mt-2 space-y-1 text-xs text-slate-600">
+                          <p className="truncate">
+                            <span className="text-slate-400">Roles:</span> {target.dominantRoles.join(', ')}
+                          </p>
+                          <p className="truncate">
+                            <span className="text-slate-400">Families:</span> {target.dominantFamilies.join(', ')}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </Panel>
 
-                    <div className="mt-3 space-y-1.5 text-xs text-gray-600">
-                      <p>
-                        <span className="text-gray-400">Roles:</span>{' '}
-                        {target.dominantRoles.join(', ')}
-                      </p>
-                      <p>
-                        <span className="text-gray-400">Families:</span>{' '}
-                        {target.dominantFamilies.join(', ')}
-                      </p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <SummaryCard
                 title="Top Hiring Companies"
                 items={topHiringCompanies}
                 activeValue={filter?.type === 'company' ? filter.value : null}
                 onSelect={(value) =>
-                  setFilter(
-                    filter?.type === 'company' && filter.value === value
-                      ? null
-                      : { type: 'company', value }
-                  )
+                  setFilter(filter?.type === 'company' && filter.value === value ? null : { type: 'company', value })
                 }
               />
               <SummaryCard
@@ -339,11 +355,7 @@ export default function HiringIntelligence({ onViewTopMatches }: Props) {
                 items={topRolesInDemand}
                 activeValue={filter?.type === 'role' ? filter.value : null}
                 onSelect={(value) =>
-                  setFilter(
-                    filter?.type === 'role' && filter.value === value
-                      ? null
-                      : { type: 'role', value }
-                  )
+                  setFilter(filter?.type === 'role' && filter.value === value ? null : { type: 'role', value })
                 }
               />
               <SummaryCard
@@ -351,77 +363,119 @@ export default function HiringIntelligence({ onViewTopMatches }: Props) {
                 items={topRoleFamilies}
                 activeValue={filter?.type === 'family' ? filter.value : null}
                 onSelect={(value) =>
-                  setFilter(
-                    filter?.type === 'family' && filter.value === value
-                      ? null
-                      : { type: 'family', value }
-                  )
+                  setFilter(filter?.type === 'family' && filter.value === value ? null : { type: 'family', value })
                 }
               />
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-200 p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-gray-900">Raw scraped jobs drill-down</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {filteredJobs.length} of {intelligenceJobs.length} scraped jobs shown
-                  {filter ? ` for ${filter.value}` : ''}
-                </p>
-              </div>
-              {filter && (
-                <button
-                  onClick={() => setFilter(null)}
-                  className="self-start sm:self-auto px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                >
-                  Clear filter
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            {filteredJobs.map(job => (
-              <div
-                key={job.id}
-                className="bg-white rounded-lg border border-gray-200 p-5 hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-lg font-semibold text-gray-900 truncate" title={job.job_title}>
-                      {job.job_title}
-                    </h2>
-                    <p className="text-sm text-gray-600 mt-1">{job.company_name}</p>
-
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">
-                        {job.normalized_job_title}
-                      </span>
-                      <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
-                        {job.role_family}
-                      </span>
-                      <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">
-                        {job.seniority}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 text-sm text-gray-500 mt-2">
-                      <MapPin size={14} className="text-gray-400" />
-                      <span>{job.location || '-'}</span>
-                    </div>
-
-                    <p className="text-xs text-gray-400 mt-2">Updated: {timeAgo(job.updated_at)}</p>
+            <Panel padded={false} className="overflow-hidden">
+              <SectionHeader
+                title="Scraped Jobs Drilldown"
+                description={`${visibleJobs.length} of ${intelligenceJobs.length} scraped jobs shown${
+                  filter ? ` for ${filter.value}` : ''
+                }`}
+                icon={<MapPin size={16} className="text-slate-500" />}
+                meta={
+                  <div className="flex items-center gap-2">
+                    {filter ? (
+                      <button
+                        type="button"
+                        onClick={() => setFilter(null)}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-200/70 transition-colors hover:bg-slate-100"
+                      >
+                        <X size={12} />
+                        Clear filter
+                      </button>
+                    ) : (
+                      <Badge>All signals</Badge>
+                    )}
                   </div>
+                }
+              />
 
-                  <button
-                    onClick={() => onViewTopMatches(job.id)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                  >
-                    <BarChart2 size={12} />
-                    View Top Matches
-                  </button>
+              <div className="flex flex-col gap-3 border-t border-slate-200/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <label className="relative block w-full sm:max-w-[420px]">
+                  <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search scraped jobs (title, company, role, family, location)"
+                    className="w-full rounded-xl border border-slate-200/70 bg-white/90 py-2.5 pl-9 pr-3 text-sm text-slate-700 outline-none transition-colors focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                  />
+                </label>
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <span className="tabular-nums">{intelligenceJobs.length} market jobs</span>
+                  {operationalJobCount > 0 ? (
+                    <span className="tabular-nums">{operationalJobCount} operational jobs excluded</span>
+                  ) : null}
                 </div>
               </div>
-            ))}
+
+              <div className="border-t border-slate-200/70">
+                {visibleJobs.length === 0 ? (
+                  <div className="px-6 py-12 text-center">
+                    <p className="text-sm font-semibold text-slate-700">No matches for your filters.</p>
+                    <p className="mt-1 text-sm text-slate-400">Try clearing the filter or broadening the search query.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full table-fixed divide-y divide-slate-200/80 text-left text-sm">
+                      <colgroup>
+                        <col className="w-[38%]" />
+                        <col className="w-[28%]" />
+                        <col className="w-[16%]" />
+                        <col className="w-[10%]" />
+                        <col className="w-[8%]" />
+                      </colgroup>
+                      <thead className="bg-slate-50/80 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                        <tr>
+                          <th className="px-4 py-3">Job</th>
+                          <th className="px-3 py-3">Signal</th>
+                          <th className="px-3 py-3">Location</th>
+                          <th className="px-3 py-3">Updated</th>
+                          <th className="px-4 py-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white/60">
+                        {visibleJobs.map(job => (
+                          <tr key={job.id} className="transition-colors hover:bg-slate-50">
+                            <td className="px-4 py-3 align-top">
+                              <p className="truncate text-sm font-semibold text-slate-950" title={job.job_title}>
+                                {job.job_title}
+                              </p>
+                              <p className="mt-0.5 truncate text-xs text-slate-600">{job.company_name}</p>
+                            </td>
+                            <td className="px-3 py-3 align-top">
+                              <div className="flex flex-wrap gap-1.5">
+                                <Badge tone="blue">{job.normalized_job_title}</Badge>
+                                <Badge>{job.role_family}</Badge>
+                                <Badge tone="amber">{job.seniority}</Badge>
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 align-top">
+                              <div className="flex items-center gap-1.5 text-sm text-slate-600">
+                                <MapPin size={14} className="text-slate-400" />
+                                <span className="truncate">{job.location || '-'}</span>
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 align-top text-xs text-slate-500 tabular-nums">{timeAgo(job.updated_at)}</td>
+                            <td className="px-4 py-3 align-top text-right">
+                              <button
+                                onClick={() => onViewTopMatches(job.id)}
+                                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                              >
+                                <BarChart2 size={12} />
+                                View
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </Panel>
           </div>
         </>
       )}

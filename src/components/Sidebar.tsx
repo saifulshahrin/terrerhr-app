@@ -26,6 +26,7 @@ type AppPage =
   | 'job-intake'
   | 'bd-queue'
   | 'bd-relationships'
+  | 'bd-tasks'
   | 'interested-candidates'
   | 'autonomous-recruiter';
 
@@ -66,15 +67,15 @@ const ROLE_NAV: Record<AppRole, NavSection[]> = {
       items: [
         { label: 'Dashboard', icon: LayoutDashboard, targetPage: 'dashboard' },
         { label: 'BD Relationships', icon: Users, targetPage: 'bd-relationships' },
-        { label: 'Opportunities', icon: Briefcase, targetPage: 'active-jobs' },
+        { label: 'Opportunities (Coming Soon)', icon: Briefcase, comingSoon: true },
         { label: 'BD Playbook', icon: Sparkles, comingSoon: true },
-        { label: 'Tasks & Follow-ups', icon: ClipboardList, comingSoon: true },
+        { label: 'Tasks & Follow-ups', icon: ClipboardList, targetPage: 'bd-tasks' },
       ],
     },
     {
       label: 'Pipeline',
       items: [
-        { label: 'Active Opportunities', icon: ClipboardList, targetPage: 'active-jobs' },
+        { label: 'Active Jobs', icon: ClipboardList, targetPage: 'active-jobs' },
         { label: 'Deals at Risk', icon: BarChart2, comingSoon: true },
         { label: 'Submissions', icon: ClipboardCheck, targetPage: 'bd-queue' },
       ],
@@ -102,16 +103,14 @@ const ROLE_NAV: Record<AppRole, NavSection[]> = {
         { label: 'Jobs', icon: Briefcase, targetPage: 'jobs' },
         { label: 'Candidates', icon: Users, targetPage: 'candidates' },
         { label: 'Pipeline', icon: GitBranch, targetPage: 'pipeline' },
-        { label: 'Top Matches', icon: Star, targetPage: 'top-matches' },
+        { label: 'Top Matches / AI Review', icon: Star, targetPage: 'top-matches' },
         { label: 'Job Intake', icon: ClipboardList, targetPage: 'job-intake' },
-        { label: 'Interested Candidates', icon: Users, targetPage: 'interested-candidates' },
         { label: 'Autonomous Recruiter', icon: Sparkles, targetPage: 'autonomous-recruiter' },
       ],
     },
     {
       label: 'Tools',
       items: [
-        { label: 'Terrer AI Review', icon: Sparkles, targetPage: 'top-matches' },
         { label: 'Submission Output', icon: ClipboardCheck, targetPage: 'pipeline' },
         { label: 'Activity Log', icon: ClipboardList, comingSoon: true },
       ],
@@ -131,9 +130,8 @@ const ROLE_NAV: Record<AppRole, NavSection[]> = {
         { label: 'Jobs', icon: Briefcase, targetPage: 'jobs' },
         { label: 'Candidates', icon: Users, targetPage: 'candidates' },
         { label: 'Pipeline', icon: GitBranch, targetPage: 'pipeline' },
-        { label: 'Top Matches', icon: Star, targetPage: 'top-matches' },
+        { label: 'Top Matches / AI Review', icon: Star, targetPage: 'top-matches' },
         { label: 'Job Intake', icon: ClipboardList, targetPage: 'job-intake' },
-        { label: 'Interested Candidates', icon: Users, targetPage: 'interested-candidates' },
         { label: 'Autonomous Recruiter', icon: Sparkles, targetPage: 'autonomous-recruiter' },
       ],
     },
@@ -196,11 +194,11 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
   };
 
   return (
-    <aside className="sticky top-0 flex h-screen w-72 flex-col border-r border-gray-800 bg-gray-950 text-gray-100">
-      <div className="border-b border-gray-800 px-5 py-5">
+    <aside className="sticky top-0 flex h-screen w-72 flex-col border-r border-slate-800 bg-slate-950 text-slate-100">
+      <div className="border-b border-slate-800/80 px-4 py-4">
         <div className="mb-4">
-          <span className="text-lg font-semibold tracking-tight text-white">Terrer OS</span>
-          <p className="mt-0.5 text-[11px] uppercase tracking-[0.18em] text-gray-500">
+          <span className="text-base font-semibold tracking-tight text-white">Terrer OS</span>
+          <p className="mt-0.5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
             AI Driven Recruitment Engine
           </p>
         </div>
@@ -209,23 +207,23 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
           <button
             type="button"
             onClick={() => setRoleSwitcherOpen(open => !open)}
-            className="flex w-full items-center justify-between rounded-2xl border border-gray-800 bg-gray-900/80 px-4 py-3 text-left transition-colors hover:border-gray-700 hover:bg-gray-900"
+            className="flex w-full items-center justify-between rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2.5 text-left transition-colors hover:border-slate-700 hover:bg-slate-900"
           >
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-white">{ROLE_USER_NAME[role]}</p>
               <div className="mt-1 flex items-center gap-2">
                 <span className={`h-2.5 w-2.5 rounded-full ${ROLE_DOT[role]}`} />
-                <span className="text-xs font-medium text-gray-400">{ROLE_LABEL[role]}</span>
+                <span className="text-xs font-medium text-slate-400">{ROLE_LABEL[role]}</span>
               </div>
             </div>
             <ChevronDown
               size={16}
-              className={`flex-shrink-0 text-gray-500 transition-transform ${roleSwitcherOpen ? 'rotate-180' : ''}`}
+              className={`flex-shrink-0 text-slate-500 transition-transform ${roleSwitcherOpen ? 'rotate-180' : ''}`}
             />
           </button>
 
           {roleSwitcherOpen && (
-            <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 rounded-2xl border border-gray-800 bg-gray-900 p-2 shadow-2xl shadow-black/30">
+            <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 rounded-xl border border-slate-800 bg-slate-900 p-1.5 shadow-2xl shadow-black/30">
               {(['recruiter', 'bd', 'admin'] as AppRole[]).map(option => (
                 <button
                   key={option}
@@ -233,8 +231,8 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
                   onClick={() => handleRoleSwitch(option)}
                   className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
                     role === option
-                      ? 'bg-gray-800 text-white'
-                      : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                      ? 'bg-slate-800 text-white'
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                   }`}
                 >
                   <span>{ROLE_LABEL[option]}</span>
@@ -246,11 +244,11 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
-        <div className="space-y-6">
+      <nav className="flex-1 overflow-y-auto px-2.5 py-4">
+        <div className="space-y-5">
           {sections.map(section => (
             <div key={section.label}>
-              <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500">
+              <p className="px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
                 {section.label}
               </p>
               <div className="mt-2 space-y-1">
@@ -268,18 +266,18 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
                       disabled={isDisabled}
                       className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm transition-colors ${
                         isActive
-                          ? 'bg-gray-800 text-white'
+                          ? 'bg-slate-800 text-white shadow-sm'
                           : isDisabled
-                          ? 'text-gray-600 cursor-not-allowed'
-                          : 'text-gray-300 hover:bg-gray-900 hover:text-white'
+                          ? 'text-slate-600 cursor-not-allowed'
+                          : 'text-slate-300 hover:bg-slate-900 hover:text-white'
                       }`}
                     >
                       <span className="flex items-center gap-3">
-                        <Icon size={17} />
+                        <Icon size={16} />
                         <span>{label}</span>
                       </span>
                       {comingSoon && (
-                        <span className="rounded-full bg-gray-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 ring-1 ring-gray-800">
+                        <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 ring-1 ring-slate-800">
                           Soon
                         </span>
                       )}
@@ -292,8 +290,8 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
         </div>
       </nav>
 
-      <div className="border-t border-gray-800 px-5 py-4">
-        <p className="text-[11px] text-gray-600">v1.0.0</p>
+      <div className="border-t border-slate-800/80 px-4 py-3">
+        <p className="text-[11px] text-slate-600">v1.0.0</p>
       </div>
     </aside>
   );

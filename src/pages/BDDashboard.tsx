@@ -12,6 +12,7 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react';
+import { PageHeader } from '../components/visualSystem';
 
 interface Props {
   onNavigate: (page: string) => void;
@@ -162,20 +163,12 @@ export default function BDDashboard({ onNavigate }: Props) {
 
   return (
     <div className="space-y-7">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-600">
-            Business Development
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight text-gray-950 mt-2">
-            BD Dashboard
-          </h1>
-          <p className="text-sm text-gray-500 mt-2 max-w-2xl">
-            Target the right companies, move active opportunities forward, and use ready candidate supply to strengthen outreach today.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
+      <PageHeader
+        eyebrow="Business Development"
+        title="BD Dashboard"
+        description="Target the right companies, move active opportunities forward, and use ready candidate supply to strengthen outreach today."
+        actions={
+          <>
           <button className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-xs font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50">
             <Building2 size={14} />
             Add New Lead
@@ -191,18 +184,19 @@ export default function BDDashboard({ onNavigate }: Props) {
             <ClipboardList size={14} />
             Create Job Intake
           </button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <KpiCard label="Companies to Target" value={companiesToTarget} icon={<Target size={16} />} tone="teal" />
         <KpiCard label="Active Opportunities" value={activeOpportunityCount} icon={<Briefcase size={16} />} tone="blue" />
         <KpiCard label="Deals at Risk" value={dealsAtRiskCount} icon={<AlertTriangle size={16} />} tone="red" />
         <KpiCard label="Candidates Ready" value={candidatesReady} icon={<Users size={16} />} tone="emerald" />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <section className="xl:col-span-2 rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <section className="xl:col-span-2 rounded-2xl border border-slate-200/80 bg-white/85 shadow-sm shadow-slate-200/40">
           <SectionHeader
             icon={<Target size={16} className="text-teal-600" />}
             title="Companies to Target Today"
@@ -240,7 +234,7 @@ export default function BDDashboard({ onNavigate }: Props) {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-red-200 bg-red-50/40 shadow-sm">
+        <section className="rounded-2xl border border-red-100 bg-red-50/30 shadow-sm shadow-slate-200/40">
           <SectionHeader
             icon={<AlertTriangle size={16} className="text-red-600" />}
             title="Deals at Risk"
@@ -269,8 +263,8 @@ export default function BDDashboard({ onNavigate }: Props) {
         </section>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <section className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <section className="rounded-2xl border border-slate-200/80 bg-white/85 shadow-sm shadow-slate-200/40">
           <SectionHeader
             icon={<TrendingUp size={16} className="text-blue-600" />}
             title="Active Opportunities"
@@ -304,7 +298,7 @@ export default function BDDashboard({ onNavigate }: Props) {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <section className="rounded-2xl border border-slate-200/80 bg-white/85 shadow-sm shadow-slate-200/40">
           <SectionHeader
             icon={<Send size={16} className="text-emerald-600" />}
             title="Candidates Ready to Send"
@@ -329,8 +323,8 @@ export default function BDDashboard({ onNavigate }: Props) {
         </section>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <section className="xl:col-span-2 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <section className="xl:col-span-2 rounded-2xl border border-slate-200/80 bg-white/85 p-4 shadow-sm shadow-slate-200/40">
           <div className="flex items-center gap-2 mb-4">
             <CheckCircle2 size={16} className="text-teal-600" />
             <h2 className="text-sm font-semibold text-gray-950">Quick Hiring Insights</h2>
@@ -342,7 +336,7 @@ export default function BDDashboard({ onNavigate }: Props) {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+        <section className="rounded-2xl border border-slate-200/80 bg-white/85 p-4 shadow-sm shadow-slate-200/40">
           <div className="flex items-center gap-2 mb-4">
             <PhoneCall size={16} className="text-gray-700" />
             <h2 className="text-sm font-semibold text-gray-950">Quick Actions</h2>
@@ -378,12 +372,12 @@ function KpiCard({
   }[tone];
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-slate-200/80 bg-white/85 p-4 shadow-sm shadow-slate-200/40">
       <div className="flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">{label}</p>
         <span className={`rounded-lg p-2 ${toneClass}`}>{icon}</span>
       </div>
-      <p className="mt-5 text-3xl font-semibold tracking-tight text-gray-950">{value}</p>
+      <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">{value}</p>
     </div>
   );
 }

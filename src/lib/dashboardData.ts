@@ -5,9 +5,9 @@ export interface DashboardJob {
   id: string;
   job_title: string;
   company_name: string;
-  location: string;
-  source: string;
-  operational_status: string;
+  location: string | null;
+  source: string | null;
+  operational_status: string | null;
   updated_at: string;
 }
 
@@ -113,8 +113,8 @@ export interface BdQueueItem {
 
 const KL_SELANGOR_KEYWORDS = ['kuala lumpur', 'kl', 'selangor', 'petaling jaya', 'pj', 'subang', 'shah alam', 'cyberjaya', 'putrajaya', 'cheras', 'bangsar', 'mont kiara', 'damansara'];
 
-function isKlSelangor(location: string): boolean {
-  const loc = location.toLowerCase();
+function isKlSelangor(location: string | null | undefined): boolean {
+  const loc = String(location ?? '').toLowerCase();
   return KL_SELANGOR_KEYWORDS.some(kw => loc.includes(kw));
 }
 
@@ -134,6 +134,38 @@ function daysAgo(iso: string): number {
   return Math.floor((now.getTime() - then.getTime()) / (1000 * 60 * 60 * 24));
 }
 
+async function fetchActiveDashboardJobs(): Promise<{ jobs: DashboardJob[]; count: number }> {
+  const pageSize = 1000;
+  const jobs: DashboardJob[] = [];
+  let totalCount = 0;
+
+  for (let from = 0; ; from += pageSize) {
+    const to = from + pageSize - 1;
+    const { data, error, count } = await supabase
+      .from('jobs')
+      .select('id, job_title, company_name, location, source, operational_status, updated_at', {
+        count: from === 0 ? 'exact' : undefined,
+      })
+      .eq('operational_status', 'active')
+      .range(from, to);
+
+    if (error) {
+      throw new Error(`Dashboard jobs query failed: ${error.message}`);
+    }
+
+    if (from === 0) {
+      totalCount = count ?? 0;
+    }
+
+    const page = (data ?? []) as DashboardJob[];
+    jobs.push(...page);
+
+    if (page.length < pageSize) {
+      return { jobs, count: totalCount || jobs.length };
+    }
+  }
+}
+
 export async function fetchDashboardData(): Promise<{
   stats: DashboardStats;
   stageCounts: DashboardStageCounts;
@@ -143,9 +175,7 @@ export async function fetchDashboardData(): Promise<{
   bdQueue: BdQueueItem[];
 }> {
   const [jobsResult, submissionsResult, assessmentsResult] = await Promise.all([
-    supabase
-      .from('jobs')
-      .select('id, job_title, company_name, location, source, operational_status, updated_at'),
+    fetchActiveDashboardJobs(),
     supabase
       .from('submissions')
       .select('id, job_id, candidate_id, submission_stage, next_action_date, stage_updated_at, created_at, submission_summary, submission_strengths, submission_concerns, submission_full_text, submission_generated_at, notes'),
@@ -154,9 +184,16 @@ export async function fetchDashboardData(): Promise<{
       .select('candidate_id, job_id, ai_score, overall_recommendation, submission_ready'),
   ]);
 
-  const jobs: DashboardJob[] = ((jobsResult.data ?? []) as DashboardJob[]).filter(
-    job => job.operational_status === 'active'
-  );
+  if (submissionsResult.error) {
+    throw new Error(`Dashboard submissions query failed: ${submissionsResult.error.message}`);
+  }
+
+  if (assessmentsResult.error) {
+    throw new Error(`Dashboard assessments query failed: ${assessmentsResult.error.message}`);
+  }
+
+  const jobs = jobsResult.jobs;
+  const activeJobsCount = jobsResult.count;
   const activeJobIds = new Set(jobs.map(job => job.id));
   const submissions: DashboardSubmission[] = ((submissionsResult.data ?? []) as DashboardSubmission[]).filter(
     submission => activeJobIds.has(submission.job_id)
@@ -191,7 +228,7 @@ export async function fetchDashboardData(): Promise<{
       candidateName: candidate.name,
       jobTitle: job.job_title,
       companyName: job.company_name,
-      location: job.location,
+      location: job.location ?? '',
       nextActionDate: sub.next_action_date,
       urgency,
       stage: sub.submission_stage,
@@ -224,7 +261,7 @@ export async function fetchDashboardData(): Promise<{
         id: job.id,
         job_title: job.job_title,
         company_name: job.company_name,
-        location: job.location,
+        location: job.location ?? '',
         submissionCount: 0,
         reason: 'No candidates in pipeline yet',
         status: 'No Submissions',
@@ -243,7 +280,7 @@ export async function fetchDashboardData(): Promise<{
         id: job.id,
         job_title: job.job_title,
         company_name: job.company_name,
-        location: job.location,
+        location: job.location ?? '',
         submissionCount: subs.length,
         reason: `No activity in ${staleDays} days`,
         status: 'Stale',
@@ -257,7 +294,7 @@ export async function fetchDashboardData(): Promise<{
         id: job.id,
         job_title: job.job_title,
         company_name: job.company_name,
-        location: job.location,
+        location: job.location ?? '',
         submissionCount: subs.length,
         reason: `Only ${subs.length} candidate${subs.length === 1 ? '' : 's'} in pipeline`,
         status: 'Low Coverage',
@@ -300,7 +337,7 @@ export async function fetchDashboardData(): Promise<{
       jobId: sub.job_id,
       jobTitle: job.job_title,
       companyName: job.company_name,
-      location: job.location,
+      location: job.location ?? '',
       stage: sub.submission_stage,
       aiScore: assessment.ai_score,
       recommendation: assessment.overall_recommendation,
@@ -325,7 +362,7 @@ export async function fetchDashboardData(): Promise<{
   );
 
   const stats: DashboardStats = {
-    activeJobs: jobs.length,
+    activeJobs: activeJobsCount,
     totalCandidatesInPipeline: new Set(submissions.map(s => s.candidate_id)).size,
     totalSubmissions: submissions.length,
     advancedStageCount: advancedCandidates.size,
@@ -367,7 +404,7 @@ export async function fetchDashboardData(): Promise<{
       jobId: sub.job_id,
       jobTitle: job.job_title,
       companyName: job.company_name,
-      location: job.location,
+      location: job.location ?? '',
       submissionSummary: sub.submission_summary,
       submissionStrengths: sub.submission_strengths,
       submissionConcerns: sub.submission_concerns,

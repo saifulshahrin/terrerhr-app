@@ -75,7 +75,8 @@ interface Props {
   onNavigate: (
     page: string,
     jobId?: string,
-    sourcingContext?: { jobId?: string; role: string; skills: string[] }
+    sourcingContext?: { jobId?: string; role: string; skills: string[] },
+    candidateId?: string
   ) => void;
 }
 
@@ -1496,7 +1497,11 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
               </div>
 
               <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center gap-2">
-                <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => onNavigate('candidate-profile', job.id, undefined, m.id)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
+                >
                   <Eye size={12} />
                   View Profile
                 </button>

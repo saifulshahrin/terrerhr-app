@@ -865,7 +865,16 @@ export default function Candidates({ sourcingContext }: Props) {
                         <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Candidate</th>
                         <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Location</th>
                         <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Skills</th>
-                        <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Job Fit</th>
+                        <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                          <div>
+                            <p>{selectedJobRequirement ? 'Job Fit' : 'Candidate Score'}</p>
+                            <p className="mt-1 text-[11px] font-medium normal-case tracking-normal text-gray-400">
+                              {selectedJobRequirement
+                                ? 'Fit is calculated against the selected job context.'
+                                : 'General candidate signal. Select a job to calculate fit.'}
+                            </p>
+                          </div>
+                        </th>
                         <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
                         <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Actions</th>
                       </tr>
@@ -1213,3 +1222,4 @@ export default function Candidates({ sourcingContext }: Props) {
     </div>
   );
 }
+
