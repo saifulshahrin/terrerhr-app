@@ -17,7 +17,7 @@ import AutonomousRecruiterRuns from './pages/AutonomousRecruiterRuns';
 import LoginScreen from './pages/LoginScreen';
 import CandidateProfile from './pages/CandidateProfile';
 import { StoreProvider } from './store/StoreContext';
-import { RoleProvider, useRole } from './store/RoleContext';
+import { AuthProvider, useAuth } from './store/AuthContext';
 
 type Page =
   | 'dashboard'
@@ -49,11 +49,54 @@ interface NavState {
 }
 
 function AppShell() {
-  const { role, setRole } = useRole();
+  const { access, blockedReason, role, profile, signOut } = useAuth();
   const [nav, setNav] = useState<NavState>({ page: 'dashboard' });
 
-  if (!role) {
-    return <LoginScreen onSelect={setRole} />;
+  if (access === 'loading') {
+    return (
+      <div className="min-h-screen bg-slate-100 text-slate-900 flex items-center justify-center px-6">
+        <div className="w-full max-w-md rounded-2xl border border-slate-200/70 bg-white/85 p-6 text-center shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
+          <div className="mx-auto mb-4 h-10 w-10 animate-pulse rounded-xl bg-slate-100" />
+          <p className="text-sm font-semibold text-slate-950">Loading session...</p>
+          <p className="mt-1 text-xs text-slate-500">Verifying access and profile.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (access === 'unauthenticated') {
+    return <LoginScreen />;
+  }
+
+  if (access === 'blocked') {
+    return (
+      <div className="min-h-screen bg-slate-100 text-slate-900 flex items-center justify-center px-6 py-10">
+        <div className="w-full max-w-lg rounded-2xl border border-slate-200/70 bg-white/85 shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
+          <div className="border-b border-slate-200/70 px-6 py-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Access Blocked</p>
+            <h1 className="mt-2 text-xl font-semibold tracking-tight text-slate-950">Your account is not enabled</h1>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              {blockedReason ?? 'Your account profile could not be verified.'}
+            </p>
+          </div>
+          <div className="px-6 py-5">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+              <p className="font-semibold text-slate-700">Signed in as</p>
+              <p className="mt-1">{profile?.email ?? 'Unknown user'}</p>
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => void signOut()}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   function navigate(page: string, jobId?: string, sourcingContext?: SourcingContext, candidateId?: string) {
@@ -80,21 +123,21 @@ function AppShell() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-100 text-slate-900">
-      <Sidebar activePage={nav.page} onNavigate={(p) => navigate(p)} />
-      <main className="min-w-0 flex-1 overflow-auto px-5 py-5 lg:px-7 lg:py-6">
-        {renderPage(nav)}
-      </main>
-    </div>
+    <StoreProvider>
+      <div className="flex min-h-screen bg-slate-100 text-slate-900">
+        <Sidebar activePage={nav.page} onNavigate={(p) => navigate(p)} />
+        <main className="min-w-0 flex-1 overflow-auto px-5 py-5 lg:px-7 lg:py-6">
+          {renderPage(nav)}
+        </main>
+      </div>
+    </StoreProvider>
   );
 }
 
 export default function App() {
   return (
-    <RoleProvider>
-      <StoreProvider>
-        <AppShell />
-      </StoreProvider>
-    </RoleProvider>
+    <AuthProvider>
+      <AppShell />
+    </AuthProvider>
   );
 }

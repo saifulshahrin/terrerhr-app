@@ -1,116 +1,109 @@
 import { useState } from 'react';
-import { Users, ClipboardCheck, Shield } from 'lucide-react';
-import type { AppRole } from '../store/RoleContext';
+import { AlertTriangle, Lock, Mail, Shield } from 'lucide-react';
+import { useAuth } from '../store/AuthContext';
 
-interface RoleOption {
-  role: AppRole;
-  label: string;
-  description: string;
-  access: string[];
-  icon: React.ReactNode;
-  accent: string;
-  border: string;
-  badge: string;
-}
-
-const ROLES: RoleOption[] = [
-  {
-    role: 'recruiter',
-    label: 'Recruiter',
-    description: 'Source, evaluate, and manage candidates through the pipeline.',
-    access: ['Dashboard', 'Jobs', 'Candidates', 'Pipeline', 'Top Matches', 'Job Intake'],
-    icon: <Users size={22} />,
-    accent: 'text-blue-600',
-    border: 'border-blue-500',
-    badge: 'bg-blue-50 text-blue-700',
-  },
-  {
-    role: 'bd',
-    label: 'BD',
-    description: 'Review recruiter submissions and approve candidates for client.',
-    access: ['Dashboard', 'BD Queue', 'Jobs', 'Pipeline'],
-    icon: <ClipboardCheck size={22} />,
-    accent: 'text-teal-600',
-    border: 'border-teal-500',
-    badge: 'bg-teal-50 text-teal-700',
-  },
-  {
-    role: 'admin',
-    label: 'Admin',
-    description: 'Full access to all pages and actions across the platform.',
-    access: ['All pages', 'All actions'],
-    icon: <Shield size={22} />,
-    accent: 'text-gray-700',
-    border: 'border-gray-700',
-    badge: 'bg-gray-100 text-gray-700',
-  },
-];
-
-interface Props {
-  onSelect: (role: AppRole) => void;
-}
-
-export default function LoginScreen({ onSelect }: Props) {
-  const [selected, setSelected] = useState<AppRole | null>(null);
+export default function LoginScreen() {
+  const { signInWithPassword, authLoading } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
-      <div className="w-full max-w-2xl">
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 mb-5">
-            <div className="w-9 h-9 bg-gray-900 rounded-lg flex items-center justify-center">
-              <span className="text-white text-sm font-bold">T</span>
+    <div className="min-h-screen bg-slate-100 text-slate-900 flex items-center justify-center px-4 py-10">
+      <div className="w-full max-w-md">
+        <div className="mb-6 text-center">
+          <div className="inline-flex items-center gap-2">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950 text-white shadow-sm">
+              <span className="text-sm font-semibold">T</span>
             </div>
-            <span className="text-xl font-semibold text-gray-900 tracking-tight">Terrer OS</span>
+            <div className="text-left">
+              <p className="text-base font-semibold tracking-tight text-slate-950">Terrer OS</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Internal App Layer
+              </p>
+            </div>
           </div>
-          <h1 className="text-2xl font-semibold text-gray-900 mb-2">Who are you signing in as?</h1>
-          <p className="text-sm text-gray-500">Select your role to continue. Role controls what you see and what actions you can take.</p>
+          <h1 className="mt-5 text-xl font-semibold tracking-tight text-slate-950">Sign in</h1>
+          <p className="mt-2 text-sm text-slate-500">
+            Use your Terrer account email and password. Access requires an active profile record.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-          {ROLES.map(opt => {
-            const isSelected = selected === opt.role;
-            return (
-              <button
-                key={opt.role}
-                onClick={() => setSelected(opt.role)}
-                className={`w-full text-left rounded-xl border-2 bg-white p-5 transition-all duration-150 shadow-sm hover:shadow-md ${
-                  isSelected ? `${opt.border} shadow-md` : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className={`mb-3 ${isSelected ? opt.accent : 'text-gray-400'} transition-colors`}>
-                  {opt.icon}
-                </div>
-                <p className={`text-base font-semibold mb-1 ${isSelected ? 'text-gray-900' : 'text-gray-700'}`}>
-                  {opt.label}
-                </p>
-                <p className="text-xs text-gray-500 leading-relaxed mb-3">{opt.description}</p>
-                <div className="space-y-1">
-                  {opt.access.map(a => (
-                    <span key={a} className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded-full mr-1 mb-1 ${isSelected ? opt.badge : 'bg-gray-100 text-gray-500'}`}>
-                      {a}
-                    </span>
-                  ))}
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        <div className="rounded-2xl border border-slate-200/70 bg-white/85 shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
+          <div className="border-b border-slate-200/70 px-5 py-4">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-950">
+              <Shield size={16} className="text-slate-500" />
+              Secure Login
+            </div>
+            <p className="mt-1 text-xs text-slate-500">Supabase Auth email/password.</p>
+          </div>
 
-        <div className="flex justify-center">
-          <button
-            onClick={() => selected && onSelect(selected)}
-            disabled={!selected}
-            className="px-8 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          <form
+            className="space-y-4 px-5 py-5"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setSubmitting(true);
+              setFormError(null);
+
+              const { error } = await signInWithPassword(email, password);
+              if (error) setFormError(error);
+
+              setSubmitting(false);
+            }}
           >
-            Continue as {selected ? ROLES.find(r => r.role === selected)?.label : '—'}
-          </button>
+            {formError ? (
+              <div className="flex items-start gap-2 rounded-xl border border-amber-200/70 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <AlertTriangle size={16} className="mt-0.5 text-amber-600" />
+                <p className="leading-relaxed">{formError}</p>
+              </div>
+            ) : null}
+
+            <label className="block">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">Email</span>
+              <div className="relative mt-1">
+                <Mail size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  inputMode="email"
+                  placeholder="name@company.com"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+            </label>
+
+            <label className="block">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-slate-500">Password</span>
+              <div className="relative mt-1">
+                <Lock size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  type="password"
+                  placeholder="********"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+            </label>
+
+            <button
+              type="submit"
+              disabled={submitting || authLoading}
+              className="w-full rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {submitting ? 'Signing in...' : 'Sign in'}
+            </button>
+          </form>
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
-          This is a role-preview mode. Full authentication is not yet enabled.
+        <p className="mt-6 text-center text-xs text-slate-400">
+          If you cannot sign in, ensure your `public.profiles` row exists and `is_active = true`.
         </p>
       </div>
     </div>
   );
 }
+

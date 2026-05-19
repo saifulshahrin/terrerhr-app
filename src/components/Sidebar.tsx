@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import {
   BarChart2,
   Briefcase,
-  ChevronDown,
   ClipboardCheck,
   ClipboardList,
   GitBranch,
   LayoutDashboard,
+  LogOut,
   Settings,
   Shield,
   Sparkles,
@@ -160,38 +160,14 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
-  const { role, setRole } = useRole();
-  const [roleSwitcherOpen, setRoleSwitcherOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const { role, profile, logout } = useRole();
 
   const sections = useMemo(() => {
     if (!role) return [];
     return ROLE_NAV[role];
   }, [role]);
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (!dropdownRef.current?.contains(event.target as Node)) {
-        setRoleSwitcherOpen(false);
-      }
-    }
-
-    if (roleSwitcherOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [roleSwitcherOpen]);
-
   if (!role) return null;
-
-  const handleRoleSwitch = (nextRole: AppRole) => {
-    setRole(nextRole);
-    setRoleSwitcherOpen(false);
-    onNavigate('dashboard');
-  };
 
   return (
     <aside className="sticky top-0 flex h-screen w-72 flex-col border-r border-slate-800 bg-slate-950 text-slate-100">
@@ -203,44 +179,18 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
           </p>
         </div>
 
-        <div ref={dropdownRef} className="relative">
-          <button
-            type="button"
-            onClick={() => setRoleSwitcherOpen(open => !open)}
-            className="flex w-full items-center justify-between rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2.5 text-left transition-colors hover:border-slate-700 hover:bg-slate-900"
-          >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-white">{ROLE_USER_NAME[role]}</p>
-              <div className="mt-1 flex items-center gap-2">
-                <span className={`h-2.5 w-2.5 rounded-full ${ROLE_DOT[role]}`} />
-                <span className="text-xs font-medium text-slate-400">{ROLE_LABEL[role]}</span>
-              </div>
+        <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2.5">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-white">
+              {profile?.full_name?.trim() || profile?.email?.trim() || ROLE_USER_NAME[role]}
+            </p>
+            <div className="mt-1 flex items-center gap-2">
+              <span className={`h-2.5 w-2.5 rounded-full ${ROLE_DOT[role]}`} />
+              <span className="text-xs font-medium text-slate-400">{ROLE_LABEL[role]}</span>
+              <span className="text-slate-700">|</span>
+              <span className="truncate text-xs text-slate-500">{profile?.email ?? 'Signed in'}</span>
             </div>
-            <ChevronDown
-              size={16}
-              className={`flex-shrink-0 text-slate-500 transition-transform ${roleSwitcherOpen ? 'rotate-180' : ''}`}
-            />
-          </button>
-
-          {roleSwitcherOpen && (
-            <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-20 rounded-xl border border-slate-800 bg-slate-900 p-1.5 shadow-2xl shadow-black/30">
-              {(['recruiter', 'bd', 'admin'] as AppRole[]).map(option => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => handleRoleSwitch(option)}
-                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
-                    role === option
-                      ? 'bg-slate-800 text-white'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                  }`}
-                >
-                  <span>{ROLE_LABEL[option]}</span>
-                  <span className={`h-2.5 w-2.5 rounded-full ${ROLE_DOT[option]}`} />
-                </button>
-              ))}
-            </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -290,7 +240,20 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
         </div>
       </nav>
 
-      <div className="border-t border-slate-800/80 px-4 py-3">
+      <div className="border-t border-slate-800/80 px-4 py-3 space-y-2">
+        <button
+          type="button"
+          onClick={() => void logout()}
+          className="flex w-full items-center justify-between rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-sm text-slate-200 transition-colors hover:bg-slate-900"
+        >
+          <span className="flex items-center gap-2">
+            <LogOut size={16} className="text-slate-400" />
+            Logout
+          </span>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
+            {role}
+          </span>
+        </button>
         <p className="text-[11px] text-slate-600">v1.0.0</p>
       </div>
     </aside>
