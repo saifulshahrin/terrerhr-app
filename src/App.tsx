@@ -49,7 +49,7 @@ interface NavState {
 }
 
 function AppShell() {
-  const { access, blockedReason, role, profile, signOut } = useAuth();
+  const { access, blockedReason, role, profile, user, signOut } = useAuth();
   const [nav, setNav] = useState<NavState>({ page: 'dashboard' });
 
   if (access === 'loading') {
@@ -82,7 +82,7 @@ function AppShell() {
           <div className="px-6 py-5">
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
               <p className="font-semibold text-slate-700">Signed in as</p>
-              <p className="mt-1">{profile?.email ?? 'Unknown user'}</p>
+              <p className="mt-1">{profile?.email ?? user?.email ?? 'Unknown user'}</p>
             </div>
             <div className="mt-4 flex items-center justify-end gap-2">
               <button
