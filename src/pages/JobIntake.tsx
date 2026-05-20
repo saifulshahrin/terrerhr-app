@@ -6,6 +6,7 @@ import {
   parseJobIntakeInput,
   normalizeJobIntakeWhitespace,
   type ParsedJob,
+  type JobIntakeParseResult,
 } from '../lib/jobIntakeParser';
 
 const EXAMPLE_INPUT = `We're looking for a Senior Backend Engineer to join our platform team at Acme Corp. The role is based in San Francisco (hybrid) with a salary range of $160k-$200k. The candidate should have 5+ years of experience with Node.js, PostgreSQL, and cloud infrastructure (AWS preferred). They will own the design and implementation of core API services and work closely with product and frontend teams. Nice to have: experience with Kafka or similar message queue systems. Start date is flexible, targeting Q3 2026. Reporting to the VP of Engineering.`;
@@ -23,6 +24,8 @@ export default function JobIntake({ onNavigate }: Props) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [parseResult, setParseResult] = useState<JobIntakeParseResult | null>(null);
+  const [parseError, setParseError] = useState<string | null>(null);
   const parseRequestRef = useRef(0);
 
   const handleParse = () => {
@@ -35,6 +38,7 @@ export default function JobIntake({ onNavigate }: Props) {
     setLoading(true);
     setEditing(false);
     setSaveError(null);
+    setParseError(null);
 
     setTimeout(async () => {
       if (parseRequestRef.current !== requestId) return;
@@ -44,8 +48,20 @@ export default function JobIntake({ onNavigate }: Props) {
 
         if (parseRequestRef.current !== requestId) return;
 
-        setParsed(result);
-        setDraft(result);
+        console.log('[JobIntake] Parse completed', {
+          parserSource: result.parserSource,
+          aiSuccess: result.aiSuccess,
+          confidence: result.confidence,
+          aiError: result.aiError ?? null,
+        });
+
+        setParseResult(result);
+        setParsed(result.parsedJob);
+        setDraft(result.parsedJob);
+
+        if (!result.parsedJob) {
+          setParseError(result.aiError ?? 'Unable to extract meaningful job details from this input.');
+        }
       } finally {
         if (parseRequestRef.current === requestId) {
           setLoading(false);
@@ -61,6 +77,8 @@ export default function JobIntake({ onNavigate }: Props) {
     setDraft(null);
     setEditing(false);
     setSaveError(null);
+    setParseResult(null);
+    setParseError(null);
   };
 
   const handleEditDetails = () => {
@@ -162,6 +180,8 @@ export default function JobIntake({ onNavigate }: Props) {
               setParsed(null);
               setDraft(null);
               setEditing(false);
+              setParseResult(null);
+              setParseError(null);
             }}
             rows={14}
             placeholder="Paste the full job description here - title, location, salary range, skills, requirements, team context, etc."
@@ -199,6 +219,37 @@ export default function JobIntake({ onNavigate }: Props) {
             <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
               <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mb-3" />
               <p className="text-sm text-gray-400">Parsing job description...</p>
+            </div>
+          )}
+
+          {!loading && parseResult && (
+            <div
+              className={`mx-6 mt-6 rounded-md border px-4 py-3 text-sm ${
+                parseResult.aiSuccess
+                  ? 'border-green-200 bg-green-50 text-green-800'
+                  : 'border-amber-200 bg-amber-50 text-amber-800'
+              }`}
+            >
+              <p className="font-medium">
+                {parseResult.aiSuccess
+                  ? 'AI extraction completed'
+                  : 'AI extraction failed — basic extraction used'}
+              </p>
+              <p className="mt-1 text-xs opacity-80">
+                Source: {parseResult.parserSource === 'ai' ? 'Gemini AI' : 'Basic fallback'} · Confidence:{' '}
+                {parseResult.confidence ?? 'low'}
+              </p>
+              {!parseResult.aiSuccess && parseResult.aiError && (
+                <p className="mt-1 text-xs opacity-90">
+                  {parseResult.aiError}
+                </p>
+              )}
+            </div>
+          )}
+
+          {!loading && parseError && !parsed && (
+            <div className="mx-6 mt-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {parseError}
             </div>
           )}
 

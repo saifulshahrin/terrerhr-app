@@ -11,9 +11,19 @@ const PARSED_JOB_SCHEMA = {
     company: { type: 'string' },
     location: { type: 'string' },
     type: { type: 'string' },
+    seniority: { type: 'string' },
+    roleFamily: { type: 'string' },
     salaryRange: { type: 'string' },
     experience: { type: 'string' },
     skills: {
+      type: 'array',
+      items: { type: 'string' },
+    },
+    responsibilities: {
+      type: 'array',
+      items: { type: 'string' },
+    },
+    requirements: {
       type: 'array',
       items: { type: 'string' },
     },
@@ -30,9 +40,13 @@ const PARSED_JOB_SCHEMA = {
     'company',
     'location',
     'type',
+    'seniority',
+    'roleFamily',
     'salaryRange',
     'experience',
     'skills',
+    'responsibilities',
+    'requirements',
     'niceToHave',
     'startDate',
     'reportingTo',
@@ -55,12 +69,25 @@ const PARSED_CANDIDATE_SCHEMA = {
   required: ['full_name', 'current_role', 'key_skills', 'location', 'summary'],
 } as const;
 
-const GEMINI_SYSTEM_PROMPT = `You are Terrer's job intake parser.
-Extract structured recruitment fields from raw job intake text.
+const GEMINI_SYSTEM_PROMPT = `You are Terrer's job intake parser for messy recruiter-style job descriptions.
+Your job is to turn raw hiring text, copied emails, recruiter notes, unstructured JDs, chat-style notes, and partial briefs into structured recruiter-usable JSON.
 Return JSON only.
-Do not include markdown, explanations, scores, or extra keys.
-Preserve recruiter-usable wording.
-If a field is missing, return an empty string for string fields and [] for arrays.`;
+Do not include markdown, explanations, scores, commentary, or extra keys.
+Infer carefully when the signal is strong enough, especially for:
+- title
+- company
+- location
+- employment type
+- seniority
+- role family
+- key skills
+- responsibilities
+- requirements
+- salary range
+Do not hallucinate employer names or compensation.
+If a field is missing, return an empty string for string fields and [] for arrays.
+Prefer concise, recruiter-friendly wording.
+Normalize obvious shorthand where useful, but keep meaning faithful to the source.`;
 
 const CANDIDATE_REFINEMENT_SYSTEM_PROMPT = `You are Terrer's candidate intake refinement assistant.
 Extract candidate details from raw resume or profile text.
@@ -73,9 +100,13 @@ Only include clearly supported facts from the input.`;
 function buildUserPrompt(input: string): string {
   return [
     'Parse the following raw job intake text into the required JSON schema.',
+    'The input may be messy, incomplete, duplicated, casually written, or copied from recruiter messages.',
     'Use concise recruiter-friendly values.',
-    'Do not invent salary or experience if missing.',
-    'Extract 3 to 8 skills when possible.',
+    'Infer employment type, seniority, and role family when strongly implied.',
+    'Extract 3 to 8 concrete skills when possible.',
+    'Extract up to 6 responsibilities and up to 6 requirements when present.',
+    'If title is unclear, choose the best recruiter-usable title only when the text strongly supports it.',
+    'Do not invent salary, company, or experience if missing.',
     'Raw input:',
     input,
   ].join('\n\n');
@@ -108,6 +139,62 @@ function normalizeGeminiModel(rawModel: string | undefined): string {
   }
 
   return cleaned;
+}
+
+function normalizeText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(item => (typeof item === 'string' ? item.trim() : ''))
+    .filter(Boolean);
+}
+
+function looksLikeUsefulTitle(value: string): boolean {
+  const normalized = value.toLowerCase();
+  if (!normalized || normalized === 'not specified') return false;
+
+  return [
+    'engineer',
+    'developer',
+    'manager',
+    'analyst',
+    'designer',
+    'specialist',
+    'lead',
+    'architect',
+    'consultant',
+    'executive',
+    'associate',
+    'scientist',
+    'administrator',
+    'officer',
+    'coordinator',
+  ].some(keyword => normalized.includes(keyword));
+}
+
+function getJobConfidence(parsedJob: Record<string, unknown>): 'high' | 'medium' | 'low' {
+  const title = normalizeText(parsedJob.title);
+  const skills = normalizeArray(parsedJob.skills);
+  const requirements = normalizeArray(parsedJob.requirements);
+  const responsibilities = normalizeArray(parsedJob.responsibilities);
+
+  const usefulTitle = looksLikeUsefulTitle(title);
+  const usefulSkills = skills.length > 0;
+  const usefulRequirements = requirements.length > 0;
+  const usefulResponsibilities = responsibilities.length > 0;
+
+  if (!usefulTitle && !usefulSkills && !usefulRequirements) {
+    return 'low';
+  }
+
+  if (usefulTitle && (usefulSkills || usefulRequirements || usefulResponsibilities)) {
+    return 'high';
+  }
+
+  return 'medium';
 }
 
 Deno.serve(async request => {
@@ -221,7 +308,23 @@ Deno.serve(async request => {
       });
     }
 
-    return new Response(JSON.stringify({ parsedJob: parsedPayload }), {
+    const confidence = getJobConfidence(parsedPayload as Record<string, unknown>);
+    console.log('[job-intake-parser] Parsed job confidence:', { confidence });
+
+    if (confidence === 'low') {
+      return new Response(JSON.stringify({
+        error: 'Gemini returned low-confidence job extraction.',
+        parsedJob: parsedPayload,
+        parserSource: 'ai',
+        aiSuccess: false,
+        confidence,
+      }), {
+        status: 422,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ parsedJob: parsedPayload, parserSource: 'ai', aiSuccess: true, confidence }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

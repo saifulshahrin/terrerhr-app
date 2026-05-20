@@ -5,13 +5,28 @@ export interface ParsedJob {
   company: string;
   location: string;
   type: string;
+  seniority: string;
+  roleFamily: string;
   salaryRange: string;
   experience: string;
   skills: string[];
+  responsibilities: string[];
+  requirements: string[];
   niceToHave: string[];
   startDate: string;
   reportingTo: string;
   summary: string;
+}
+
+export type ParserSource = 'ai' | 'fallback';
+export type ParseConfidence = 'high' | 'medium' | 'low';
+
+export interface JobIntakeParseResult {
+  parsedJob: ParsedJob | null;
+  parserSource: ParserSource;
+  aiSuccess: boolean;
+  aiError?: string;
+  confidence?: ParseConfidence;
 }
 
 type ParsedJobShape = Partial<Record<keyof ParsedJob, unknown>>;
@@ -42,9 +57,13 @@ const DEFAULT_PARSED_JOB: ParsedJob = {
   company: 'Company',
   location: 'Remote',
   type: 'Full-time',
+  seniority: 'Not specified',
+  roleFamily: 'Not specified',
   salaryRange: 'Not specified',
   experience: 'Not specified',
   skills: ['See job description'],
+  responsibilities: [],
+  requirements: [],
   niceToHave: [],
   startDate: 'Flexible',
   reportingTo: 'Not specified',
@@ -155,15 +174,37 @@ function parseJobIntakeFallback(input: string): ParsedJob | null {
   const reportingTo = reportMatch ? reportMatch[1].trim() : DEFAULT_PARSED_JOB.reportingTo;
 
   const summary = text.split(/[.!]/)[0]?.trim() ?? DEFAULT_PARSED_JOB.summary;
+  const responsibilitySection = text.match(/(?:responsibilities|what you'll do|what you will do)[:\s]+([\s\S]+?)(?:\n\s*\n|requirements[:\s]+|qualifications[:\s]+|$)/i);
+  const requirementSection = text.match(/(?:requirements|qualifications|you should have|must have)[:\s]+([\s\S]+?)(?:\n\s*\n|nice to have[:\s]+|$)/i);
+
+  const responsibilities = responsibilitySection
+    ? responsibilitySection[1]
+        .split(/[•\n-]/)
+        .map(item => normalizeJobIntakeWhitespace(item))
+        .filter(item => item.length > 6)
+        .slice(0, 6)
+    : [];
+
+  const requirements = requirementSection
+    ? requirementSection[1]
+        .split(/[•\n-]/)
+        .map(item => normalizeJobIntakeWhitespace(item))
+        .filter(item => item.length > 6)
+        .slice(0, 6)
+    : [];
 
   return {
     title,
     company,
     location,
     type: DEFAULT_PARSED_JOB.type,
+    seniority: DEFAULT_PARSED_JOB.seniority,
+    roleFamily: DEFAULT_PARSED_JOB.roleFamily,
     salaryRange,
     experience,
     skills: skills.length > 0 ? skills : DEFAULT_PARSED_JOB.skills,
+    responsibilities,
+    requirements,
     niceToHave,
     startDate,
     reportingTo,
@@ -192,12 +233,16 @@ function normalizeParsedJob(candidate: ParsedJobShape): ParsedJob {
     company: normalizeString(candidate.company, DEFAULT_PARSED_JOB.company),
     location: normalizeString(candidate.location, DEFAULT_PARSED_JOB.location),
     type: normalizeString(candidate.type, DEFAULT_PARSED_JOB.type),
+    seniority: normalizeString(candidate.seniority, DEFAULT_PARSED_JOB.seniority),
+    roleFamily: normalizeString(candidate.roleFamily, DEFAULT_PARSED_JOB.roleFamily),
     salaryRange: normalizeString(candidate.salaryRange, DEFAULT_PARSED_JOB.salaryRange),
     experience: normalizeString(candidate.experience, DEFAULT_PARSED_JOB.experience),
     skills: (() => {
       const skills = normalizeStringArray(candidate.skills);
       return skills.length > 0 ? skills.slice(0, 8) : DEFAULT_PARSED_JOB.skills;
     })(),
+    responsibilities: normalizeStringArray(candidate.responsibilities).slice(0, 8),
+    requirements: normalizeStringArray(candidate.requirements).slice(0, 8),
     niceToHave: normalizeStringArray(candidate.niceToHave).slice(0, 8),
     startDate: normalizeString(candidate.startDate, DEFAULT_PARSED_JOB.startDate),
     reportingTo: normalizeString(candidate.reportingTo, DEFAULT_PARSED_JOB.reportingTo),
@@ -205,13 +250,50 @@ function normalizeParsedJob(candidate: ParsedJobShape): ParsedJob {
   };
 }
 
-async function parseJobIntakeWithGemini(input: string): Promise<ParsedJob | null> {
-  console.log('Calling Gemini parser...');
+function hasUsefulTitle(value: string): boolean {
+  const normalized = normalizeJobIntakeWhitespace(value).toLowerCase();
+  return Boolean(normalized && normalized !== DEFAULT_PARSED_JOB.title.toLowerCase() && looksLikeRoleTitle(normalized));
+}
+
+function hasUsefulArray(values: string[]): boolean {
+  return values.some(value => normalizeJobIntakeWhitespace(value).length > 2 && value !== 'See job description');
+}
+
+function validateParsedJobQuality(parsedJob: ParsedJob): {
+  aiSuccess: boolean;
+  confidence: ParseConfidence;
+  aiError?: string;
+} {
+  const usefulTitle = hasUsefulTitle(parsedJob.title);
+  const usefulSkills = hasUsefulArray(parsedJob.skills);
+  const usefulRequirements = hasUsefulArray(parsedJob.requirements);
+  const usefulResponsibilities = hasUsefulArray(parsedJob.responsibilities);
+
+  if (!usefulTitle && !usefulSkills && !usefulRequirements) {
+    return {
+      aiSuccess: false,
+      confidence: 'low',
+      aiError: 'Gemini returned low-confidence output with no useful title, skills, or requirements.',
+    };
+  }
+
+  if (usefulTitle && (usefulSkills || usefulRequirements || usefulResponsibilities)) {
+    return { aiSuccess: true, confidence: 'high' };
+  }
+
+  return {
+    aiSuccess: true,
+    confidence: 'medium',
+  };
+}
+
+async function parseJobIntakeWithGemini(input: string): Promise<JobIntakeParseResult> {
+  console.log('[jobIntakeParser] Calling Gemini parser...');
   const { data, error } = await supabase.functions.invoke('job-intake-parser', {
     body: { input },
   });
 
-  console.log('Gemini response:', { data, error });
+  console.log('[jobIntakeParser] Gemini response:', { data, error });
 
   if (error) {
     throw error;
@@ -221,17 +303,60 @@ async function parseJobIntakeWithGemini(input: string): Promise<ParsedJob | null
     throw new Error('Gemini parser returned an unexpected response shape.');
   }
 
-  return normalizeParsedJob((data as { parsedJob: ParsedJobShape }).parsedJob);
+  const responseData = data as {
+    parsedJob: ParsedJobShape;
+    confidence?: ParseConfidence;
+    parserSource?: ParserSource;
+    aiSuccess?: boolean;
+  };
+  const normalized = normalizeParsedJob(responseData.parsedJob);
+  const metadata = validateParsedJobQuality(normalized);
+
+  if (!metadata.aiSuccess) {
+    throw new Error(metadata.aiError ?? 'Gemini returned low-confidence output.');
+  }
+
+  return {
+    parsedJob: normalized,
+    parserSource: responseData.parserSource ?? 'ai',
+    aiSuccess: responseData.aiSuccess ?? true,
+    confidence: responseData.confidence ?? metadata.confidence,
+  };
 }
 
-export async function parseJobIntakeInput(input: string): Promise<ParsedJob | null> {
-  if (!input.trim()) return null;
+export async function parseJobIntakeInput(input: string): Promise<JobIntakeParseResult> {
+  if (!input.trim()) {
+    return {
+      parsedJob: null,
+      parserSource: 'fallback',
+      aiSuccess: false,
+      aiError: 'Input is empty.',
+      confidence: 'low',
+    };
+  }
 
   try {
     return await parseJobIntakeWithGemini(input);
   } catch (error) {
-    console.log('Falling back to regex parser');
-    console.error('[jobIntakeParser] Gemini fallback to regex parser:', error);
-    return parseJobIntakeFallback(input);
+    const aiError = error instanceof Error ? error.message : 'Gemini parsing failed.';
+    console.warn('[jobIntakeParser] Gemini failed, using visible fallback parser.', aiError);
+    const fallbackParsedJob = parseJobIntakeFallback(input);
+    const fallbackConfidence = fallbackParsedJob
+      ? validateParsedJobQuality(fallbackParsedJob).confidence
+      : 'low';
+
+    console.log('[jobIntakeParser] Parser source selected:', {
+      parserSource: 'fallback',
+      aiSuccess: false,
+      confidence: fallbackConfidence,
+    });
+
+    return {
+      parsedJob: fallbackParsedJob,
+      parserSource: 'fallback',
+      aiSuccess: false,
+      aiError,
+      confidence: fallbackConfidence,
+    };
   }
 }
