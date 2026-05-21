@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
@@ -22,6 +22,7 @@ interface AuthContextValue {
   session: Session | null;
   user: User | null;
   profile: ProfileRow | null;
+  canonicalRole: AppRole | null;
   role: AppRole | null;
   setRole: (role: AppRole) => void;
   authLoading: boolean;
@@ -36,6 +37,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 const DEFAULT_PUBLIC_ROLE: AppRole = 'recruiter';
 const ROLE_STORAGE_KEY = 'terrer_public_role';
+const VIEW_AS_STORAGE_KEY = 'terrer_strict_view_role';
 // Auth mode switch:
 // - VITE_AUTH_MODE=demo  => no login required, local role switcher enabled
 // - VITE_AUTH_MODE=strict => Supabase session + public.profiles enforcement
@@ -71,22 +73,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileLoading, setProfileLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
+  const currentUserIdRef = useRef<string | null>(null);
   const [publicRole, setPublicRole] = useState<AppRole>(() => {
     if (typeof window === 'undefined') return DEFAULT_PUBLIC_ROLE;
     const storedRole = window.localStorage.getItem(ROLE_STORAGE_KEY);
     return isAppRole(storedRole) ? storedRole : DEFAULT_PUBLIC_ROLE;
   });
+  const [strictViewRole, setStrictViewRole] = useState<AppRole>(() => {
+    if (typeof window === 'undefined') return 'admin';
+    const storedRole = window.localStorage.getItem(VIEW_AS_STORAGE_KEY);
+    return isAppRole(storedRole) ? storedRole : 'admin';
+  });
 
-  const role = IS_DEMO_MODE ? publicRole : profile?.role ?? null;
+  const canonicalRole = profile?.role ?? null;
+  const role = useMemo(() => {
+    if (IS_DEMO_MODE) return publicRole;
+    if (canonicalRole === 'admin') return strictViewRole;
+    return canonicalRole;
+  }, [canonicalRole, publicRole, strictViewRole]);
 
   const setRole = (nextRole: AppRole) => {
-    if (!IS_DEMO_MODE) {
-      console.warn('[auth] Ignored setRole in strict mode.');
+    if (IS_DEMO_MODE) {
+      setPublicRole(nextRole);
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(ROLE_STORAGE_KEY, nextRole);
+      }
       return;
     }
-    setPublicRole(nextRole);
+
+    if (canonicalRole !== 'admin') {
+      console.warn('[auth] Ignored setRole in strict mode for non-admin user.');
+      return;
+    }
+
+    setStrictViewRole(nextRole);
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(ROLE_STORAGE_KEY, nextRole);
+      window.localStorage.setItem(VIEW_AS_STORAGE_KEY, nextRole);
     }
   };
 
@@ -203,9 +225,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(null);
           setBlockedReason(null);
           setError(sessionError.message);
+          currentUserIdRef.current = null;
         } else {
           setSession(data.session);
-          setUser(data.session?.user ?? null);
+          const nextUser = data.session?.user ?? null;
+          setUser(nextUser);
+          currentUserIdRef.current = nextUser?.id ?? null;
         }
       } catch (err) {
         if (!mounted) return;
@@ -214,6 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         setBlockedReason(null);
         setError(err instanceof Error ? err.message : 'Unable to restore session');
+        currentUserIdRef.current = null;
       } finally {
         if (!mounted) return;
         setAuthLoading(false);
@@ -224,10 +250,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return;
+      const nextUser = nextSession?.user ?? null;
+      const previousUserId = currentUserIdRef.current;
+      const nextUserId = nextUser?.id ?? null;
+      const userChanged = previousUserId !== nextUserId;
+
       setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-      setProfile(null);
-      setBlockedReason(null);
+      setUser(nextUser);
+      currentUserIdRef.current = nextUserId;
+
+      if (userChanged) {
+        setProfile(null);
+        setBlockedReason(null);
+      }
     });
 
     return () => {
@@ -245,6 +280,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     void refreshProfile();
   }, [authLoading, user?.id]);
+
+  useEffect(() => {
+    if (IS_DEMO_MODE) return;
+    if (canonicalRole !== 'admin') {
+      setStrictViewRole(canonicalRole ?? 'admin');
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem(VIEW_AS_STORAGE_KEY);
+      }
+      return;
+    }
+
+    if (strictViewRole !== 'admin' && strictViewRole !== 'recruiter' && strictViewRole !== 'bd') {
+      setStrictViewRole('admin');
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(VIEW_AS_STORAGE_KEY, 'admin');
+      }
+    }
+  }, [canonicalRole, strictViewRole]);
 
   useEffect(() => {
     if (IS_DEMO_MODE || authLoading) return;
@@ -305,6 +358,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     user,
     profile,
+    canonicalRole,
     role,
     setRole,
     authLoading,

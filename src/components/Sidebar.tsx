@@ -160,7 +160,9 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
-  const { role, profile, logout } = useRole();
+  const { isDemoMode, canonicalRole, role, profile, setRole, logout } = useRole();
+  const isStrictAdmin = !isDemoMode && canonicalRole === 'admin';
+  const isViewAsActive = isStrictAdmin && role !== canonicalRole;
 
   const sections = useMemo(() => {
     if (!role) return [];
@@ -177,6 +179,16 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
           <p className="mt-0.5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
             AI Driven Recruitment Engine
           </p>
+          {isDemoMode ? (
+            <span className="mt-2 inline-flex rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-200">
+              Demo Mode
+            </span>
+          ) : null}
+          {isViewAsActive ? (
+            <span className="mt-2 inline-flex rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-200">
+              Viewing as {ROLE_LABEL[role]}
+            </span>
+          ) : null}
         </div>
 
         <div className="rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2.5">
@@ -191,6 +203,31 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
               <span className="truncate text-xs text-slate-500">{profile?.email ?? 'Signed in'}</span>
             </div>
           </div>
+          {isDemoMode || isStrictAdmin ? (
+            <div className="mt-3 grid grid-cols-3 gap-1 rounded-lg bg-slate-950/80 p-1">
+              {(['recruiter', 'bd', 'admin'] as AppRole[]).map(option => {
+                const isSelected = role === option;
+
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => {
+                      setRole(option);
+                      onNavigate('dashboard');
+                    }}
+                    className={`rounded-md px-2 py-1.5 text-[11px] font-semibold transition-colors ${
+                      isSelected
+                        ? 'bg-slate-100 text-slate-950 shadow-sm'
+                        : 'text-slate-400 hover:bg-slate-900 hover:text-white'
+                    }`}
+                  >
+                    {isDemoMode ? ROLE_LABEL[option] : `${ROLE_LABEL[option]} View`}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -241,19 +278,25 @@ export default function Sidebar({ activePage, onNavigate }: SidebarProps) {
       </nav>
 
       <div className="border-t border-slate-800/80 px-4 py-3 space-y-2">
-        <button
-          type="button"
-          onClick={() => void logout()}
-          className="flex w-full items-center justify-between rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-sm text-slate-200 transition-colors hover:bg-slate-900"
-        >
-          <span className="flex items-center gap-2">
-            <LogOut size={16} className="text-slate-400" />
-            Logout
-          </span>
-          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
-            {role}
-          </span>
-        </button>
+        {!isDemoMode ? (
+          <button
+            type="button"
+            onClick={() => void logout()}
+            className="flex w-full items-center justify-between rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-sm text-slate-200 transition-colors hover:bg-slate-900"
+          >
+            <span className="flex items-center gap-2">
+              <LogOut size={16} className="text-slate-400" />
+              Logout
+            </span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-600">
+              {role}
+            </span>
+          </button>
+        ) : (
+          <p className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-xs text-slate-400">
+            Demo mode role preview is active.
+          </p>
+        )}
         <p className="text-[11px] text-slate-600">v1.0.0</p>
       </div>
     </aside>

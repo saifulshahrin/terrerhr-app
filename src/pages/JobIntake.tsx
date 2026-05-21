@@ -406,20 +406,6 @@ export default function JobIntake({ onNavigate }: Props) {
                 )}
               </div>
 
-              <div>
-                <p className="text-xs text-gray-400 mb-1">Summary</p>
-                {editing && draft ? (
-                  <textarea
-                    value={draft.summary}
-                    onChange={e => handleDraftChange('summary', e.target.value)}
-                    rows={4}
-                    className="w-full border border-gray-300 rounded-md px-2.5 py-2 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none leading-relaxed"
-                  />
-                ) : (
-                  <p className="text-sm text-gray-600 leading-relaxed">{parsed.summary}</p>
-                )}
-              </div>
-
               {saveError && (
                 <p className="text-xs text-red-600">{saveError}</p>
               )}
