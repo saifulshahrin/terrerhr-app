@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import BDDashboard from './pages/BDDashboard';
 import BDRelationships from './pages/BDRelationships';
 import BDTasksFollowUps from './pages/BDTasksFollowUps';
+import BDPhotoIntake from './pages/BDPhotoIntake';
 import Jobs from './pages/Jobs';
 import ActiveJobs from './pages/ActiveJobs';
 import HiringIntelligence from './pages/HiringIntelligence';
@@ -32,6 +33,7 @@ type Page =
   | 'bd-queue'
   | 'bd-relationships'
   | 'bd-tasks'
+  | 'bd-photo-intake'
   | 'interested-candidates'
   | 'autonomous-recruiter';
 
@@ -48,9 +50,48 @@ interface NavState {
   sourcingContext?: SourcingContext;
 }
 
+const PAGE_TO_PATH: Record<Page, string> = {
+  dashboard: '/',
+  jobs: '/jobs',
+  'active-jobs': '/active-jobs',
+  'hiring-intelligence': '/hiring-intelligence',
+  candidates: '/candidates',
+  pipeline: '/pipeline',
+  'top-matches': '/top-matches',
+  'candidate-profile': '/candidate-profile',
+  'job-intake': '/job-intake',
+  'bd-queue': '/bd-queue',
+  'bd-relationships': '/bd-relationships',
+  'bd-tasks': '/bd-tasks',
+  'bd-photo-intake': '/bd-photo-intake',
+  'interested-candidates': '/interested-candidates',
+  'autonomous-recruiter': '/autonomous-recruiter',
+};
+
+function parseNavFromLocation(): NavState {
+  const path = typeof window !== 'undefined' ? window.location.pathname : '/';
+  const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+
+  const entry = (Object.entries(PAGE_TO_PATH) as Array<[Page, string]>).find(([, p]) => p === path);
+  const page: Page = entry ? entry[0] : 'dashboard';
+
+  const jobId = params.get('jobId') ?? undefined;
+  const candidateId = params.get('candidateId') ?? undefined;
+
+  return { page, jobId, candidateId };
+}
+
 function AppShell() {
   const { access, blockedReason, role, profile, user, signOut } = useAuth();
-  const [nav, setNav] = useState<NavState>({ page: 'dashboard' });
+  const [nav, setNav] = useState<NavState>(() => parseNavFromLocation());
+
+  // Keep lightweight path sync so stakeholder demos can deep-link to key screens.
+  // This app does not use react-router; we map a small set of stable routes.
+  useEffect(() => {
+    const onPop = () => setNav(parseNavFromLocation());
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   if (access === 'loading') {
     return (
@@ -100,7 +141,20 @@ function AppShell() {
   }
 
   function navigate(page: string, jobId?: string, sourcingContext?: SourcingContext, candidateId?: string) {
-    setNav({ page: page as Page, jobId, sourcingContext, candidateId });
+    const next: NavState = { page: page as Page, jobId, sourcingContext, candidateId };
+    setNav(next);
+
+    try {
+      const basePath = PAGE_TO_PATH[next.page] ?? '/';
+      const url = new URL(window.location.href);
+      url.pathname = basePath;
+      url.search = '';
+      if (next.jobId) url.searchParams.set('jobId', next.jobId);
+      if (next.candidateId) url.searchParams.set('candidateId', next.candidateId);
+      window.history.pushState({}, '', url.toString());
+    } catch {
+      // Ignore path sync failures (non-browser environments).
+    }
   }
 
   function renderPage({ page, jobId, candidateId, sourcingContext }: NavState) {
@@ -117,6 +171,7 @@ function AppShell() {
       case 'bd-queue':    return <BDQueue />;
       case 'bd-relationships': return <BDRelationships onNavigate={navigate} />;
       case 'bd-tasks': return <BDTasksFollowUps onNavigate={navigate} />;
+      case 'bd-photo-intake': return <BDPhotoIntake />;
       case 'interested-candidates': return <InterestedCandidates />;
       case 'autonomous-recruiter': return <AutonomousRecruiterRuns />;
     }
