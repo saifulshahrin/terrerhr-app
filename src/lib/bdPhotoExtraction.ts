@@ -6,6 +6,8 @@ export type PhotoExtractionStatus =
   | 'Saved'
   | 'Failed';
 
+export type BdPhotoExtractionSource = 'mock' | 'gemini_vision';
+
 export interface BdPhotoExtractedFields {
   company_name: string;
   company_status: string;
@@ -30,6 +32,7 @@ export interface BdPhotoExtractedFields {
 }
 
 export interface BdPhotoExtractionResult {
+  source: BdPhotoExtractionSource;
   fields: BdPhotoExtractedFields;
   confidence: number; // 0..1 (mock)
   raw: unknown;
@@ -102,6 +105,7 @@ export async function parseBdPhotoMock(image: File): Promise<BdPhotoExtractionRe
   };
 
   return {
+    source: 'mock',
     fields,
     confidence: 0.62,
     raw: {
@@ -111,4 +115,3 @@ export async function parseBdPhotoMock(image: File): Promise<BdPhotoExtractionRe
     },
   };
 }
-

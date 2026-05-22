@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import {
   BarChart2,
   Briefcase,
-  Camera,
   ClipboardCheck,
   ClipboardList,
   GitBranch,
@@ -28,7 +27,6 @@ type AppPage =
   | 'bd-queue'
   | 'bd-relationships'
   | 'bd-tasks'
-  | 'bd-photo-intake'
   | 'interested-candidates'
   | 'autonomous-recruiter';
 
@@ -69,7 +67,6 @@ const ROLE_NAV: Record<AppRole, NavSection[]> = {
       items: [
         { label: 'Dashboard', icon: LayoutDashboard, targetPage: 'dashboard' },
         { label: 'BD Relationships', icon: Users, targetPage: 'bd-relationships' },
-        { label: 'BD Photo Intake', icon: Camera, targetPage: 'bd-photo-intake' },
         { label: 'Opportunities (Coming Soon)', icon: Briefcase, comingSoon: true },
         { label: 'BD Playbook', icon: Sparkles, comingSoon: true },
         { label: 'Tasks & Follow-ups', icon: ClipboardList, targetPage: 'bd-tasks' },
@@ -108,7 +105,6 @@ const ROLE_NAV: Record<AppRole, NavSection[]> = {
         { label: 'Pipeline', icon: GitBranch, targetPage: 'pipeline' },
         { label: 'Top Matches / AI Review', icon: Star, targetPage: 'top-matches' },
         { label: 'Job Intake', icon: ClipboardList, targetPage: 'job-intake' },
-        { label: 'BD Photo Intake', icon: Camera, targetPage: 'bd-photo-intake' },
         { label: 'Autonomous Recruiter', icon: Sparkles, targetPage: 'autonomous-recruiter' },
       ],
     },
@@ -143,7 +139,6 @@ const ROLE_NAV: Record<AppRole, NavSection[]> = {
       label: 'Business',
       items: [
         { label: 'BD Relationships', icon: Users, targetPage: 'bd-relationships' },
-        { label: 'BD Photo Intake', icon: Camera, targetPage: 'bd-photo-intake' },
         { label: 'Opportunities', icon: Briefcase, targetPage: 'active-jobs' },
         { label: 'Submissions', icon: ClipboardCheck, targetPage: 'bd-queue' },
       ],

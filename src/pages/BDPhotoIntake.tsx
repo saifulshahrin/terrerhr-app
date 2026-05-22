@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Image as ImageIcon, Loader2, Save, Search, UploadCloud, X } from 'lucide-react';
 import { Badge, MetricTile, PageHeader, Panel, SectionHeader } from '../components/visualSystem';
-import { parseBdPhotoMock, type BdPhotoExtractedFields, type PhotoExtractionStatus } from '../lib/bdPhotoExtraction';
+import { type BdPhotoExtractedFields, type PhotoExtractionStatus } from '../lib/bdPhotoExtraction';
+import { extractBdFromPhotoWithGeminiVision } from '../lib/bdPhotoVisionExtraction';
 import { uploadBdPhotoIntakeImage } from '../lib/bdPhotoStorage';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../store/AuthContext';
@@ -50,6 +51,7 @@ interface PhotoItem {
   uploadedPath?: string | null;
   uploadedPublicUrl?: string | null;
   extraction?: {
+    source?: 'mock' | 'gemini_vision';
     fields: BdPhotoExtractedFields;
     confidence: number;
     raw: unknown;
@@ -286,7 +288,46 @@ export default function BDPhotoIntake() {
         uploadPublicUrl = uploaded.publicUrl;
       }
 
-      const result = await parseBdPhotoMock(item.file);
+      const vision = await extractBdFromPhotoWithGeminiVision(item.file);
+      const confidences = Object.values(vision.field_confidence ?? {}).filter(v => typeof v === 'number') as number[];
+      const avgConfidence = confidences.length > 0 ? confidences.reduce((a, b) => a + b, 0) / confidences.length : 0.6;
+
+      const result: { source: 'mock' | 'gemini_vision'; fields: BdPhotoExtractedFields; confidence: number; raw: unknown } = {
+        source: 'gemini_vision',
+        fields: {
+          company_name: vision.extracted.company_name ?? '',
+          company_status: vision.extracted.company_status ?? '',
+          contact_first_name: vision.extracted.first_name ?? '',
+          contact_last_name: vision.extracted.last_name ?? '',
+          contact_full_name: vision.extracted.contact_full_name ?? '',
+          occupation_title: vision.extracted.occupation_title ?? '',
+          email: vision.extracted.email ?? '',
+          direct_phone: vision.extracted.direct_phone ?? '',
+          mobile_phone: vision.extracted.mobile_phone ?? '',
+          address: vision.extracted.address ?? '',
+          source_system_id: vision.extracted.legacy_system_id ?? '',
+          source_notes: vision.extracted.notes_signals ?? '',
+          relationship_status: '',
+          created_by_legacy: vision.extracted.recruiter_name ?? '',
+          legacy_date_added: '',
+          jobs_count: vision.extracted.jobs_count !== null && vision.extracted.jobs_count !== undefined ? String(vision.extracted.jobs_count) : '',
+          submissions_count:
+            vision.extracted.submissions_count !== null && vision.extracted.submissions_count !== undefined
+              ? String(vision.extracted.submissions_count)
+              : '',
+          client_submissions_count: '',
+          interviews_count:
+            vision.extracted.interviews_count !== null && vision.extracted.interviews_count !== undefined
+              ? String(vision.extracted.interviews_count)
+              : '',
+          placements_count:
+            vision.extracted.placements_count !== null && vision.extracted.placements_count !== undefined
+              ? String(vision.extracted.placements_count)
+              : '',
+        },
+        confidence: avgConfidence,
+        raw: vision.raw,
+      };
 
       // Duplicate preview pass (best-effort; uses existing readable tables).
       const companyMatches = await findCompaniesByName(result.fields.company_name);
@@ -322,7 +363,37 @@ export default function BDPhotoIntake() {
       const message = err instanceof Error ? err.message : 'Extraction failed';
       setItems(prev =>
         prev.map(p =>
-          p.id === id ? { ...p, status: 'Failed', statusDetail: 'Extraction failed', error: message } : p
+          p.id === id
+            ? {
+                ...p,
+                status: 'Failed',
+                statusDetail: 'Vision extraction failed. You can still enter fields manually and save.',
+                error: message,
+                extraction: null,
+                draft: {
+                  company_name: '',
+                  company_status: '',
+                  contact_first_name: '',
+                  contact_last_name: '',
+                  contact_full_name: '',
+                  occupation_title: '',
+                  email: '',
+                  direct_phone: '',
+                  mobile_phone: '',
+                  address: '',
+                  source_system_id: '',
+                  source_notes: '',
+                  relationship_status: '',
+                  created_by_legacy: '',
+                  legacy_date_added: '',
+                  jobs_count: '',
+                  submissions_count: '',
+                  client_submissions_count: '',
+                  interviews_count: '',
+                  placements_count: '',
+                },
+              }
+            : p
         )
       );
     }
@@ -389,7 +460,9 @@ export default function BDPhotoIntake() {
         source_import_type: 'photo_intake',
         extraction_status: item.status,
         extraction_confidence: item.extraction?.confidence ?? null,
-        raw_extracted_json: item.extraction?.raw ?? null,
+        raw_extracted_json: item.extraction
+          ? { source: item.extraction.source ?? null, raw: item.extraction.raw }
+          : null,
         legacy_source_id: normalize(draft.source_system_id) || null,
         legacy_source_system: 'photo_intake',
         legacy_created_by: normalize(draft.created_by_legacy) || null,
@@ -559,6 +632,9 @@ export default function BDPhotoIntake() {
                             </div>
                             <div className="mt-1 flex flex-wrap items-center gap-2">
                               <Badge tone={statusTone(it.status) as any}>{it.status}</Badge>
+                              {it.extraction?.source ? (
+                                <Badge tone="blue">{it.extraction.source === 'gemini_vision' ? 'gemini_vision' : 'mock'}</Badge>
+                              ) : null}
                               {it.saving ? <Badge tone="amber">Saving</Badge> : null}
                               {it.error ? <Badge tone="red">Error</Badge> : null}
                             </div>
@@ -673,11 +749,14 @@ export default function BDPhotoIntake() {
                       className="w-full rounded-lg object-contain bg-slate-50 ring-1 ring-inset ring-slate-200/70"
                     />
                     <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <Badge tone={statusTone(selected.status) as any}>{selected.status}</Badge>
+                  <Badge tone={statusTone(selected.status) as any}>{selected.status}</Badge>
                       {selected.extraction ? (
                         <Badge tone="slate">
                           Confidence {Math.round((selected.extraction.confidence ?? 0) * 100)}%
                         </Badge>
+                      ) : null}
+                      {selected.extraction?.source ? (
+                        <Badge tone="blue">{selected.extraction.source === 'gemini_vision' ? 'gemini_vision' : 'mock'}</Badge>
                       ) : null}
                       {selected.uploadedPublicUrl ? (
                         <Badge tone="blue">Stored</Badge>

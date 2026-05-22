@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, CalendarClock, Clock, Mail, Phone, Search, Sparkles, Users } from 'lucide-react';
+import { Building2, CalendarClock, Camera, Clock, Mail, Phone, Search, Sparkles, Users } from 'lucide-react';
 import { fetchAllJobs, type JobListRow } from '../lib/jobs';
 import { normalizeRoleTitle } from '../lib/roleNormalization';
 import { supabase } from '../lib/supabase';
@@ -664,6 +664,14 @@ export default function BDRelationships({ onNavigate }: Props) {
             >
               <Building2 size={16} />
               Add Intake
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate('bd-photo-intake')}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+            >
+              <Camera size={16} />
+              Import Legacy Contacts
             </button>
           </div>
         }
