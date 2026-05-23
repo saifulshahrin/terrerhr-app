@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, CalendarClock, Camera, Clock, Mail, Phone, Search, Sparkles, Users } from 'lucide-react';
+import { Building2, CalendarClock, Clock, Mail, Phone, Search, Sparkles, Users } from 'lucide-react';
 import { fetchAllJobs, type JobListRow } from '../lib/jobs';
 import { normalizeRoleTitle } from '../lib/roleNormalization';
 import { supabase } from '../lib/supabase';
@@ -8,6 +8,7 @@ import { Badge, MetricTile, PageHeader, Panel, SectionHeader } from '../componen
 interface Props {
   onNavigate: (page: string) => void;
 }
+const NEW_COMPANY_SENTINEL = '__create_new_company__';
 
 type CompanyStatus = string | null;
 type RelationshipStatus = string | null;
@@ -44,6 +45,11 @@ interface ContactRow {
   updated_at: string | null;
 }
 
+interface DuplicateMatch {
+  contact: ContactRow;
+  kind: 'strong_email' | 'strong_phone' | 'possible_name';
+}
+
 type EditableContact = Pick<
   ContactRow,
   'id' | 'full_name' | 'job_title' | 'email' | 'phone' | 'mobile_phone' | 'relationship_status' | 'notes'
@@ -58,6 +64,10 @@ interface UiContactActionState {
 
 function normalize(value: string | null | undefined) {
   return (value ?? '').trim().toLowerCase();
+}
+
+function normalizePhone(value: string | null | undefined) {
+  return (value ?? '').replace(/[^0-9+]/g, '').trim();
 }
 
 function formatCompanyLocation(company: CompanyRow) {
@@ -109,6 +119,25 @@ function daysAgoLabel(iso: string): string {
   if (days <= 0) return 'Today';
   if (days === 1) return '1 day ago';
   return `${days} days ago`;
+}
+
+function nextActionTone(nextActionDate: string | null): 'red' | 'amber' | 'slate' {
+  if (!nextActionDate) return 'slate';
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const due = nextActionDate.slice(0, 10);
+  if (due < todayIso) return 'red';
+  if (due === todayIso) return 'amber';
+  return 'slate';
+}
+
+function nextActionLabel(nextAction: string | null, nextActionDate: string | null): string {
+  if (!nextAction && !nextActionDate) return 'No next action';
+  if (!nextActionDate) return nextAction || 'No next action';
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const due = nextActionDate.slice(0, 10);
+  if (due < todayIso) return `${nextAction || 'Follow-up'} · Overdue`;
+  if (due === todayIso) return `${nextAction || 'Follow-up'} · Due today`;
+  return `${nextAction || 'Follow-up'} · ${due}`;
 }
 
 function isTierOne(company: CompanyRow): boolean {
@@ -330,6 +359,27 @@ export default function BDRelationships({ onNavigate }: Props) {
   const [editingContact, setEditingContact] = useState<EditableContact | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [showAddContactModal, setShowAddContactModal] = useState(false);
+  const [addSaving, setAddSaving] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [addSuccess, setAddSuccess] = useState<string | null>(null);
+  const [addFieldErrors, setAddFieldErrors] = useState<{ company_id?: string; full_name?: string }>({});
+  const [allowDuplicateSave, setAllowDuplicateSave] = useState(false);
+  const [companySearch, setCompanySearch] = useState('');
+  const [companyPickerOpen, setCompanyPickerOpen] = useState(false);
+  const [newContact, setNewContact] = useState({
+    company_id: '' as string,
+    full_name: '',
+    job_title: '',
+    linkedin_url: '',
+    email: '',
+    phone: '',
+    mobile_phone: '',
+    relationship_status: 'new',
+    next_action: '',
+    next_action_date: '',
+    notes: '',
+  });
 
   // UI-only action layer (no DB writes yet)
   const [contactActions, setContactActions] = useState<Record<string, UiContactActionState>>({});
@@ -488,6 +538,62 @@ export default function BDRelationships({ onNavigate }: Props) {
     });
   }, [companies, contactsByCompanyId, relationshipCompanies, search, showAllCompanies]);
 
+  const companyOptions = useMemo(() => {
+    const q = normalize(companySearch);
+    if (!q) return companies.slice(0, 12);
+    return companies
+      .filter((company) => normalize(company.company_name).includes(q))
+      .slice(0, 12);
+  }, [companies, companySearch]);
+
+  const effectiveCompanyIdForNewContact = useMemo(() => {
+    if (newContact.company_id && newContact.company_id !== NEW_COMPANY_SENTINEL) return Number(newContact.company_id);
+    const typed = companySearch.trim();
+    if (!typed) return null;
+    const exact = companies.find((company) => normalize(company.company_name) === normalize(typed));
+    return exact?.id ?? null;
+  }, [companies, companySearch, newContact.company_id]);
+
+  const duplicateMatches = useMemo((): DuplicateMatch[] => {
+    if (!effectiveCompanyIdForNewContact) return [];
+    const fullName = normalize(newContact.full_name);
+    const email = normalize(newContact.email);
+    const phoneA = normalizePhone(newContact.phone);
+    const phoneB = normalizePhone(newContact.mobile_phone);
+    if (!fullName && !email && !phoneA && !phoneB) return [];
+
+    const results: DuplicateMatch[] = [];
+    for (const contact of contacts) {
+      if (contact.company_id !== effectiveCompanyIdForNewContact) continue;
+      const cEmail = normalize(contact.email);
+      const cPhone = normalizePhone(contact.phone);
+      const cMobile = normalizePhone(contact.mobile_phone);
+      const cName = normalize(contact.full_name);
+
+      if (email && cEmail && email === cEmail) {
+        results.push({ contact, kind: 'strong_email' });
+        continue;
+      }
+      if ((phoneA && (phoneA === cPhone || phoneA === cMobile)) || (phoneB && (phoneB === cPhone || phoneB === cMobile))) {
+        results.push({ contact, kind: 'strong_phone' });
+        continue;
+      }
+      if (fullName && cName && (cName.includes(fullName) || fullName.includes(cName))) {
+        results.push({ contact, kind: 'possible_name' });
+      }
+    }
+    const seen = new Set<string>();
+    return results.filter((row) => {
+      if (seen.has(row.contact.id)) return false;
+      seen.add(row.contact.id);
+      return true;
+    });
+  }, [contacts, effectiveCompanyIdForNewContact, newContact.email, newContact.full_name, newContact.mobile_phone, newContact.phone]);
+
+  useEffect(() => {
+    setAllowDuplicateSave(false);
+  }, [newContact.company_id, companySearch, newContact.full_name, newContact.email, newContact.phone, newContact.mobile_phone]);
+
   const expandedCompany = expandedCompanyId ? companiesById.get(Number(expandedCompanyId)) : null;
   const expandedContacts = expandedCompanyId
     ? contactsByCompanyId.get(Number(expandedCompanyId)) ?? []
@@ -640,6 +746,109 @@ export default function BDRelationships({ onNavigate }: Props) {
     }
   }
 
+  async function addContactManually() {
+    setAddSaving(true);
+    setAddError(null);
+    setAddSuccess(null);
+    setAddFieldErrors({});
+    try {
+      const fullName = newContact.full_name.trim();
+      const companyNameInput = companySearch.trim();
+      let companyIdValue: number | null = null;
+      const nextFieldErrors: { company_id?: string; full_name?: string } = {};
+      if (!newContact.company_id && !companyNameInput) nextFieldErrors.company_id = 'Company is required.';
+      if (!fullName) nextFieldErrors.full_name = 'Full name is required.';
+      if (Object.keys(nextFieldErrors).length > 0) {
+        setAddFieldErrors(nextFieldErrors);
+        setAddError('Please complete required fields.');
+        return;
+      }
+      if (duplicateMatches.length > 0 && !allowDuplicateSave) {
+        setAddError('Possible existing contact found. Review and choose Continue Anyway to save.');
+        return;
+      }
+
+      if (newContact.company_id && newContact.company_id !== NEW_COMPANY_SENTINEL) {
+        companyIdValue = Number(newContact.company_id);
+      } else {
+        const exact = companies.find((company) => normalize(company.company_name) === normalize(companyNameInput));
+        if (exact) {
+          companyIdValue = exact.id;
+        } else {
+          const { data: createdCompany, error: createCompanyError } = await supabase
+            .from('companies')
+            .insert({
+              company_name: companyNameInput,
+              source_type: 'manual',
+              updated_at: new Date().toISOString(),
+            })
+            .select('id, company_name, company_slug, website_url, linkedin_url, hq_country, primary_city, company_status, source_type, notes, created_at, updated_at')
+            .single();
+          if (createCompanyError) throw createCompanyError;
+          if (!createdCompany?.id) throw new Error('Unable to create company record.');
+          companyIdValue = createdCompany.id as number;
+          setCompanies((prev) => [createdCompany as CompanyRow, ...prev]);
+        }
+      }
+
+      const linkedIn = newContact.linkedin_url.trim();
+      const notesParts = [newContact.notes.trim()];
+      if (linkedIn) notesParts.unshift(`LinkedIn: ${linkedIn}`);
+      const normalizedNotes = notesParts.filter(Boolean).join('\n').trim();
+
+      const payload: Record<string, any> = {
+        company_id: companyIdValue,
+        full_name: fullName,
+        job_title: newContact.job_title.trim() || null,
+        email: newContact.email.trim() || null,
+        phone: newContact.phone.trim() || null,
+        mobile_phone: newContact.mobile_phone.trim() || null,
+        relationship_status: newContact.relationship_status.trim() || 'new',
+        next_action: newContact.next_action.trim() || null,
+        next_action_date: newContact.next_action_date || null,
+        notes: normalizedNotes || null,
+        source: 'manual_entry',
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error: insertError } = await supabase
+        .from('bd_contacts')
+        .insert(payload)
+        .select('id,company_id,full_name,job_title,email,phone,mobile_phone,relationship_status,next_action,next_action_date,last_contacted_at,notes,created_at,updated_at')
+        .single();
+
+      if (insertError) throw insertError;
+
+      setContacts((prev) => [data as ContactRow, ...prev]);
+      if (data?.company_id) {
+        setExpandedCompanyId(String(data.company_id));
+      }
+      setAddSuccess('Contact added successfully.');
+      setShowAddContactModal(false);
+        setNewContact({
+          company_id: '',
+        full_name: '',
+        job_title: '',
+        linkedin_url: '',
+        email: '',
+        phone: '',
+        mobile_phone: '',
+        relationship_status: 'new',
+        next_action: '',
+        next_action_date: '',
+          notes: '',
+        });
+        setCompanySearch('');
+        setCompanyPickerOpen(false);
+        setAllowDuplicateSave(false);
+      } catch (err) {
+      console.error('[BDRelationships] add contact failed', err);
+      setAddError('Unable to add contact right now. Please check database access policies and required fields.');
+    } finally {
+      setAddSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -659,16 +868,8 @@ export default function BDRelationships({ onNavigate }: Props) {
             </div>
             <button
               type="button"
-              onClick={() => onNavigate('bd-photo-intake')}
+              onClick={() => setShowAddContactModal(true)}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
-            >
-              <Camera size={16} />
-              Add Target Account
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigate('bd-photo-intake')}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50"
             >
               <Users size={16} />
               Add Contact
@@ -684,6 +885,11 @@ export default function BDRelationships({ onNavigate }: Props) {
           </div>
         }
       />
+      {addSuccess ? (
+        <Panel>
+          <p className="text-sm font-medium text-emerald-700">{addSuccess}</p>
+        </Panel>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-3">
         <MetricTile
@@ -942,106 +1148,94 @@ export default function BDRelationships({ onNavigate }: Props) {
           ) : (
             <div className="divide-y divide-slate-100">
               {expandedContacts.map((contact) => (
-                <div key={contact.id} className="px-4 py-4">
+                <div key={contact.id} className="px-4 py-3">
                   <div className="flex items-start justify-between gap-3">
-                    <p className="text-sm font-semibold text-slate-950">{contact.full_name}</p>
-                    <div className="flex items-center gap-2">
-                      {renderStatusTag(getUiStatus(contact))}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setEditingContact({
-                            id: contact.id,
-                            full_name: contact.full_name,
-                            job_title: contact.job_title,
-                            email: contact.email,
-                            phone: contact.phone,
-                            mobile_phone: contact.mobile_phone,
-                            relationship_status: contact.relationship_status,
-                            notes: contact.notes,
-                          })
-                        }
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {contact.job_title ?? 'Contact'}{' '}
-                    {contact.relationship_status ? `- ${contact.relationship_status}` : ''}
-                  </p>
-
-                  <div className="mt-3 flex flex-col gap-2 text-xs text-slate-600">
-                    {contact.email ? (
-                      <div className="flex items-center gap-2">
-                        <Mail size={14} className="text-slate-400" />
-                        <span className="break-words">{contact.email}</span>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-sm font-semibold text-slate-950">{contact.full_name}</p>
+                        {renderStatusTag(getUiStatus(contact))}
                       </div>
-                    ) : null}
-                    {contact.phone ? (
-                      <div className="flex items-center gap-2">
-                        <Phone size={14} className="text-slate-400" />
-                        <span className="break-words">Direct: {contact.phone}</span>
-                      </div>
-                    ) : null}
-                    {contact.mobile_phone ? (
-                      <div className="flex items-center gap-2">
-                        <Phone size={14} className="text-slate-400" />
-                        <span className="break-words">Mobile: {contact.mobile_phone}</span>
-                      </div>
-                    ) : null}
-                    {contact.notes ? (
-                      <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-700 whitespace-pre-wrap break-words">
-                        {contact.notes}
+                      <p className="mt-0.5 truncate text-xs text-slate-500">
+                        {contact.job_title ?? 'Contact'} · {contact.email || contact.phone || contact.mobile_phone || 'No email or phone'}
                       </p>
-                    ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditingContact({
+                          id: contact.id,
+                          full_name: contact.full_name,
+                          job_title: contact.job_title,
+                          email: contact.email,
+                          phone: contact.phone,
+                          mobile_phone: contact.mobile_phone,
+                          relationship_status: contact.relationship_status,
+                          notes: contact.notes,
+                        })
+                      }
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                    >
+                      Edit
+                    </button>
                   </div>
 
-                  <div className="mt-4 rounded-xl border border-slate-200 bg-white px-3 py-3">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                          Next Action
-                        </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                    <Badge tone="slate">
+                      Last contacted: {contact.last_contacted_at ? daysAgoLabel(contact.last_contacted_at) : 'Never'}
+                    </Badge>
+                    <Badge tone={nextActionTone(contact.next_action_date)}>
+                      {nextActionLabel(contact.next_action, contact.next_action_date)}
+                    </Badge>
+                  </div>
+
+                  {contact.notes ? (
+                    <p className="mt-2 line-clamp-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-600">
+                      {contact.notes}
+                    </p>
+                  ) : null}
+
+                  <div className="mt-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                    <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="flex min-w-0 flex-col gap-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Next Action</p>
                         <input
                           value={contact.next_action ?? ''}
                           readOnly
-                          placeholder="e.g. Send intro email, ask for hiring plan, schedule call"
-                          className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                          placeholder="e.g. Send intro email"
+                          className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 shadow-sm outline-none"
                         />
-                        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center">
                           <input
                             type="date"
                             value={followUpDates[contact.id] ?? contact.next_action_date ?? ''}
                             onChange={(e) => setFollowUpDates((prev) => ({ ...prev, [contact.id]: e.target.value }))}
-                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-100 sm:w-52"
+                            className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 shadow-sm outline-none sm:w-44"
                           />
-                          <span className="text-xs text-slate-500">
+                          <span className="text-[11px] text-slate-500">
                             {contact.next_action_date ? `Current: ${contact.next_action_date}` : 'No follow-up date set'}
                           </span>
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => markContacted(contact).catch((err) => console.error('[BDRelationships] markContacted failed', err))}
-                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
                         >
                           Mark Contacted
                         </button>
                         <button
                           type="button"
                           onClick={() => setFollowUp(contact).catch((err) => console.error('[BDRelationships] setFollowUp failed', err))}
-                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
                         >
                           Set Follow-up
                         </button>
                         <button
                           type="button"
                           onClick={() => markResponded(contact).catch((err) => console.error('[BDRelationships] markResponded failed', err))}
-                          className="rounded-2xl bg-teal-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-teal-700"
+                          className="rounded-lg bg-teal-600 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition hover:bg-teal-700"
                         >
                           Mark Responded
                         </button>
@@ -1094,6 +1288,87 @@ export default function BDRelationships({ onNavigate }: Props) {
                   />
                 </label>
               </div>
+
+              {duplicateMatches.length > 0 ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-sm font-semibold text-amber-900">Possible existing contact found</p>
+                  <div className="mt-2 space-y-2">
+                    {duplicateMatches.slice(0, 3).map((match) => {
+                      const companyName =
+                        typeof match.contact.company_id === 'number'
+                          ? companiesById.get(match.contact.company_id)?.company_name ?? `Company #${match.contact.company_id}`
+                          : 'Unknown Company';
+                      const reason =
+                        match.kind === 'strong_email'
+                          ? 'Strong match: same company + email'
+                          : match.kind === 'strong_phone'
+                            ? 'Strong match: same company + phone'
+                            : 'Possible match: same company + similar name';
+                      return (
+                        <div key={match.contact.id} className="rounded-lg border border-amber-200/80 bg-white px-3 py-2">
+                          <p className="text-sm font-semibold text-slate-900">{match.contact.full_name}</p>
+                          <p className="text-xs text-slate-600">{companyName}</p>
+                          <p className="text-xs text-slate-600">
+                            {[match.contact.email, match.contact.phone, match.contact.mobile_phone].filter(Boolean).join(' · ') || 'No contact details'}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            Status: {match.contact.relationship_status || 'unknown'} · {reason}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAllowDuplicateSave(true);
+                        setAddError(null);
+                      }}
+                      className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+                    >
+                      Continue Anyway
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewContact({
+                          company_id: '',
+                          full_name: '',
+                          job_title: '',
+                          linkedin_url: '',
+                          email: '',
+                          phone: '',
+                          mobile_phone: '',
+                          relationship_status: 'new',
+                          next_action: '',
+                          next_action_date: '',
+                          notes: '',
+                        });
+                        setCompanySearch('');
+                        setCompanyPickerOpen(false);
+                        setAllowDuplicateSave(false);
+                        setAddError(null);
+                      }}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      Clear Form
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const first = duplicateMatches[0];
+                        if (!first) return;
+                        if (first.contact.company_id) setExpandedCompanyId(String(first.contact.company_id));
+                        setShowAddContactModal(false);
+                      }}
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                    >
+                      View Existing
+                    </button>
+                  </div>
+                </div>
+              ) : null}
 
               <label className="space-y-1 block">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Role / Title</span>
@@ -1158,6 +1433,196 @@ export default function BDRelationships({ onNavigate }: Props) {
                 className="rounded-2xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 disabled:opacity-60"
               >
                 {editSaving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showAddContactModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
+          <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-950">Add Contact</p>
+                <p className="mt-1 text-xs text-gray-500">Manual BD contact entry for relationship operations.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => !addSaving && setShowAddContactModal(false)}
+                className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+              {addError ? <div className="text-xs text-red-700">{addError}</div> : null}
+
+              <label className="space-y-1 block">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Company</span>
+                <input
+                  value={companySearch}
+                  onChange={(e) => {
+                    setCompanySearch(e.target.value);
+                    setCompanyPickerOpen(true);
+                    setNewContact({ ...newContact, company_id: '' });
+                    if (addFieldErrors.company_id) setAddFieldErrors((prev) => ({ ...prev, company_id: undefined }));
+                  }}
+                  onFocus={() => setCompanyPickerOpen(true)}
+                  placeholder="Search or type company name"
+                  className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                />
+                {companyPickerOpen ? (
+                  <div className="mt-2 max-h-40 overflow-y-auto rounded-xl border border-gray-200 bg-white">
+                    {companyOptions.map((company) => (
+                      <button
+                        key={company.id}
+                        type="button"
+                        onClick={() => {
+                          setNewContact({ ...newContact, company_id: String(company.id) });
+                          setCompanySearch(company.company_name);
+                          setCompanyPickerOpen(false);
+                        }}
+                        className="block w-full px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50"
+                      >
+                        {company.company_name}
+                      </button>
+                    ))}
+                    {companySearch.trim() && companyOptions.length === 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewContact({ ...newContact, company_id: NEW_COMPANY_SENTINEL });
+                          setCompanyPickerOpen(false);
+                        }}
+                        className="block w-full px-3 py-2 text-left text-sm font-medium text-slate-900 hover:bg-gray-50"
+                      >
+                        + Create "{companySearch.trim()}"
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+                {addFieldErrors.company_id ? <p className="text-xs text-red-600">{addFieldErrors.company_id}</p> : null}
+              </label>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Full Name</span>
+                  <input
+                    value={newContact.full_name}
+                    onChange={(e) => {
+                      setNewContact({ ...newContact, full_name: e.target.value });
+                      if (addFieldErrors.full_name) setAddFieldErrors((prev) => ({ ...prev, full_name: undefined }));
+                    }}
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  />
+                  {addFieldErrors.full_name ? <p className="text-xs text-red-600">{addFieldErrors.full_name}</p> : null}
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Status</span>
+                  <input
+                    value={newContact.relationship_status}
+                    onChange={(e) => setNewContact({ ...newContact, relationship_status: e.target.value })}
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+              </div>
+
+              <label className="space-y-1 block">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Role / Title</span>
+                <input
+                  value={newContact.job_title}
+                  onChange={(e) => setNewContact({ ...newContact, job_title: e.target.value })}
+                  className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                />
+              </label>
+
+              <label className="space-y-1 block">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">LinkedIn URL</span>
+                <input
+                  value={newContact.linkedin_url}
+                  onChange={(e) => setNewContact({ ...newContact, linkedin_url: e.target.value })}
+                  placeholder="https://www.linkedin.com/in/..."
+                  className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                />
+              </label>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Email</span>
+                  <input
+                    value={newContact.email}
+                    onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Direct Phone</span>
+                  <input
+                    value={newContact.phone}
+                    onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+              </div>
+
+              <label className="space-y-1 block">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Mobile Phone</span>
+                <input
+                  value={newContact.mobile_phone}
+                  onChange={(e) => setNewContact({ ...newContact, mobile_phone: e.target.value })}
+                  className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                />
+              </label>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Next Action</span>
+                  <input
+                    value={newContact.next_action}
+                    onChange={(e) => setNewContact({ ...newContact, next_action: e.target.value })}
+                    placeholder="e.g. Intro call follow-up"
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Next Action Date</span>
+                  <input
+                    type="date"
+                    value={newContact.next_action_date}
+                    onChange={(e) => setNewContact({ ...newContact, next_action_date: e.target.value })}
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+              </div>
+
+              <label className="space-y-1 block">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Notes</span>
+                <textarea
+                  value={newContact.notes}
+                  onChange={(e) => setNewContact({ ...newContact, notes: e.target.value })}
+                  rows={4}
+                  className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                />
+              </label>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-white px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setShowAddContactModal(false)}
+                className="rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={addContactManually}
+                disabled={addSaving}
+                className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:opacity-60"
+              >
+                {addSaving ? 'Adding...' : 'Add Contact'}
               </button>
             </div>
           </div>
