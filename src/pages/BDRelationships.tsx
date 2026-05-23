@@ -659,19 +659,27 @@ export default function BDRelationships({ onNavigate }: Props) {
             </div>
             <button
               type="button"
-              onClick={() => onNavigate('job-intake')}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50"
-            >
-              <Building2 size={16} />
-              Add Intake
-            </button>
-            <button
-              type="button"
               onClick={() => onNavigate('bd-photo-intake')}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
             >
               <Camera size={16} />
-              Import Legacy Contacts
+              Add Target Account
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate('bd-photo-intake')}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50"
+            >
+              <Users size={16} />
+              Add Contact
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate('bd-tasks')}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50"
+            >
+              <CalendarClock size={16} />
+              Log BD Activity
             </button>
           </div>
         }

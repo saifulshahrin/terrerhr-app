@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent } from 'react';
-import { MapPin, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type MouseEvent } from 'react';
+import { MapPin, Upload, X } from 'lucide-react';
 import {
   CANDIDATE_SOURCES,
   createCandidateFromIntake,
@@ -14,6 +14,7 @@ import {
   refineCandidateWithAI,
   shouldRefineCandidateWithAI,
 } from '../lib/candidateIntakeParser';
+import { supabase } from '../lib/supabase';
 import { useStore } from '../store/StoreContext';
 import type { Candidate, SubmissionStage } from '../store/types';
 
@@ -97,7 +98,7 @@ interface CandidateFormState {
   addAndShortlist: boolean;
 }
 
-type IntakeMode = 'linkedin' | 'resume';
+type IntakeMode = 'linkedin' | 'resume' | 'file';
 type SuggestionMode = 'rule' | 'ai';
 type JobOption = {
   id: string;
@@ -254,13 +255,16 @@ export default function Candidates({ sourcingContext }: Props) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [isSavingCandidate, setIsSavingCandidate] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [intakeMode, setIntakeMode] = useState<IntakeMode>('linkedin');
+  const [selectedResumeFile, setSelectedResumeFile] = useState<File | null>(null);
   const [suggestionMode, setSuggestionMode] = useState<SuggestionMode>('rule');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedJobId, setSelectedJobId] = useState<string>(sourcingContext?.jobId ?? '');
   const [suggestedFields, setSuggestedFields] = useState<Partial<Record<'name' | 'role' | 'skills' | 'location' | 'notes', boolean>>>({});
   const [touchedFields, setTouchedFields] = useState<Partial<Record<keyof CandidateFormState, boolean>>>({});
   const resumeParseTimeoutRef = useRef<number | null>(null);
+  const modalOverlayRef = useRef<HTMLDivElement | null>(null);
   const [candidateForm, setCandidateForm] = useState<CandidateFormState>(() =>
     DEFAULT_FORM_STATE(Boolean(sourcingContext?.jobId))
   );
@@ -430,6 +434,7 @@ export default function Candidates({ sourcingContext }: Props) {
       setSuggestedFields({});
       setTouchedFields({});
       setIntakeMode('linkedin');
+      setSelectedResumeFile(null);
       setSuggestionMode('rule');
       if (resumeParseTimeoutRef.current) {
         window.clearTimeout(resumeParseTimeoutRef.current);
@@ -445,6 +450,26 @@ export default function Candidates({ sourcingContext }: Props) {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!showAddModal) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isSavingCandidate) {
+        setShowAddModal(false);
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [showAddModal, isSavingCandidate]);
 
   const handleShortlistForJob = async (candidateId: string) => {
     if (!sourcingJobId) return;
@@ -497,11 +522,37 @@ export default function Candidates({ sourcingContext }: Props) {
   const openAddCandidateModal = () => {
     setCandidateForm(DEFAULT_FORM_STATE(Boolean(sourcingJobId)));
     setSaveError(null);
+    setSaveSuccess(null);
     setSuggestedFields({});
     setTouchedFields({});
     setIntakeMode('linkedin');
+    setSelectedResumeFile(null);
     setSuggestionMode('rule');
     setShowAddModal(true);
+  };
+
+  const sanitizeFileName = (fileName: string): string =>
+    fileName
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9.\-_]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '') || 'resume';
+
+  const uploadResumeFileForCandidate = async (file: File): Promise<string> => {
+    const resumePath = `internal-candidate-intake/${Date.now()}-${sanitizeFileName(file.name)}`;
+    const { error: uploadError } = await supabase.storage
+      .from('candidate-resumes')
+      .upload(resumePath, file, {
+        upsert: false,
+        cacheControl: '3600',
+      });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    return resumePath;
   };
 
   const handleSourceUrlChange = (value: string) => {
@@ -601,16 +652,38 @@ export default function Candidates({ sourcingContext }: Props) {
 
     setIsSavingCandidate(true);
     setSaveError(null);
+    setSaveSuccess(null);
 
     try {
+      let sourceUrl = candidateForm.sourceUrl;
+      let notes = candidateForm.notes;
+
+      if (intakeMode === 'file') {
+        if (!selectedResumeFile) {
+          setSaveError('Please select a resume file (PDF, DOC, or DOCX) before saving.');
+          setIsSavingCandidate(false);
+          return;
+        }
+
+        const uploadedResumePath = await uploadResumeFileForCandidate(selectedResumeFile);
+        sourceUrl = `storage:candidate-resumes/${uploadedResumePath}`;
+        notes = [
+          candidateForm.notes?.trim() || '',
+          `Resume file uploaded: ${selectedResumeFile.name}`,
+          'Resume file parsing is not automated yet. Candidate fields were manually reviewed.',
+        ]
+          .filter(Boolean)
+          .join('\n');
+      }
+
       const createdCandidate = await createCandidateFromIntake({
         name: candidateForm.name,
         role: candidateForm.role,
         source: candidateForm.source,
-        sourceUrl: candidateForm.sourceUrl,
+        sourceUrl,
         skillsText: candidateForm.skills,
         location: candidateForm.location,
-        notes: candidateForm.notes,
+        notes,
       });
 
       if (candidateForm.addAndShortlist && sourcingJobId) {
@@ -618,12 +691,20 @@ export default function Candidates({ sourcingContext }: Props) {
       }
 
       setCandidates(prev => [createdCandidate, ...prev.filter(candidate => candidate.id !== createdCandidate.id)]);
+      setSaveSuccess('Candidate saved successfully.');
       setShowAddModal(false);
     } catch (saveCandidateError) {
       console.error('[Candidates] createCandidateFromIntake error:', saveCandidateError);
-      setSaveError('Unable to add this candidate right now.');
+      setSaveError('Unable to add this candidate right now. Please check upload/network status and try again.');
     } finally {
       setIsSavingCandidate(false);
+    }
+  };
+
+  const handleModalOverlayClick = (event: MouseEvent<HTMLDivElement>) => {
+    if (isSavingCandidate) return;
+    if (event.target === modalOverlayRef.current) {
+      setShowAddModal(false);
     }
   };
 
@@ -730,6 +811,11 @@ export default function Candidates({ sourcingContext }: Props) {
           + Add Candidate
         </button>
       </div>
+      {saveSuccess && (
+        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          {saveSuccess}
+        </div>
+      )}
 
       {sourcingContext && (
         <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50 p-4">
@@ -979,8 +1065,12 @@ export default function Candidates({ sourcingContext }: Props) {
       )}
 
       {showAddModal && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-gray-900/35 p-4">
-          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl ring-1 ring-gray-200">
+        <div
+          ref={modalOverlayRef}
+          onClick={handleModalOverlayClick}
+          className="fixed inset-0 z-40 flex items-center justify-center bg-gray-900/35 p-4"
+        >
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-gray-200">
             <div className="flex items-start justify-between border-b border-gray-100 px-6 py-4">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">Add Candidate</h2>
@@ -989,7 +1079,10 @@ export default function Candidates({ sourcingContext }: Props) {
                 </p>
               </div>
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={() => {
+                  if (!isSavingCandidate) setShowAddModal(false);
+                }}
+                disabled={isSavingCandidate}
                 className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
                 aria-label="Close add candidate modal"
               >
@@ -997,11 +1090,12 @@ export default function Candidates({ sourcingContext }: Props) {
               </button>
             </div>
 
-            <form onSubmit={handleAddCandidate} className="px-6 py-5">
+            <form onSubmit={handleAddCandidate} className="overflow-y-auto px-6 py-5">
               <div className="mb-5 flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => setIntakeMode('linkedin')}
+                  disabled={isSavingCandidate}
                   className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
                     intakeMode === 'linkedin'
                       ? 'bg-blue-600 text-white'
@@ -1016,9 +1110,10 @@ export default function Candidates({ sourcingContext }: Props) {
                     setIntakeMode('resume');
                     setCandidateForm(prev => ({
                       ...prev,
-                      source: prev.source === 'Other' ? 'Other' : prev.source,
+                        source: prev.source === 'Other' ? 'Other' : prev.source,
                     }));
                   }}
+                  disabled={isSavingCandidate}
                   className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
                     intakeMode === 'resume'
                       ? 'bg-blue-600 text-white'
@@ -1026,6 +1121,21 @@ export default function Candidates({ sourcingContext }: Props) {
                   }`}
                 >
                   Paste Resume Text
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIntakeMode('file');
+                    setCandidateForm(prev => ({ ...prev, source: 'Other' }));
+                  }}
+                  disabled={isSavingCandidate}
+                  className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                    intakeMode === 'file'
+                      ? 'bg-blue-600 text-white'
+                      : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  Upload Resume File
                 </button>
               </div>
 
@@ -1040,7 +1150,7 @@ export default function Candidates({ sourcingContext }: Props) {
                     placeholder="Paste LinkedIn, GitHub, JobStreet, or other source URL"
                   />
                 </label>
-              ) : (
+              ) : intakeMode === 'resume' ? (
                 <label className="mb-4 block">
                   <span className="mb-1.5 block text-sm font-medium text-gray-700">
                     Paste resume or profile text
@@ -1054,6 +1164,38 @@ export default function Candidates({ sourcingContext }: Props) {
                     placeholder="Paste resume summary, profile excerpt, or candidate notes"
                   />
                 </label>
+              ) : (
+                <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-3 py-3">
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm font-medium text-gray-700">Upload resume file</span>
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      disabled={isSavingCandidate}
+                      onChange={event => {
+                        const file = event.target.files?.[0] ?? null;
+                        setSelectedResumeFile(file);
+                        if (file && !candidateForm.name.trim()) {
+                          const inferredName = file.name.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ').trim();
+                          if (inferredName) {
+                            setCandidateForm(prev => ({ ...prev, name: inferredName }));
+                          }
+                        }
+                      }}
+                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    />
+                  </label>
+                  <p className="mt-2 text-xs text-gray-500">Supported formats: PDF, DOC, DOCX</p>
+                  {selectedResumeFile && (
+                    <p className="mt-2 inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">
+                      <Upload size={12} />
+                      {selectedResumeFile.name}
+                    </p>
+                  )}
+                  <p className="mt-2 text-xs text-amber-700">
+                    File extraction/parsing is not automated in this flow yet. Please confirm fields manually before saving.
+                  </p>
+                </div>
               )}
 
               {intakeMode === 'resume' && (
@@ -1198,9 +1340,13 @@ export default function Candidates({ sourcingContext }: Props) {
               )}
 
               <div className="mt-5 flex items-center justify-end gap-3">
+                {isSavingCandidate && (
+                  <p className="mr-auto text-sm font-medium text-blue-700">Saving candidate...</p>
+                )}
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
+                  disabled={isSavingCandidate}
                   className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
                 >
                   Cancel
@@ -1212,7 +1358,7 @@ export default function Candidates({ sourcingContext }: Props) {
                     isSavingCandidate ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
                   }`}
                 >
-                  {isSavingCandidate ? 'Saving...' : 'Add Candidate'}
+                  {isSavingCandidate ? 'Saving candidate...' : 'Add Candidate'}
                 </button>
               </div>
             </form>
