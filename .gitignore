@@ -21,6 +21,7 @@ dist-ssr
 *.sln
 *.sw?
 .env
+.env.txt
 
 # Local Supabase state and scratch backfill artifacts
 supabase/.temp/
