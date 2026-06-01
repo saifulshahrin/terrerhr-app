@@ -15,6 +15,7 @@ import {
   shouldRefineCandidateWithAI,
 } from '../lib/candidateIntakeParser';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../store/AuthContext';
 import { useStore } from '../store/StoreContext';
 import type { Candidate, SubmissionStage } from '../store/types';
 
@@ -135,6 +136,23 @@ type PipelineEntry = {
   stage: 'identified';
 };
 
+type CandidateStructuredRow = {
+  candidate_id: string;
+  current_role: string | null;
+  target_role: string | null;
+  years_experience: number | null;
+  location_preference: string | null;
+  notice_period: string | null;
+  salary_expectation_min: number | null;
+  salary_expectation_max: number | null;
+  salary_expectation_currency: string | null;
+  key_skills: string[] | null;
+  candidate_consent_given: boolean | null;
+  representation_opt_in: boolean | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 const MOCK_JOB_OPTIONS: JobOption[] = [
   { id: 'mock-backend', label: 'Backend Engineer - Terrer (Kuala Lumpur)', role: 'Software Engineer' },
   { id: 'mock-frontend', label: 'Frontend Engineer - Fintech Co (Hybrid)', role: 'Frontend' },
@@ -247,6 +265,7 @@ const DEFAULT_FORM_STATE = (hasJobContext: boolean): CandidateFormState => ({
 
 export default function Candidates({ sourcingContext }: Props) {
   const { getStage, shortlist } = useStore();
+  const { role } = useAuth();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('All');
   const [shortlisting, setShortlisting] = useState<Record<string, boolean>>({});
@@ -270,6 +289,7 @@ export default function Candidates({ sourcingContext }: Props) {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [structuredMap, setStructuredMap] = useState<Map<string, CandidateStructuredRow>>(new Map());
 
   useEffect(() => {
     let active = true;
@@ -450,6 +470,47 @@ export default function Candidates({ sourcingContext }: Props) {
       }
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadStructuredProfiles() {
+      if (candidates.length === 0) {
+        setStructuredMap(new Map());
+        return;
+      }
+
+      const ids = [...new Set(candidates.map(candidate => candidate.id).filter(Boolean))];
+      if (ids.length === 0) return;
+
+      try {
+        const { data, error: structuredError } = await supabase
+          .from('candidates')
+          .select(
+            'candidate_id,current_role,target_role,years_experience,location_preference,notice_period,salary_expectation_min,salary_expectation_max,salary_expectation_currency,key_skills,candidate_consent_given,representation_opt_in,created_at,updated_at'
+          )
+          .in('candidate_id', ids);
+
+        if (structuredError) throw structuredError;
+        if (!active) return;
+
+        const next = new Map<string, CandidateStructuredRow>();
+        ((data ?? []) as CandidateStructuredRow[]).forEach(row => {
+          if (row?.candidate_id) next.set(row.candidate_id, row);
+        });
+        setStructuredMap(next);
+      } catch (structuredLoadError) {
+        console.warn('[Candidates] structured profile fetch unavailable:', structuredLoadError);
+        if (!active) return;
+        setStructuredMap(new Map());
+      }
+    }
+
+    void loadStructuredProfiles();
+    return () => {
+      active = false;
+    };
+  }, [candidates]);
 
   useEffect(() => {
     if (!showAddModal) return;
@@ -804,12 +865,23 @@ export default function Candidates({ sourcingContext }: Props) {
             {filteredCandidates.length} of {candidates.length} candidates shown
           </p>
         </div>
-        <button
-          onClick={openAddCandidateModal}
-          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-        >
-          + Add Candidate
-        </button>
+        <div className="flex items-center gap-2">
+          {role === 'admin' ? (
+            <button
+              type="button"
+              onClick={() => window.location.assign('/admin-resume-import')}
+              className="px-3 py-2 border border-gray-200 bg-white text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Admin Resume Import
+            </button>
+          ) : null}
+          <button
+            onClick={openAddCandidateModal}
+            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+          >
+            + Add Candidate
+          </button>
+        </div>
       </div>
       {saveSuccess && (
         <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
@@ -949,8 +1021,8 @@ export default function Candidates({ sourcingContext }: Props) {
                     <thead className="bg-gray-50/80">
                       <tr className="text-left">
                         <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Candidate</th>
-                        <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Location</th>
-                        <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Skills</th>
+                        <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Structured Profile</th>
+                        <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Skills / Consent</th>
                         <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
                           <div>
                             <p>{selectedJobRequirement ? 'Job Fit' : 'Candidate Score'}</p>
@@ -966,12 +1038,35 @@ export default function Candidates({ sourcingContext }: Props) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {candidateRows.map((row, index) => {
+                      {candidateRows
+                        .filter((row): row is CandidateRowView => Boolean(row?.candidate))
+                        .map((row, index) => {
                         const { candidate, stage, jobFit, cardMessage } = row;
+                        const structured = structuredMap.get(candidate.id);
                         const stageMeta = stageConfig[stage];
                         const fitSummary = jobFit
                           ? `${jobFit.score}% · ${jobFit.label}`
                           : `Score ${candidate.score}`;
+                        const structuredLocation = structured?.location_preference || candidate.location || 'N/A';
+                        const yearsExpLabel =
+                          structured?.years_experience !== null && structured?.years_experience !== undefined
+                            ? `${structured.years_experience} yrs`
+                            : 'N/A';
+                        const salaryMin = structured?.salary_expectation_min;
+                        const salaryMax = structured?.salary_expectation_max;
+                        const salaryCurrency = structured?.salary_expectation_currency ?? 'MYR';
+                        const salaryLabel =
+                          salaryMin != null || salaryMax != null
+                            ? `${salaryCurrency} ${salaryMin ?? '?'} - ${salaryMax ?? '?'}`
+                            : 'N/A';
+                        const skillsToShow = (structured?.key_skills && structured.key_skills.length > 0 ? structured.key_skills : candidate.skills).slice(0, 4);
+                        const consentLabel =
+                          structured?.representation_opt_in === true || structured?.candidate_consent_given === true
+                            ? 'Opt-in'
+                            : structured?.representation_opt_in === false || structured?.candidate_consent_given === false
+                              ? 'No opt-in'
+                              : 'Unknown';
+                        const lastActivity = structured?.updated_at || structured?.created_at || null;
 
                         return (
                           <tr key={candidate.id} className="align-top hover:bg-gray-50/70">
@@ -989,15 +1084,23 @@ export default function Candidates({ sourcingContext }: Props) {
                                 </div>
                               </div>
                             </td>
-                            <td className="px-5 py-4 text-sm text-gray-600">
-                              <div className="flex items-center gap-1.5">
-                                <MapPin size={12} className="text-gray-300" />
-                                <span>{candidate.location}</span>
+                            <td className="px-5 py-4 text-xs text-gray-600">
+                              <div className="space-y-1.5">
+                                <p><span className="font-semibold text-gray-700">Current:</span> {structured?.current_role || candidate.role || 'N/A'}</p>
+                                <p><span className="font-semibold text-gray-700">Target:</span> {structured?.target_role || 'N/A'}</p>
+                                <p><span className="font-semibold text-gray-700">Experience:</span> {yearsExpLabel}</p>
+                                <p className="flex items-center gap-1.5">
+                                  <MapPin size={12} className="text-gray-300" />
+                                  <span>{structuredLocation}</span>
+                                </p>
+                                <p><span className="font-semibold text-gray-700">Notice:</span> {structured?.notice_period || 'N/A'}</p>
+                                <p><span className="font-semibold text-gray-700">Salary:</span> {salaryLabel}</p>
+                                <p><span className="font-semibold text-gray-700">Last activity:</span> {lastActivity ? lastActivity.slice(0, 10) : 'N/A'}</p>
                               </div>
                             </td>
                             <td className="px-5 py-4">
                               <div className="flex max-w-xs flex-wrap gap-1.5">
-                                {candidate.skills.slice(0, 4).map(skill => (
+                                {skillsToShow.map(skill => (
                                   <span
                                     key={skill}
                                     className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-600"
@@ -1006,6 +1109,9 @@ export default function Candidates({ sourcingContext }: Props) {
                                   </span>
                                 ))}
                               </div>
+                              <p className="mt-2 text-xs text-gray-500">
+                                Representation consent: <span className="font-medium text-gray-700">{consentLabel}</span>
+                              </p>
                             </td>
                             <td className="px-5 py-4">
                               <div className="space-y-1">

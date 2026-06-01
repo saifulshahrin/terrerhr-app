@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { fetchCandidatesByIds } from '../lib/candidates';
 import { getJobById } from '../lib/jobs';
 import type { Candidate, SubmissionStage } from '../store/types';
+import { useAuth } from '../store/AuthContext';
 
 type SubmissionRow = {
   id: string;
@@ -19,6 +20,13 @@ type CandidateDetailsRow = {
   phone?: string | null;
   linkedin_url?: string | null;
   github_url?: string | null;
+  resume_url?: string | null;
+  resume_file_path?: string | null;
+  source_type?: string | null;
+  profile_capture_mode?: string | null;
+  profile_completeness_status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 interface Props {
@@ -40,9 +48,12 @@ const STAGE_LABEL: Partial<Record<SubmissionStage, string>> = {
 };
 
 export default function CandidateProfile({ candidateId, jobId, onNavigate }: Props) {
+  const { role } = useAuth();
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [candidateDetails, setCandidateDetails] = useState<CandidateDetailsRow | null>(null);
   const [submission, setSubmission] = useState<SubmissionRow | null>(null);
+  const [resumeHref, setResumeHref] = useState<string | null>(null);
+  const [resumeFileName, setResumeFileName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,7 +90,7 @@ export default function CandidateProfile({ candidateId, jobId, onNavigate }: Pro
         try {
           const { data, error: detailsError } = await supabase
             .from('candidates')
-            .select('candidate_id,email,phone,linkedin_url,github_url')
+            .select('candidate_id,email,phone,linkedin_url,github_url,resume_url,resume_file_path,source_type,profile_capture_mode,profile_completeness_status,created_at,updated_at')
             .eq('candidate_id', candidateId)
             .maybeSingle();
 
@@ -126,8 +137,76 @@ export default function CandidateProfile({ candidateId, jobId, onNavigate }: Pro
     };
   }, [candidateId, jobId]);
 
+  useEffect(() => {
+    let active = true;
+
+    async function resolveResumeLink() {
+      setResumeHref(null);
+      setResumeFileName(null);
+      if (!candidateId) return;
+
+      let rawPath: string | null = candidateDetails?.resume_file_path ?? null;
+      let rawUrl: string | null = candidateDetails?.resume_url ?? null;
+
+      try {
+        const { data: sourceProfiles } = await supabase
+          .from('source_profiles')
+          .select('source_profile_url,source_name,scraped_at')
+          .eq('candidate_id', candidateId)
+          .order('scraped_at', { ascending: false })
+          .limit(5);
+
+        if (!rawUrl) {
+          const sourceUrl = (sourceProfiles ?? [])
+            .map((row: any) => (row?.source_profile_url as string | null) ?? null)
+            .find((value: string | null) => typeof value === 'string' && value.startsWith('storage:candidate-resumes/'));
+          rawUrl = sourceUrl ?? rawUrl;
+        }
+      } catch {
+        // Best-effort only.
+      }
+
+      const resumeValue = rawPath || rawUrl;
+      if (!resumeValue) return;
+
+      if (resumeValue.startsWith('storage:candidate-resumes/')) {
+        const path = resumeValue.replace('storage:candidate-resumes/', '');
+        if (!path) return;
+        setResumeFileName(path.split('/').pop() ?? path);
+
+        try {
+          const { data: signed, error: signedError } = await supabase.storage
+            .from('candidate-resumes')
+            .createSignedUrl(path, 3600);
+
+          if (!active) return;
+          if (!signedError && signed?.signedUrl) {
+            setResumeHref(signed.signedUrl);
+            return;
+          }
+        } catch {
+          // fallback below
+        }
+
+        const { data: publicData } = supabase.storage.from('candidate-resumes').getPublicUrl(path);
+        if (!active) return;
+        setResumeHref(publicData?.publicUrl ?? null);
+        return;
+      }
+
+      setResumeFileName(resumeValue.split('/').pop() ?? 'Resume');
+      setResumeHref(resumeValue);
+    }
+
+    void resolveResumeLink();
+    return () => {
+      active = false;
+    };
+  }, [candidateDetails, candidateId]);
+
   const contactEmail = candidate?.email ?? candidateDetails?.email ?? null;
   const contactPhone = candidate?.phone ?? candidateDetails?.phone ?? null;
+  const canViewResume = role === 'admin' || role === 'recruiter';
 
   return (
     <div className="max-w-5xl">
@@ -202,6 +281,29 @@ export default function CandidateProfile({ candidateId, jobId, onNavigate }: Pro
                 <p className="text-sm text-gray-500">No skills captured yet.</p>
               )}
             </div>
+          </div>
+
+          <div className="mt-5 rounded-xl border border-slate-200 bg-white/80 px-3 py-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Resume Evidence</p>
+            {!canViewResume ? (
+              <p className="mt-2 text-sm text-slate-500">Resume access is restricted for this role.</p>
+            ) : resumeHref ? (
+              <div className="mt-2 space-y-2 text-sm text-slate-700">
+                <p><span className="font-medium">File:</span> {resumeFileName ?? 'Resume file'}</p>
+                <p><span className="font-medium">Source:</span> {candidateDetails?.source_type ?? candidateDetails?.profile_capture_mode ?? 'Unknown source'}</p>
+                <p><span className="font-medium">Parse status:</span> {candidateDetails?.profile_completeness_status ?? 'Unknown'}</p>
+                <a
+                  href={resumeHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  View Resume
+                </a>
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-slate-500">No resume file attached yet.</p>
+            )}
           </div>
         </section>
 

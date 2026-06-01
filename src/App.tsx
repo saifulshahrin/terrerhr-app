@@ -9,6 +9,7 @@ import Jobs from './pages/Jobs';
 import ActiveJobs from './pages/ActiveJobs';
 import HiringIntelligence from './pages/HiringIntelligence';
 import Candidates from './pages/Candidates';
+import AdminResumeImport from './pages/AdminResumeImport';
 import Pipeline from './pages/Pipeline';
 import TopMatches from './pages/TopMatches';
 import JobIntake from './pages/JobIntake';
@@ -26,6 +27,7 @@ type Page =
   | 'active-jobs'
   | 'hiring-intelligence'
   | 'candidates'
+  | 'admin-resume-import'
   | 'pipeline'
   | 'top-matches'
   | 'candidate-profile'
@@ -56,6 +58,7 @@ const PAGE_TO_PATH: Record<Page, string> = {
   'active-jobs': '/active-jobs',
   'hiring-intelligence': '/hiring-intelligence',
   candidates: '/candidates',
+  'admin-resume-import': '/admin-resume-import',
   pipeline: '/pipeline',
   'top-matches': '/top-matches',
   'candidate-profile': '/candidate-profile',
@@ -164,6 +167,14 @@ function AppShell() {
       case 'active-jobs': return <ActiveJobs onViewTopMatches={(id) => navigate('top-matches', id)} />;
       case 'hiring-intelligence': return <HiringIntelligence onViewTopMatches={(id) => navigate('top-matches', id)} />;
       case 'candidates':  return <Candidates sourcingContext={sourcingContext} />;
+      case 'admin-resume-import':
+        return role === 'admin' ? <AdminResumeImport /> : (
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Restricted</p>
+            <h1 className="mt-2 text-xl font-semibold text-slate-950">Admin Resume Import</h1>
+            <p className="mt-2 text-sm text-slate-600">Only admin users can access this page.</p>
+          </div>
+        );
       case 'pipeline':    return <Pipeline />;
       case 'top-matches': return <TopMatches jobId={jobId} onNavigate={navigate} />;
       case 'candidate-profile': return <CandidateProfile candidateId={candidateId} jobId={jobId} onNavigate={navigate} />;

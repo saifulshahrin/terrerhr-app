@@ -11,6 +11,7 @@ import {
   Shield,
   Sparkles,
   Star,
+  UploadCloud,
   Users,
 } from 'lucide-react';
 import { useRole, type AppRole } from '../store/RoleContext';
@@ -21,6 +22,7 @@ type AppPage =
   | 'active-jobs'
   | 'hiring-intelligence'
   | 'candidates'
+  | 'admin-resume-import'
   | 'pipeline'
   | 'top-matches'
   | 'job-intake'
@@ -102,6 +104,7 @@ const ROLE_NAV: Record<AppRole, NavSection[]> = {
         { label: 'Dashboard', icon: LayoutDashboard, targetPage: 'dashboard' },
         { label: 'Jobs', icon: Briefcase, targetPage: 'jobs' },
         { label: 'Candidates', icon: Users, targetPage: 'candidates' },
+        { label: 'Admin Resume Import', icon: UploadCloud, targetPage: 'admin-resume-import' },
         { label: 'Pipeline', icon: GitBranch, targetPage: 'pipeline' },
         { label: 'Top Matches / AI Review', icon: Star, targetPage: 'top-matches' },
         { label: 'Job Intake', icon: ClipboardList, targetPage: 'job-intake' },
