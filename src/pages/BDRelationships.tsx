@@ -53,7 +53,9 @@ interface DuplicateMatch {
 type EditableContact = Pick<
   ContactRow,
   'id' | 'full_name' | 'job_title' | 'email' | 'phone' | 'mobile_phone' | 'relationship_status' | 'notes'
->;
+> & {
+  hiddenMigrationNotes?: string;
+};
 
 type UiContactStatus = 'new' | 'contacted' | 'responded' | 'opportunity';
 
@@ -64,6 +66,64 @@ interface UiContactActionState {
 
 function normalize(value: string | null | undefined) {
   return (value ?? '').trim().toLowerCase();
+}
+
+function isLikelyMigrationJsonBlob(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return false;
+  const lower = trimmed.toLowerCase();
+  return (
+    lower.includes('source_batch') ||
+    lower.includes('source_image') ||
+    lower.includes('bullhorn_contact_id') ||
+    lower.includes('raw_row') ||
+    lower.includes('extraction_confidence') ||
+    lower.includes('hallucination_risk')
+  );
+}
+
+function isInternalMigrationLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+  const lower = trimmed.toLowerCase();
+
+  if (isLikelyMigrationJsonBlob(trimmed)) return true;
+
+  return (
+    lower.startsWith('bullhorn metadata:') ||
+    lower.startsWith('bullhorn secondary email:') ||
+    lower.startsWith('bullhorn company_main_phone:') ||
+    lower.startsWith('bullhorn address:') ||
+    lower.includes('"source_batch"') ||
+    lower.includes('"source_image"') ||
+    lower.includes('"bullhorn_contact_id"') ||
+    lower.includes('"raw_row"') ||
+    lower.includes('"extraction_confidence"') ||
+    lower.includes('"hallucination_risk"')
+  );
+}
+
+function splitNotesForDisplay(notes: string | null | undefined): { display: string; hidden: string } {
+  const raw = (notes ?? '').trim();
+  if (!raw) return { display: '', hidden: '' };
+  if (isLikelyMigrationJsonBlob(raw)) return { display: '', hidden: raw };
+
+  const lines = raw.split(/\r?\n/);
+  const displayLines: string[] = [];
+  const hiddenLines: string[] = [];
+
+  for (const line of lines) {
+    if (isInternalMigrationLine(line)) {
+      hiddenLines.push(line);
+    } else {
+      displayLines.push(line);
+    }
+  }
+
+  return {
+    display: displayLines.join('\n').trim(),
+    hidden: hiddenLines.join('\n').trim(),
+  };
 }
 
 function normalizePhone(value: string | null | undefined) {
@@ -88,6 +148,8 @@ function formatCompanySourceLabel(sourceType: string | null | undefined): string
 }
 
 type AccountPriority = 'High Opportunity' | 'Medium Opportunity' | 'Watchlist';
+type HiringSignalStrength = 'High' | 'Medium' | 'Low' | 'None';
+type BdPriorityLevel = 'High Priority' | 'Medium Priority' | 'Low Priority';
 
 function normalizeCompanyKey(value: string | null | undefined): string {
   return normalize(value)
@@ -160,14 +222,31 @@ function priorityTone(priority: AccountPriority) {
 
 interface CompanyIntel {
   priority: AccountPriority;
+  hiringSignal: HiringSignalStrength;
+  bdPriority: BdPriorityLevel;
   why: string[];
   signals: Array<{ label: string; tone: Parameters<typeof Badge>[0]['tone'] }>;
   suggestedAction: string;
   openRolesSnapshot: Array<{ label: string; count: number }>;
   marketJobs: number;
   operationalJobs: number;
+  activeJobs: number;
+  lastHiringActivityDate: string | null;
   lastActivityLabel: string;
   followUpLabel: string;
+}
+
+function hiringSignalTone(signal: HiringSignalStrength): Parameters<typeof Badge>[0]['tone'] {
+  if (signal === 'High') return 'emerald';
+  if (signal === 'Medium') return 'amber';
+  if (signal === 'Low') return 'slate';
+  return 'slate';
+}
+
+function bdPriorityTone(priority: BdPriorityLevel): Parameters<typeof Badge>[0]['tone'] {
+  if (priority === 'High Priority') return 'emerald';
+  if (priority === 'Medium Priority') return 'amber';
+  return 'slate';
 }
 
 function computeCompanyIntel({
@@ -183,9 +262,15 @@ function computeCompanyIntel({
 
   const marketJobs = companyJobs.filter((job) => job.source !== 'manual_intake').length;
   const operationalJobs = companyJobs.filter((job) => job.source === 'manual_intake').length;
+  const activeJobs = companyJobs.filter((job) => normalize(job.operational_status) === 'active').length;
   const malaysiaMarketJobs = companyJobs.filter(
     (job) => job.source !== 'manual_intake' && isMalaysiaLocation(job.location)
   ).length;
+  const lastHiringActivityIso = companyJobs
+    .map((job) => job.updated_at)
+    .filter(Boolean)
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
+  const lastHiringActivityDate = lastHiringActivityIso ? lastHiringActivityIso.slice(0, 10) : null;
 
   const roleCounts = new Map<string, number>();
   const familyCounts = new Map<string, number>();
@@ -271,6 +356,25 @@ function computeCompanyIntel({
 
   const priority = priorityFromScore(score);
 
+  let hiringSignal: HiringSignalStrength = 'None';
+  if (marketJobs >= 5 || recentMarketJobs >= 3 || activeJobs >= 8) {
+    hiringSignal = 'High';
+  } else if (marketJobs >= 2 || activeJobs >= 4 || recentMarketJobs >= 1) {
+    hiringSignal = 'Medium';
+  } else if (marketJobs >= 1 || operationalJobs >= 1 || activeJobs >= 1) {
+    hiringSignal = 'Low';
+  }
+
+  const hasContacts = companyContacts.length > 0;
+  let bdPriority: BdPriorityLevel = 'Low Priority';
+  if (hiringSignal === 'High' && hasContacts) {
+    bdPriority = 'High Priority';
+  } else if (hiringSignal === 'High' && !hasContacts) {
+    bdPriority = 'Medium Priority';
+  } else if (hiringSignal === 'Medium' && hasContacts) {
+    bdPriority = 'Medium Priority';
+  }
+
   const why: string[] = [];
   if (marketJobs > 0) {
     if (malaysiaMarketJobs > 0) {
@@ -308,12 +412,16 @@ function computeCompanyIntel({
 
   return {
     priority,
+    hiringSignal,
+    bdPriority,
     why,
     signals: signals.slice(0, 6),
     suggestedAction,
     openRolesSnapshot: topRoles,
     marketJobs,
     operationalJobs,
+    activeJobs,
+    lastHiringActivityDate,
     lastActivityLabel,
     followUpLabel,
   };
@@ -507,6 +615,47 @@ export default function BDRelationships({ onNavigate }: Props) {
   const relationshipCompanies = useMemo(() => {
     return companies.filter((company) => (contactsByCompanyId.get(company.id) ?? []).length > 0);
   }, [companies, contactsByCompanyId]);
+
+  const companiesToContact = useMemo(() => {
+    const signalRank: Record<HiringSignalStrength, number> = {
+      High: 4,
+      Medium: 3,
+      Low: 2,
+      None: 1,
+    };
+
+    const ranked = companies.map((company) => {
+      const companyContacts = contactsByCompanyId.get(company.id) ?? [];
+      const key = normalizeCompanyKey(company.company_name);
+      const companyJobs = key ? jobsByCompanyKey.get(key) ?? [] : [];
+      const intel = computeCompanyIntel({ company, companyContacts, companyJobs });
+      const latestContacted = companyContacts
+        .map((c) => c.last_contacted_at ?? c.updated_at ?? null)
+        .filter((d): d is string => Boolean(d))
+        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
+
+      return {
+        company,
+        intel,
+        contactsCount: companyContacts.length,
+        latestContacted,
+      };
+    });
+
+    ranked.sort((a, b) => {
+      const signalDiff = signalRank[b.intel.hiringSignal] - signalRank[a.intel.hiringSignal];
+      if (signalDiff !== 0) return signalDiff;
+
+      const contactsDiff = b.contactsCount - a.contactsCount;
+      if (contactsDiff !== 0) return contactsDiff;
+
+      const aTime = a.latestContacted ? new Date(a.latestContacted).getTime() : 0;
+      const bTime = b.latestContacted ? new Date(b.latestContacted).getTime() : 0;
+      return aTime - bTime;
+    });
+
+    return ranked.slice(0, 10);
+  }, [companies, contactsByCompanyId, jobsByCompanyKey]);
 
   const relationshipCompaniesCount = relationshipCompanies.length;
   const contactsCount = contacts.length;
@@ -714,6 +863,11 @@ export default function BDRelationships({ onNavigate }: Props) {
     setEditError(null);
 
     try {
+      const mergedNotes = [editingContact.notes?.trim() || '', editingContact.hiddenMigrationNotes?.trim() || '']
+        .filter(Boolean)
+        .join('\n\n')
+        .trim();
+
       const payload = {
         full_name: editingContact.full_name?.trim() || null,
         job_title: editingContact.job_title?.trim() || null,
@@ -721,7 +875,7 @@ export default function BDRelationships({ onNavigate }: Props) {
         phone: editingContact.phone?.trim() || null,
         mobile_phone: editingContact.mobile_phone?.trim() || null,
         relationship_status: editingContact.relationship_status?.trim() || null,
-        notes: editingContact.notes?.trim() || null,
+        notes: mergedNotes || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -910,6 +1064,41 @@ export default function BDRelationships({ onNavigate }: Props) {
 
       <Panel padded={false} className="overflow-hidden">
         <SectionHeader
+          title="Companies To Contact"
+          description="Top 10 ranked by hiring signal, relationship coverage, and recency of contact."
+          icon={<Phone size={16} />}
+        />
+        <div className="divide-y divide-slate-100">
+          {companiesToContact.length === 0 ? (
+            <div className="px-4 py-4 text-sm text-slate-500">No ranked companies available yet.</div>
+          ) : (
+            companiesToContact.map((item) => (
+              <button
+                key={item.company.id}
+                type="button"
+                onClick={() => setExpandedCompanyId(String(item.company.id))}
+                className="w-full px-4 py-3 text-left transition hover:bg-slate-50/70"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-950">{item.company.company_name}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {item.intel.activeJobs} active jobs · {item.contactsCount} contacts
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    <Badge tone={hiringSignalTone(item.intel.hiringSignal)}>Hiring Signal: {item.intel.hiringSignal}</Badge>
+                    <Badge tone={bdPriorityTone(item.intel.bdPriority)}>{item.intel.bdPriority}</Badge>
+                  </div>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </Panel>
+
+      <Panel padded={false} className="overflow-hidden">
+        <SectionHeader
           title="Action Queue"
           description="Contacts with follow-ups due today or earlier."
           icon={<CalendarClock size={16} />}
@@ -1023,6 +1212,8 @@ export default function BDRelationships({ onNavigate }: Props) {
                     </div>
 
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <Badge tone={hiringSignalTone(intel.hiringSignal)}>Hiring Signal: {intel.hiringSignal}</Badge>
+                      <Badge tone={bdPriorityTone(intel.bdPriority)}>{intel.bdPriority}</Badge>
                       {company.company_status ? <Badge tone="teal">{company.company_status}</Badge> : null}
                       <Badge tone="slate">{formatCompanySourceLabel(company.source_type)}</Badge>
                       {intel.signals.slice(0, 4).map((signal) => (
@@ -1046,9 +1237,14 @@ export default function BDRelationships({ onNavigate }: Props) {
                       {jobsIntelError ? (
                         <p className="text-slate-500">Job signals unavailable - showing contact activity only.</p>
                       ) : (
-                        <p className="text-slate-500">
-                          {intel.marketJobs} market jobs - {intel.operationalJobs} operational
-                        </p>
+                        <>
+                          <p className="text-slate-500">
+                            Active Jobs: {intel.activeJobs} · {intel.marketJobs} market · {intel.operationalJobs} operational
+                          </p>
+                          <p className="text-slate-500">
+                            Last Hiring Activity: {intel.lastHiringActivityDate ?? 'No hiring activity captured'}
+                          </p>
+                        </>
                       )}
                       <p>
                         <span className="font-semibold text-slate-700">Why this account matters:</span>{' '}
@@ -1147,7 +1343,9 @@ export default function BDRelationships({ onNavigate }: Props) {
             <div className="px-4 pb-4 text-sm text-slate-500">No contacts found for this account yet.</div>
           ) : (
             <div className="divide-y divide-slate-100">
-              {expandedContacts.map((contact) => (
+              {expandedContacts.map((contact) => {
+                const splitNotes = splitNotesForDisplay(contact.notes);
+                return (
                 <div key={contact.id} className="px-4 py-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -1170,7 +1368,8 @@ export default function BDRelationships({ onNavigate }: Props) {
                           phone: contact.phone,
                           mobile_phone: contact.mobile_phone,
                           relationship_status: contact.relationship_status,
-                          notes: contact.notes,
+                          notes: splitNotes.display,
+                          hiddenMigrationNotes: splitNotes.hidden,
                         })
                       }
                       className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
@@ -1188,9 +1387,9 @@ export default function BDRelationships({ onNavigate }: Props) {
                     </Badge>
                   </div>
 
-                  {contact.notes ? (
+                  {splitNotes.display ? (
                     <p className="mt-2 line-clamp-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-600">
-                      {contact.notes}
+                      {splitNotes.display}
                     </p>
                   ) : null}
 
@@ -1243,7 +1442,8 @@ export default function BDRelationships({ onNavigate }: Props) {
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           )}
         </Panel>

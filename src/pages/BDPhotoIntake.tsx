@@ -105,6 +105,48 @@ function isEmptyField(value: unknown) {
   return value === null || value === undefined || String(value).trim() === '';
 }
 
+type SaveOp =
+  | 'company_lookup'
+  | 'company_insert'
+  | 'contact_lookup'
+  | 'contact_insert'
+  | 'contact_update'
+  | 'storage_upload';
+
+class SaveOperationError extends Error {
+  operation: SaveOp;
+  causeError: unknown;
+
+  constructor(operation: SaveOp, message: string, causeError: unknown) {
+    super(message);
+    this.operation = operation;
+    this.causeError = causeError;
+  }
+}
+
+function toRecruiterSaveError(err: unknown): string {
+  if (err instanceof SaveOperationError) {
+    if (err.operation === 'company_lookup') return 'Unable to look up existing company records.';
+    if (err.operation === 'company_insert') return 'Unable to create company record.';
+    if (err.operation === 'contact_lookup') return 'Unable to look up existing contact records.';
+    if (err.operation === 'contact_insert') return 'Unable to create contact record.';
+    if (err.operation === 'contact_update') return 'Unable to update contact record.';
+    if (err.operation === 'storage_upload') return 'Storage upload failed.';
+  }
+
+  const message = err instanceof Error ? err.message : String(err ?? '');
+  const lowered = message.toLowerCase();
+  if (
+    lowered.includes('not authenticated') ||
+    lowered.includes('jwt') ||
+    lowered.includes('row-level security') ||
+    lowered.includes('permission denied')
+  ) {
+    return 'Authentication required to save relationship data.';
+  }
+  return err instanceof Error ? err.message : 'Save failed';
+}
+
 function mergeIfEmpty(existing: ContactRow, draft: BdPhotoExtractedFields, companyId: number | null) {
   const next: Partial<ContactRow> = {};
   if (companyId && !existing.company_id) next.company_id = companyId;
@@ -193,7 +235,7 @@ async function findContactsBySignals({
 }
 
 export default function BDPhotoIntake() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [items, setItems] = useState<PhotoItem[]>([]);
   const itemsRef = useRef<PhotoItem[]>([]);
@@ -421,35 +463,49 @@ export default function BDPhotoIntake() {
       }
 
       // 1) Company: find best match by normalized key, otherwise create.
-      const companyMatches = await findCompaniesByName(companyName);
+      let companyMatches: CompanyRow[] = [];
+      try {
+        companyMatches = await findCompaniesByName(companyName);
+      } catch (error) {
+        throw new SaveOperationError('company_lookup', 'Company lookup failed.', error);
+      }
       let company = companyMatches.find(c => normalizeKey(c.company_name) === normalizeKey(companyName)) ?? companyMatches[0] ?? null;
 
       if (!company) {
-        const { data, error } = await supabase
-          .from('companies')
-          .insert({
-            company_name: companyName,
-            company_status: normalize(draft.company_status) || null,
-            notes: normalize(draft.source_notes) || null,
-            updated_at: new Date().toISOString(),
-          })
-          .select('id, company_name, company_status, notes')
-          .single();
+        try {
+          const { data, error } = await supabase
+            .from('companies')
+            .insert({
+              company_name: companyName,
+              company_status: normalize(draft.company_status) || null,
+              notes: normalize(draft.source_notes) || null,
+              updated_at: new Date().toISOString(),
+            })
+            .select('id, company_name, company_status, notes')
+            .single();
 
-        if (error) throw error;
-        company = data as CompanyRow;
+          if (error) throw error;
+          company = data as CompanyRow;
+        } catch (error) {
+          throw new SaveOperationError('company_insert', 'Company insert failed.', error);
+        }
       }
 
       const companyId = company?.id ?? null;
 
       // 2) Contact: check duplicates again (so it remains correct after edits).
-      const contactMatches = await findContactsBySignals({
-        email: draft.email,
-        phone: draft.direct_phone,
-        mobilePhone: draft.mobile_phone,
-        fullName: contactFullName,
-        companyId,
-      });
+      let contactMatches: ContactRow[] = [];
+      try {
+        contactMatches = await findContactsBySignals({
+          email: draft.email,
+          phone: draft.direct_phone,
+          mobilePhone: draft.mobile_phone,
+          fullName: contactFullName,
+          companyId,
+        });
+      } catch (error) {
+        throw new SaveOperationError('contact_lookup', 'Contact lookup failed.', error);
+      }
 
       const existing = contactMatches[0] ?? null;
       const now = new Date().toISOString();
@@ -486,8 +542,29 @@ export default function BDPhotoIntake() {
           ...intakeMeta,
         };
 
-        const { error } = await supabase.from('bd_contacts').insert(payload);
-        if (error) throw error;
+        try {
+          console.info('[BDPhotoIntake] contact_insert attempt', {
+            payload,
+            auth: {
+              userId: user?.id ?? null,
+              profileRole: profile?.role ?? null,
+              profileIsActive: profile?.is_active ?? null,
+            },
+          });
+          const { error } = await supabase.from('bd_contacts').insert(payload);
+          if (error) throw error;
+        } catch (error) {
+          console.error('[BDPhotoIntake] contact_insert failed', {
+            error,
+            payload,
+            auth: {
+              userId: user?.id ?? null,
+              profileRole: profile?.role ?? null,
+              profileIsActive: profile?.is_active ?? null,
+            },
+          });
+          throw new SaveOperationError('contact_insert', 'Contact insert failed.', error);
+        }
       } else {
         if (item.overwriteExisting) {
           const payload: Record<string, any> = {
@@ -505,15 +582,23 @@ export default function BDPhotoIntake() {
             ...intakeMeta,
           };
 
-          const { error } = await supabase.from('bd_contacts').update(payload).eq('id', existing.id);
-          if (error) throw error;
+          try {
+            const { error } = await supabase.from('bd_contacts').update(payload).eq('id', existing.id);
+            if (error) throw error;
+          } catch (error) {
+            throw new SaveOperationError('contact_update', 'Contact update failed.', error);
+          }
         } else if (item.saveMode === 'merge_if_empty') {
           const patch = mergeIfEmpty(existing, draft, companyId);
           const payload: Record<string, any> = { ...patch, updated_at: now, ...intakeMeta };
           const keys = Object.keys(payload).filter(k => payload[k] !== undefined);
           if (keys.length > 0) {
-            const { error } = await supabase.from('bd_contacts').update(payload).eq('id', existing.id);
-            if (error) throw error;
+            try {
+              const { error } = await supabase.from('bd_contacts').update(payload).eq('id', existing.id);
+              if (error) throw error;
+            } catch (error) {
+              throw new SaveOperationError('contact_update', 'Contact update failed.', error);
+            }
           }
         } else {
           // "create_new" but duplicates exist: avoid creating a second record silently.
@@ -529,7 +614,8 @@ export default function BDPhotoIntake() {
         )
       );
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Save failed';
+      const message = toRecruiterSaveError(err);
+      console.error('[BDPhotoIntake] saveToRelationships failed', err);
       setItems(prev =>
         prev.map(p => (p.id === id ? { ...p, saving: false, status: 'Failed', error: message } : p))
       );

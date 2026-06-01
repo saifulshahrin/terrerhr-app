@@ -365,37 +365,53 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
         </div>
       )}
 
-      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <StatCard
-          label="Active Jobs"
-          value={String(stats?.activeJobs ?? 0)}
+          label="My Active Jobs"
+          value={String(stats?.myActiveJobs ?? 0)}
           icon={<Briefcase size={15} className="text-blue-500" />}
-          sub="Operational jobs"
-          chip={loading ? undefined : `${filteredAttentionJobs.length} need attention`}
+          sub="Assigned / in progress"
+          chip={loading ? undefined : `${stats?.urgentJobs ?? 0} urgent`}
           loading={loading}
         />
         <StatCard
-          label="In Pipeline"
-          value={String(stats?.totalCandidatesInPipeline ?? 0)}
+          label="Candidates Awaiting Review"
+          value={String(stats?.candidatesAwaitingReview ?? 0)}
           icon={<Users size={15} className="text-teal-500" />}
-          sub="Unique candidates"
+          sub="Need recruiter decision"
           chip={loading ? undefined : `${stageCounts.shortlisted} shortlisted`}
           loading={loading}
         />
         <StatCard
-          label="Submissions"
-          value={String(stats?.totalSubmissions ?? 0)}
-          icon={<Send size={15} className="text-sky-500" />}
-          sub="Active jobs only"
-          chip={loading ? undefined : `${stageCounts.submitted_to_client} sent`}
+          label="New BD Handoffs"
+          value={String(stats?.newBdHandoffs ?? 0)}
+          icon={<ClipboardCheck size={15} className="text-sky-500" />}
+          sub="Created by BD (recent)"
+          chip={loading ? undefined : `${filteredAttentionJobs.length} attention items`}
           loading={loading}
         />
         <StatCard
-          label="Interview / Offer"
-          value={String(stats?.advancedStageCount ?? 0)}
+          label="Interviews / Offers"
+          value={String(stats?.interviewsOffers ?? 0)}
           icon={<TrendingUp size={15} className="text-emerald-500" />}
-          sub="Advanced stage"
+          sub="Active processes"
           chip={loading ? undefined : `${stageCounts.offer} offers`}
+          loading={loading}
+        />
+        <StatCard
+          label="Urgent Jobs"
+          value={String(stats?.urgentJobs ?? 0)}
+          icon={<AlertTriangle size={15} className="text-amber-500" />}
+          sub="Need recruiter action"
+          chip={loading ? undefined : `${stats?.newBdHandoffs ?? 0} no submissions`}
+          loading={loading}
+        />
+        <StatCard
+          label="Action Queue"
+          value={String(actionQueue.length)}
+          icon={<Clock size={15} className="text-violet-500" />}
+          sub="Next actions scheduled"
+          chip={loading ? undefined : `${stats?.overdueActions ?? 0} overdue`}
           loading={loading}
         />
       </div>

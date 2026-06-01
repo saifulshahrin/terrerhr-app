@@ -11,6 +11,13 @@ export interface DashboardJob {
   updated_at: string;
 }
 
+type JobsIntakeRow = {
+  job_id: string;
+  created_by?: string | null;
+  created_at?: string | null;
+  status?: string | null;
+};
+
 export interface DashboardSubmission {
   id: string;
   job_id: string;
@@ -73,10 +80,12 @@ export interface OpportunityItem {
 }
 
 export interface DashboardStats {
-  activeJobs: number;
-  totalCandidatesInPipeline: number;
-  totalSubmissions: number;
-  advancedStageCount: number;
+  myActiveJobs: number;
+  newBdHandoffs: number;
+  urgentJobs: number;
+  candidatesAwaitingReview: number;
+  interviewsOffers: number;
+  overdueActions: number;
 }
 
 export interface DashboardStageCounts {
@@ -134,36 +143,52 @@ function daysAgo(iso: string): number {
   return Math.floor((now.getTime() - then.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-async function fetchActiveDashboardJobs(): Promise<{ jobs: DashboardJob[]; count: number }> {
-  const pageSize = 1000;
-  const jobs: DashboardJob[] = [];
-  let totalCount = 0;
+async function fetchActiveDashboardJobs(): Promise<{
+  jobs: DashboardJob[];
+  count: number;
+  intakeRows: JobsIntakeRow[];
+}> {
+  // Recruiter dashboard should represent operational workload, not global market/job intelligence.
+  // Temporary definition (safe/conservative): jobs that exist in jobs_intake as "active".
+  const { data: intakeData, error: intakeErr } = await supabase
+    .from('jobs_intake')
+    .select('job_id, created_by, created_at, status')
+    .eq('status', 'active')
+    .limit(5000);
 
-  for (let from = 0; ; from += pageSize) {
-    const to = from + pageSize - 1;
-    const { data, error, count } = await supabase
+  if (intakeErr) {
+    // Defensive: if jobs_intake is not readable (RLS, missing table, etc.), avoid falling back
+    // to global market/job counts which would mislead recruiter workload KPIs.
+    console.warn('[dashboardData] jobs_intake not readable; returning conservative empty workload.', intakeErr);
+    return { jobs: [], count: 0, intakeRows: [] };
+  }
+
+  const intakeRows = (intakeData ?? []) as JobsIntakeRow[];
+
+  const jobIds = intakeRows
+    .map((r) => String(r.job_id ?? '').trim())
+    .filter(Boolean);
+
+  if (jobIds.length === 0) return { jobs: [], count: 0, intakeRows };
+
+  const jobs: DashboardJob[] = [];
+  const chunkSize = 400;
+  for (let i = 0; i < jobIds.length; i += chunkSize) {
+    const chunk = jobIds.slice(i, i + chunkSize);
+    const { data, error } = await supabase
       .from('jobs')
-      .select('id, job_title, company_name, location, source, operational_status, updated_at', {
-        count: from === 0 ? 'exact' : undefined,
-      })
-      .eq('operational_status', 'active')
-      .range(from, to);
+      .select('id, job_title, company_name, location, source, operational_status, updated_at')
+      .in('id', chunk)
+      .eq('operational_status', 'active');
 
     if (error) {
       throw new Error(`Dashboard jobs query failed: ${error.message}`);
     }
 
-    if (from === 0) {
-      totalCount = count ?? 0;
-    }
-
-    const page = (data ?? []) as DashboardJob[];
-    jobs.push(...page);
-
-    if (page.length < pageSize) {
-      return { jobs, count: totalCount || jobs.length };
-    }
+    jobs.push(...((data ?? []) as DashboardJob[]));
   }
+
+  return { jobs, count: jobIds.length, intakeRows };
 }
 
 export async function fetchDashboardData(): Promise<{
@@ -354,20 +379,6 @@ export async function fetchDashboardData(): Promise<{
     return b.aiScore - a.aiScore;
   });
 
-  const advancedStages = new Set(['interview', 'offer']);
-  const advancedCandidates = new Set(
-    submissions
-      .filter(s => advancedStages.has(s.submission_stage))
-      .map(s => s.candidate_id)
-  );
-
-  const stats: DashboardStats = {
-    activeJobs: activeJobsCount,
-    totalCandidatesInPipeline: new Set(submissions.map(s => s.candidate_id)).size,
-    totalSubmissions: submissions.length,
-    advancedStageCount: advancedCandidates.size,
-  };
-
   const initialStageCounts: DashboardStageCounts = {
     new: 0,
     shortlisted: 0,
@@ -387,6 +398,34 @@ export async function fetchDashboardData(): Promise<{
     }
     return acc;
   }, initialStageCounts);
+
+  const overdueActions = actionQueue.filter(a => a.urgency === 'overdue').length;
+  const candidatesAwaitingReview = stageCounts.new + stageCounts.shortlisted;
+  const interviewsOffers = stageCounts.interview + stageCounts.offer;
+  const urgentJobs = attentionJobs.filter(j => j.status === 'No Submissions' || j.status === 'Stale').length;
+
+  // "No Submissions" is a pipeline state, not a BD handoff signal.
+  // For now, use jobs_intake metadata as the least-bad ownership indicator.
+  // Future improvement: add explicit recruiter_handoff_at / handed_off_by fields later.
+  const now = Date.now();
+  const fourteenDaysMs = 14 * 24 * 60 * 60 * 1000;
+  const newBdHandoffs = jobsResult.intakeRows.filter((row) => {
+    const createdBy = String(row.created_by ?? '').toLowerCase();
+    if (createdBy !== 'bd') return false;
+    if (!row.created_at) return true; // conservative: still count, but see dashboard label/subcopy.
+    const t = new Date(row.created_at).getTime();
+    if (Number.isNaN(t)) return true;
+    return now - t <= fourteenDaysMs;
+  }).length;
+
+  const stats: DashboardStats = {
+    myActiveJobs: activeJobsCount,
+    newBdHandoffs,
+    urgentJobs,
+    candidatesAwaitingReview,
+    interviewsOffers,
+    overdueActions,
+  };
 
   const bdQueue: BdQueueItem[] = [];
   for (const sub of submissions) {
