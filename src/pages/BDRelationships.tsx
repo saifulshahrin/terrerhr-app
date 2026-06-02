@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, CalendarClock, Clock, Mail, Phone, Search, Sparkles, Users } from 'lucide-react';
+import { Building2, CalendarClock, Clock, Phone, Search, Sparkles, Users } from 'lucide-react';
+import {
+  COMPANY_INTELLIGENCE_SELECT,
+  deriveCompanySourceStatus,
+  updateCompanyIntelligence,
+  type CompanyIntelligenceUpdate,
+  type CompanySourceStatus,
+} from '../lib/companyIntelligence';
 import { fetchAllJobs, type JobListRow } from '../lib/jobs';
 import { normalizeRoleTitle } from '../lib/roleNormalization';
 import { supabase } from '../lib/supabase';
@@ -19,6 +26,13 @@ interface CompanyRow {
   company_slug: string | null;
   website_url: string | null;
   linkedin_url: string | null;
+  career_url: string | null;
+  ats_family: string | null;
+  source_confidence: number | null;
+  source_status: CompanySourceStatus | null;
+  source_notes: string | null;
+  last_enriched_at: string | null;
+  last_checked_at: string | null;
   hq_country: string | null;
   primary_city: string | null;
   company_status: CompanyStatus;
@@ -58,6 +72,19 @@ type EditableContact = Pick<
 };
 
 type UiContactStatus = 'new' | 'contacted' | 'responded' | 'opportunity';
+
+type EditableCompanyIntelligence = Pick<
+  CompanyRow,
+  | 'id'
+  | 'company_name'
+  | 'website_url'
+  | 'linkedin_url'
+  | 'career_url'
+  | 'ats_family'
+  | 'source_confidence'
+  | 'source_status'
+  | 'source_notes'
+>;
 
 interface UiContactActionState {
   status: UiContactStatus;
@@ -247,6 +274,19 @@ function bdPriorityTone(priority: BdPriorityLevel): Parameters<typeof Badge>[0][
   if (priority === 'High Priority') return 'emerald';
   if (priority === 'Medium Priority') return 'amber';
   return 'slate';
+}
+
+function sourceStatusTone(company: CompanyRow): Parameters<typeof Badge>[0]['tone'] {
+  const status = deriveCompanySourceStatus(company);
+  if (status === 'Ready') return 'emerald';
+  if (status === 'Queued') return 'blue';
+  if (status === 'Partial') return 'amber';
+  if (status === 'Blocked') return 'red';
+  return 'slate';
+}
+
+function formatSourceUrl(url: string | null | undefined): string {
+  return (url ?? '').replace(/^https?:\/\//i, '').replace(/\/$/, '');
 }
 
 function computeCompanyIntel({
@@ -442,6 +482,13 @@ function buildCompanyStubsFromContacts(contactRows: ContactRow[]): CompanyRow[] 
       company_slug: null,
       website_url: null,
       linkedin_url: null,
+      career_url: null,
+      ats_family: null,
+      source_confidence: null,
+      source_status: null,
+      source_notes: null,
+      last_enriched_at: null,
+      last_checked_at: null,
       hq_country: 'Malaysia',
       primary_city: null,
       company_status: null,
@@ -467,6 +514,9 @@ export default function BDRelationships({ onNavigate }: Props) {
   const [editingContact, setEditingContact] = useState<EditableContact | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [editingCompanyIntelligence, setEditingCompanyIntelligence] = useState<EditableCompanyIntelligence | null>(null);
+  const [companyIntelSaving, setCompanyIntelSaving] = useState(false);
+  const [companyIntelError, setCompanyIntelError] = useState<string | null>(null);
   const [showAddContactModal, setShowAddContactModal] = useState(false);
   const [addSaving, setAddSaving] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
@@ -490,7 +540,7 @@ export default function BDRelationships({ onNavigate }: Props) {
   });
 
   // UI-only action layer (no DB writes yet)
-  const [contactActions, setContactActions] = useState<Record<string, UiContactActionState>>({});
+  const [contactActions] = useState<Record<string, UiContactActionState>>({});
   const [followUpDates, setFollowUpDates] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -503,22 +553,7 @@ export default function BDRelationships({ onNavigate }: Props) {
       try {
         const { data: companyRows, error: companyError } = await supabase
           .from('companies')
-          .select(
-            `
-              id,
-              company_name,
-              company_slug,
-              website_url,
-              linkedin_url,
-              hq_country,
-              primary_city,
-              company_status,
-              source_type,
-              notes,
-              created_at,
-              updated_at
-            `
-          )
+          .select(COMPANY_INTELLIGENCE_SELECT)
           .order('company_name', { ascending: true })
           .limit(500);
 
@@ -570,8 +605,9 @@ export default function BDRelationships({ onNavigate }: Props) {
         console.error('[BDRelationships] load error:', err);
         setError('Unable to load BD relationships right now.');
       } finally {
-        if (!active) return;
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     }
 
@@ -766,19 +802,6 @@ export default function BDRelationships({ onNavigate }: Props) {
     return 'new';
   }
 
-  function getUiNextAction(contact: ContactRow): string {
-    return contactActions[contact.id]?.nextAction ?? '';
-  }
-
-  function setUiAction(contactId: string, patch: Partial<UiContactActionState>) {
-    setContactActions((prev) => {
-      const next = { ...prev };
-      const existing = next[contactId] ?? { status: 'new' as UiContactStatus, nextAction: '' };
-      next[contactId] = { ...existing, ...patch };
-      return next;
-    });
-  }
-
   function renderStatusTag(status: UiContactStatus) {
     const styles =
       status === 'opportunity'
@@ -900,6 +923,41 @@ export default function BDRelationships({ onNavigate }: Props) {
     }
   }
 
+  async function saveCompanyIntelligenceEdits() {
+    if (!editingCompanyIntelligence) return;
+    setCompanyIntelSaving(true);
+    setCompanyIntelError(null);
+
+    try {
+      const confidence =
+        editingCompanyIntelligence.source_confidence == null || Number.isNaN(Number(editingCompanyIntelligence.source_confidence))
+          ? null
+          : Number(editingCompanyIntelligence.source_confidence);
+
+      const payload: CompanyIntelligenceUpdate = {
+        website_url: editingCompanyIntelligence.website_url,
+        linkedin_url: editingCompanyIntelligence.linkedin_url,
+        career_url: editingCompanyIntelligence.career_url,
+        ats_family: editingCompanyIntelligence.ats_family,
+        source_confidence: confidence,
+        source_status: editingCompanyIntelligence.source_status,
+        source_notes: editingCompanyIntelligence.source_notes,
+      };
+
+      const updatedCompany = await updateCompanyIntelligence(editingCompanyIntelligence.id, payload);
+
+      setCompanies((prev) =>
+        prev.map((company) => (company.id === updatedCompany.id ? ({ ...company, ...updatedCompany } as CompanyRow) : company))
+      );
+      setEditingCompanyIntelligence(null);
+    } catch (err) {
+      console.error('[BDRelationships] company intelligence update failed', err);
+      setCompanyIntelError('Unable to save company source intelligence. This may be blocked by database access policies.');
+    } finally {
+      setCompanyIntelSaving(false);
+    }
+  }
+
   async function addContactManually() {
     setAddSaving(true);
     setAddError(null);
@@ -934,9 +992,10 @@ export default function BDRelationships({ onNavigate }: Props) {
             .insert({
               company_name: companyNameInput,
               source_type: 'manual',
+              source_status: 'missing',
               updated_at: new Date().toISOString(),
             })
-            .select('id, company_name, company_slug, website_url, linkedin_url, hq_country, primary_city, company_status, source_type, notes, created_at, updated_at')
+            .select(COMPANY_INTELLIGENCE_SELECT)
             .single();
           if (createCompanyError) throw createCompanyError;
           if (!createdCompany?.id) throw new Error('Unable to create company record.');
@@ -950,7 +1009,7 @@ export default function BDRelationships({ onNavigate }: Props) {
       if (linkedIn) notesParts.unshift(`LinkedIn: ${linkedIn}`);
       const normalizedNotes = notesParts.filter(Boolean).join('\n').trim();
 
-      const payload: Record<string, any> = {
+      const payload: Record<string, string | number | null> = {
         company_id: companyIdValue,
         full_name: fullName,
         job_title: newContact.job_title.trim() || null,
@@ -1089,6 +1148,7 @@ export default function BDRelationships({ onNavigate }: Props) {
                   <div className="flex flex-wrap items-center justify-end gap-1.5">
                     <Badge tone={hiringSignalTone(item.intel.hiringSignal)}>Hiring Signal: {item.intel.hiringSignal}</Badge>
                     <Badge tone={bdPriorityTone(item.intel.bdPriority)}>{item.intel.bdPriority}</Badge>
+                    <Badge tone={sourceStatusTone(item.company)}>Source: {deriveCompanySourceStatus(item.company)}</Badge>
                   </div>
                 </div>
               </button>
@@ -1216,6 +1276,7 @@ export default function BDRelationships({ onNavigate }: Props) {
                       <Badge tone={bdPriorityTone(intel.bdPriority)}>{intel.bdPriority}</Badge>
                       {company.company_status ? <Badge tone="teal">{company.company_status}</Badge> : null}
                       <Badge tone="slate">{formatCompanySourceLabel(company.source_type)}</Badge>
+                      <Badge tone={sourceStatusTone(company)}>Source: {deriveCompanySourceStatus(company)}</Badge>
                       {intel.signals.slice(0, 4).map((signal) => (
                         <Badge key={signal.label} tone={signal.tone}>
                           {signal.label}
@@ -1254,6 +1315,18 @@ export default function BDRelationships({ onNavigate }: Props) {
                         <span className="font-semibold text-slate-700">Suggested BD action:</span>{' '}
                         {intel.suggestedAction}
                       </p>
+                      {company.website_url || company.career_url || company.ats_family ? (
+                        <p className="text-slate-500">
+                          <span className="font-semibold text-slate-700">Source intelligence:</span>{' '}
+                          {[
+                            company.website_url ? `Website ${formatSourceUrl(company.website_url)}` : null,
+                            company.career_url ? `Careers ${formatSourceUrl(company.career_url)}` : null,
+                            company.ats_family ? `ATS ${company.ats_family}` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(' | ')}
+                        </p>
+                      ) : null}
                       <div className="flex flex-wrap items-center gap-3 text-slate-500">
                         <span className="inline-flex items-center gap-1.5">
                           <Clock size={14} className="text-slate-400" />
@@ -1336,6 +1409,86 @@ export default function BDRelationships({ onNavigate }: Props) {
                   </div>
                 </div>
               ) : null}
+
+              <div className="mt-3 rounded-xl border border-slate-200/70 bg-white p-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-950">Source Intelligence</p>
+                      <Badge tone={sourceStatusTone(expandedCompany)}>
+                        {deriveCompanySourceStatus(expandedCompany)}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 grid gap-1 text-xs text-slate-600">
+                      <p>
+                        <span className="font-semibold text-slate-700">Website:</span>{' '}
+                        {expandedCompany.website_url ? (
+                          <a
+                            href={expandedCompany.website_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-teal-700 hover:underline"
+                          >
+                            {formatSourceUrl(expandedCompany.website_url)}
+                          </a>
+                        ) : (
+                          'Not captured'
+                        )}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-slate-700">Careers:</span>{' '}
+                        {expandedCompany.career_url ? (
+                          <a
+                            href={expandedCompany.career_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-teal-700 hover:underline"
+                          >
+                            {formatSourceUrl(expandedCompany.career_url)}
+                          </a>
+                        ) : (
+                          'Not captured'
+                        )}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-slate-700">ATS family:</span>{' '}
+                        {expandedCompany.ats_family || 'Unknown'}
+                      </p>
+                      {expandedCompany.source_confidence != null ? (
+                        <p>
+                          <span className="font-semibold text-slate-700">Confidence:</span>{' '}
+                          {expandedCompany.source_confidence}/100
+                        </p>
+                      ) : null}
+                      {expandedCompany.source_notes ? (
+                        <p className="rounded-lg bg-slate-50 px-2.5 py-1.5 text-slate-600">
+                          {expandedCompany.source_notes}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCompanyIntelError(null);
+                      setEditingCompanyIntelligence({
+                        id: expandedCompany.id,
+                        company_name: expandedCompany.company_name,
+                        website_url: expandedCompany.website_url,
+                        linkedin_url: expandedCompany.linkedin_url,
+                        career_url: expandedCompany.career_url,
+                        ats_family: expandedCompany.ats_family,
+                        source_confidence: expandedCompany.source_confidence,
+                        source_status: expandedCompany.source_status,
+                        source_notes: expandedCompany.source_notes,
+                      });
+                    }}
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  >
+                    Edit Source
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1448,6 +1601,151 @@ export default function BDRelationships({ onNavigate }: Props) {
           )}
         </Panel>
       </div>
+
+      {editingCompanyIntelligence ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
+          <div className="w-full max-w-2xl rounded-3xl border border-gray-200 bg-white shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-4">
+              <div>
+                <p className="text-sm font-semibold text-gray-950">Edit Source Intelligence</p>
+                <p className="mt-1 text-xs text-gray-500">{editingCompanyIntelligence.company_name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => !companyIntelSaving && setEditingCompanyIntelligence(null)}
+                className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="space-y-4 px-5 py-4">
+              {companyIntelError ? <div className="text-xs text-red-700">{companyIntelError}</div> : null}
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Source Status</span>
+                  <select
+                    value={editingCompanyIntelligence.source_status ?? ''}
+                    onChange={(e) =>
+                      setEditingCompanyIntelligence({
+                        ...editingCompanyIntelligence,
+                        source_status: (e.target.value || null) as CompanySourceStatus | null,
+                      })
+                    }
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  >
+                    <option value="">Auto / unset</option>
+                    <option value="missing">Missing</option>
+                    <option value="queued">Queued</option>
+                    <option value="partial">Partial</option>
+                    <option value="ready">Ready</option>
+                    <option value="blocked">Blocked</option>
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Confidence</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={editingCompanyIntelligence.source_confidence ?? ''}
+                    onChange={(e) =>
+                      setEditingCompanyIntelligence({
+                        ...editingCompanyIntelligence,
+                        source_confidence: e.target.value === '' ? null : Number(e.target.value),
+                      })
+                    }
+                    placeholder="0-100"
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Website URL</span>
+                  <input
+                    value={editingCompanyIntelligence.website_url ?? ''}
+                    onChange={(e) =>
+                      setEditingCompanyIntelligence({ ...editingCompanyIntelligence, website_url: e.target.value })
+                    }
+                    placeholder="https://company.com"
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">LinkedIn URL</span>
+                  <input
+                    value={editingCompanyIntelligence.linkedin_url ?? ''}
+                    onChange={(e) =>
+                      setEditingCompanyIntelligence({ ...editingCompanyIntelligence, linkedin_url: e.target.value })
+                    }
+                    placeholder="https://www.linkedin.com/company/..."
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Career URL</span>
+                  <input
+                    value={editingCompanyIntelligence.career_url ?? ''}
+                    onChange={(e) =>
+                      setEditingCompanyIntelligence({ ...editingCompanyIntelligence, career_url: e.target.value })
+                    }
+                    placeholder="https://company.com/careers"
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">ATS Family</span>
+                  <input
+                    value={editingCompanyIntelligence.ats_family ?? ''}
+                    onChange={(e) =>
+                      setEditingCompanyIntelligence({ ...editingCompanyIntelligence, ats_family: e.target.value })
+                    }
+                    placeholder="workday / oracle / greenhouse / linkedin"
+                    className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  />
+                </label>
+              </div>
+
+              <label className="space-y-1 block">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Source Notes</span>
+                <textarea
+                  value={editingCompanyIntelligence.source_notes ?? ''}
+                  onChange={(e) =>
+                    setEditingCompanyIntelligence({ ...editingCompanyIntelligence, source_notes: e.target.value })
+                  }
+                  rows={4}
+                  className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                />
+              </label>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-gray-100 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setEditingCompanyIntelligence(null)}
+                disabled={companyIntelSaving}
+                className="rounded-2xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveCompanyIntelligenceEdits}
+                disabled={companyIntelSaving}
+                className="rounded-2xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 disabled:opacity-60"
+              >
+                {companyIntelSaving ? 'Saving...' : 'Save Source Intelligence'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {editingContact ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
