@@ -10,6 +10,7 @@ import {
 import { fetchAllJobs, type JobListRow } from '../lib/jobs';
 import { normalizeRoleTitle } from '../lib/roleNormalization';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../store/AuthContext';
 import { Badge, MetricTile, PageHeader, Panel, SectionHeader } from '../components/visualSystem';
 
 interface Props {
@@ -57,6 +58,17 @@ interface ContactRow {
   notes: string | null;
   created_at: string | null;
   updated_at: string | null;
+}
+
+interface BdNoteRow {
+  id: string;
+  company_id: number;
+  contact_id: string | null;
+  note_body: string;
+  note_type: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 interface DuplicateMatch {
@@ -263,6 +275,18 @@ interface CompanyIntel {
   followUpLabel: string;
 }
 
+interface RelationshipWinScore {
+  company: CompanyRow;
+  score: number;
+  contactCount: number;
+  activeRatio: number;
+  hasHrCoverage: boolean;
+  hasTaCoverage: boolean;
+  hasHiringManagerCoverage: boolean;
+  sourceStatus: ReturnType<typeof deriveCompanySourceStatus>;
+  recommendedAction: string;
+}
+
 function hiringSignalTone(signal: HiringSignalStrength): Parameters<typeof Badge>[0]['tone'] {
   if (signal === 'High') return 'emerald';
   if (signal === 'Medium') return 'amber';
@@ -287,6 +311,126 @@ function sourceStatusTone(company: CompanyRow): Parameters<typeof Badge>[0]['ton
 
 function formatSourceUrl(url: string | null | undefined): string {
   return (url ?? '').replace(/^https?:\/\//i, '').replace(/\/$/, '');
+}
+
+function companyInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'CO';
+}
+
+function contactSignalText(contact: ContactRow): string {
+  return `${contact.job_title ?? ''} ${contact.relationship_status ?? ''} ${contact.notes ?? ''}`.toLowerCase();
+}
+
+function hasHrSignal(contact: ContactRow): boolean {
+  return /\b(hr|human resources|human resource|people|people ops|people operations|human capital)\b/i.test(
+    contactSignalText(contact)
+  );
+}
+
+function hasTaSignal(contact: ContactRow): boolean {
+  return /\b(ta|talent acquisition|recruiter|recruitment|recruiting|sourcing)\b/i.test(contactSignalText(contact));
+}
+
+function hasHiringManagerSignal(contact: ContactRow): boolean {
+  return /\b(hiring manager|manager|director|head|lead|leader|ceo|chief|vp|vice president|business partner|owner)\b/i.test(
+    contactSignalText(contact)
+  );
+}
+
+function scoreContactCount(count: number): number {
+  if (count >= 5) return 20;
+  if (count >= 3) return 15;
+  if (count === 2) return 10;
+  if (count === 1) return 5;
+  return 0;
+}
+
+function scoreSourceStatus(status: ReturnType<typeof deriveCompanySourceStatus>): number {
+  if (status === 'Ready') return 10;
+  if (status === 'Partial' || status === 'Queued') return 5;
+  return 0;
+}
+
+function hasOverdueNextAction(contacts: ContactRow[]): boolean {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  return contacts.some((contact) => contact.next_action_date && contact.next_action_date.slice(0, 10) < todayIso);
+}
+
+function hasUpcomingNextAction(contacts: ContactRow[]): boolean {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  return contacts.some((contact) => contact.next_action_date && contact.next_action_date.slice(0, 10) >= todayIso);
+}
+
+function hasRecentContactActivity(contacts: ContactRow[]): boolean {
+  return contacts.some((contact) => {
+    if (!contact.last_contacted_at) return false;
+    const days = (Date.now() - new Date(contact.last_contacted_at).getTime()) / 86400000;
+    return Number.isFinite(days) && days <= 30;
+  });
+}
+
+function isArchiveOrDuplicateRisk(company: CompanyRow): boolean {
+  const text = normalize(`${company.company_status ?? ''} ${company.company_name}`);
+  return text.includes('archive') || text.includes('...') || text.includes('duplicate');
+}
+
+function computeRelationshipWinScore(company: CompanyRow, companyContacts: ContactRow[]): RelationshipWinScore {
+  const contactCount = companyContacts.length;
+  const activeContacts = companyContacts.filter((contact) => normalize(contact.relationship_status) === 'active').length;
+  const activeRatio = contactCount > 0 ? activeContacts / contactCount : 0;
+  const hasHrCoverage = companyContacts.some(hasHrSignal);
+  const hasTaCoverage = companyContacts.some(hasTaSignal);
+  const hasHiringManagerCoverage = companyContacts.some(hasHiringManagerSignal);
+  const sourceStatus = deriveCompanySourceStatus(company);
+  const overdue = hasOverdueNextAction(companyContacts);
+  const activityScore = hasRecentContactActivity(companyContacts) || hasUpcomingNextAction(companyContacts) ? 10 : 0;
+
+  const score =
+    scoreContactCount(contactCount) +
+    Math.round(activeRatio * 15) +
+    (hasHrCoverage ? 15 : 0) +
+    (hasTaCoverage ? 20 : 0) +
+    (hasHiringManagerCoverage ? 15 : 0) +
+    scoreSourceStatus(sourceStatus) +
+    activityScore;
+
+  let recommendedAction = 'Re-engage account and confirm hiring priorities';
+  if (isArchiveOrDuplicateRisk(company)) {
+    recommendedAction = 'Review duplicate/archive status';
+  } else if (overdue) {
+    recommendedAction = 'Follow up overdue action';
+  } else if (sourceStatus === 'Missing' || sourceStatus === 'Blocked') {
+    recommendedAction = 'Enrich source first';
+  } else if (!hasHrCoverage && !hasTaCoverage) {
+    recommendedAction = 'Identify HR/TA stakeholder';
+  } else if (hasTaCoverage || hasHrCoverage) {
+    recommendedAction = 'Contact HR/TA lead';
+  } else if (hasHiringManagerCoverage) {
+    recommendedAction = 'Contact decision-maker';
+  }
+
+  return {
+    company,
+    score: Math.min(100, score),
+    contactCount,
+    activeRatio,
+    hasHrCoverage,
+    hasTaCoverage,
+    hasHiringManagerCoverage,
+    sourceStatus,
+    recommendedAction,
+  };
+}
+
+function scoreTone(score: number): Parameters<typeof Badge>[0]['tone'] {
+  if (score >= 75) return 'emerald';
+  if (score >= 55) return 'amber';
+  return 'slate';
 }
 
 function computeCompanyIntel({
@@ -500,16 +644,29 @@ function buildCompanyStubsFromContacts(contactRows: ContactRow[]): CompanyRow[] 
 }
 
 export default function BDRelationships({ onNavigate }: Props) {
+  const { user, profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [contacts, setContacts] = useState<ContactRow[]>([]);
+  const [bdNotes, setBdNotes] = useState<BdNoteRow[]>([]);
   const [jobs, setJobs] = useState<JobListRow[]>([]);
   const [jobsIntelError, setJobsIntelError] = useState<string | null>(null);
   const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [companiesRestricted, setCompaniesRestricted] = useState(false);
   const [showAllCompanies, setShowAllCompanies] = useState(false);
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'overview' | 'contacts' | 'activity' | 'notes'>('overview');
+  const [accountStatusFilter, setAccountStatusFilter] = useState('all');
+  const [hiringSignalFilter, setHiringSignalFilter] = useState('all');
+  const [priorityFilter, setPriorityFilter] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState('all');
+  const [sortBy, setSortBy] = useState<'score' | 'name' | 'activity'>('score');
+  const [showFilterDrawer, setShowFilterDrawer] = useState(false);
+  const [showNoteComposer, setShowNoteComposer] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+  const [noteSaving, setNoteSaving] = useState(false);
+  const [noteError, setNoteError] = useState<string | null>(null);
 
   const [editingContact, setEditingContact] = useState<EditableContact | null>(null);
   const [editSaving, setEditSaving] = useState(false);
@@ -569,6 +726,14 @@ export default function BDRelationships({ onNavigate }: Props) {
 
         if (contactError) throw contactError;
 
+        const { data: noteRows, error: noteErrorResult } = await supabase
+          .from('bd_notes')
+          .select('id,company_id,contact_id,note_body,note_type,created_by,created_at,updated_at')
+          .order('created_at', { ascending: false })
+          .limit(1000);
+
+        if (noteErrorResult) throw noteErrorResult;
+
         let jobRows: JobListRow[] = [];
         let jobErrorMessage: string | null = null;
         try {
@@ -597,6 +762,7 @@ export default function BDRelationships({ onNavigate }: Props) {
         const restricted = safeCompanies.length === 0 && safeContacts.length > 0;
         setCompaniesRestricted(restricted);
         setContacts(safeContacts);
+        setBdNotes((noteRows ?? []) as BdNoteRow[]);
         setCompanies(restricted ? buildCompanyStubsFromContacts(safeContacts) : safeCompanies);
         setJobs(jobRows);
         setJobsIntelError(jobErrorMessage);
@@ -693,35 +859,105 @@ export default function BDRelationships({ onNavigate }: Props) {
     return ranked.slice(0, 10);
   }, [companies, contactsByCompanyId, jobsByCompanyKey]);
 
+  const topCompaniesWeCanWin = useMemo(() => {
+    return relationshipCompanies
+      .map((company) => computeRelationshipWinScore(company, contactsByCompanyId.get(company.id) ?? []))
+      .sort((a, b) => {
+        const scoreDiff = b.score - a.score;
+        if (scoreDiff !== 0) return scoreDiff;
+
+        const contactsDiff = b.contactCount - a.contactCount;
+        if (contactsDiff !== 0) return contactsDiff;
+
+        return a.company.company_name.localeCompare(b.company.company_name);
+      })
+      .slice(0, 12);
+  }, [contactsByCompanyId, relationshipCompanies]);
+
   const relationshipCompaniesCount = relationshipCompanies.length;
   const contactsCount = contacts.length;
   const unreviewedCount = contacts.filter((c) => normalize(c.relationship_status ?? '') === 'new').length;
 
-  const filteredCompanies = useMemo(() => {
-    const baseCompanies = showAllCompanies ? companies : relationshipCompanies;
-    const query = normalize(search);
-    if (!query) return baseCompanies;
+  const accountStatusOptions = useMemo(() => {
+    return Array.from(new Set(companies.map((company) => company.company_status).filter(Boolean) as string[])).sort();
+  }, [companies]);
 
-    return baseCompanies.filter((company) => {
+  const sourceOptions = useMemo(() => {
+    return Array.from(
+      new Set(companies.map((company) => deriveCompanySourceStatus(company)).filter(Boolean))
+    ).sort();
+  }, [companies]);
+
+  const filteredCompanies = useMemo(() => {
+    const query = normalize(search);
+    const baseCompanies = query ? companies : showAllCompanies ? companies : relationshipCompanies;
+
+    const filtered = baseCompanies.filter((company) => {
       const name = normalize(company.company_name);
       const status = normalize(company.company_status ?? '');
       const source = normalize(company.source_type ?? '');
-
-      if (name.includes(query) || status.includes(query) || source.includes(query)) return true;
-
       const companyContacts = contactsByCompanyId.get(company.id) ?? [];
+      const key = normalizeCompanyKey(company.company_name);
+      const companyJobs = key ? jobsByCompanyKey.get(key) ?? [] : [];
+      const intel = computeCompanyIntel({ company, companyContacts, companyJobs });
+      const sourceStatus = deriveCompanySourceStatus(company);
+
+      if (accountStatusFilter !== 'all' && status !== normalize(accountStatusFilter)) return false;
+      if (hiringSignalFilter !== 'all' && intel.hiringSignal !== hiringSignalFilter) return false;
+      if (priorityFilter !== 'all' && intel.priority !== priorityFilter && intel.bdPriority !== priorityFilter) return false;
+      if (sourceFilter !== 'all' && sourceStatus !== sourceFilter) return false;
+
+      if (!query) return true;
+      if (name.includes(query) || status.includes(query) || source.includes(query) || normalize(sourceStatus).includes(query)) return true;
+
       return companyContacts.some((contact) => {
         const contactName = normalize(contact.full_name);
         const contactTitle = normalize(contact.job_title ?? '');
         const contactEmail = normalize(contact.email ?? '');
+        const contactPhone = normalizePhone(contact.phone);
+        const contactMobile = normalizePhone(contact.mobile_phone);
+        const phoneQuery = normalizePhone(query);
         return (
           contactName.includes(query) ||
           contactTitle.includes(query) ||
-          contactEmail.includes(query)
+          contactEmail.includes(query) ||
+          (Boolean(phoneQuery) && (contactPhone.includes(phoneQuery) || contactMobile.includes(phoneQuery)))
         );
       });
     });
-  }, [companies, contactsByCompanyId, relationshipCompanies, search, showAllCompanies]);
+
+    return [...filtered].sort((a, b) => {
+      if (sortBy === 'name') return a.company_name.localeCompare(b.company_name);
+      if (sortBy === 'activity') {
+        const aContacts = contactsByCompanyId.get(a.id) ?? [];
+        const bContacts = contactsByCompanyId.get(b.id) ?? [];
+        const aLatest = aContacts
+          .map((contact) => contact.last_contacted_at ?? contact.updated_at ?? contact.created_at ?? '')
+          .sort()
+          .at(-1) ?? '';
+        const bLatest = bContacts
+          .map((contact) => contact.last_contacted_at ?? contact.updated_at ?? contact.created_at ?? '')
+          .sort()
+          .at(-1) ?? '';
+        return bLatest.localeCompare(aLatest);
+      }
+      const aScore = computeRelationshipWinScore(a, contactsByCompanyId.get(a.id) ?? []).score;
+      const bScore = computeRelationshipWinScore(b, contactsByCompanyId.get(b.id) ?? []).score;
+      return bScore - aScore;
+    });
+  }, [
+    accountStatusFilter,
+    companies,
+    contactsByCompanyId,
+    hiringSignalFilter,
+    jobsByCompanyKey,
+    priorityFilter,
+    relationshipCompanies,
+    search,
+    showAllCompanies,
+    sortBy,
+    sourceFilter,
+  ]);
 
   const companyOptions = useMemo(() => {
     const q = normalize(companySearch);
@@ -790,6 +1026,19 @@ export default function BDRelationships({ onNavigate }: Props) {
     const companyJobs = key ? jobsByCompanyKey.get(key) ?? [] : [];
     return computeCompanyIntel({ company: expandedCompany, companyContacts, companyJobs });
   }, [contactsByCompanyId, expandedCompany, jobsByCompanyKey]);
+
+  const expandedCompanyNotes = useMemo(() => {
+    if (!expandedCompany) return [];
+    return bdNotes
+      .filter((note) => note.company_id === expandedCompany.id)
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [bdNotes, expandedCompany]);
+
+  useEffect(() => {
+    setShowNoteComposer(false);
+    setNoteDraft('');
+    setNoteError(null);
+  }, [expandedCompanyId]);
 
   function getUiStatus(contact: ContactRow): UiContactStatus {
     const fromUi = contactActions[contact.id]?.status;
@@ -1062,8 +1311,67 @@ export default function BDRelationships({ onNavigate }: Props) {
     }
   }
 
+  function formatNoteTimestamp(value: string): string {
+    return new Intl.DateTimeFormat('en-MY', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(new Date(value));
+  }
+
+  function noteAuthorLabel(note: BdNoteRow): string {
+    if (profile?.id && note.created_by === profile.id) {
+      return profile.full_name || profile.email || 'You';
+    }
+    if (note.created_by) return `User ${note.created_by.slice(0, 8)}`;
+    return 'Unknown author';
+  }
+
+  async function saveBdNote() {
+    if (!expandedCompany) return;
+    const noteBody = noteDraft.trim();
+    if (!noteBody) return;
+
+    setNoteSaving(true);
+    setNoteError(null);
+    try {
+      // TODO: connect created_by to profile ownership and restrict notes by assigned account once multi-BD ownership rules exist.
+      const payload = {
+        company_id: expandedCompany.id,
+        contact_id: null,
+        note_body: noteBody,
+        note_type: 'general',
+        created_by: user?.id ?? null,
+      };
+
+      const { data, error: insertError } = await supabase
+        .from('bd_notes')
+        .insert(payload)
+        .select('id,company_id,contact_id,note_body,note_type,created_by,created_at,updated_at')
+        .single();
+
+      if (insertError) throw insertError;
+
+      setBdNotes((prev) => [data as BdNoteRow, ...prev]);
+      setNoteDraft('');
+      setShowNoteComposer(false);
+    } catch (err) {
+      console.error('[BDRelationships] save BD note failed', err);
+      setNoteError('Unable to save note right now. Please check access policies and try again.');
+    } finally {
+      setNoteSaving(false);
+    }
+  }
+
+  function clearRelationshipFilters() {
+    setAccountStatusFilter('all');
+    setHiringSignalFilter('all');
+    setPriorityFilter('all');
+    setSourceFilter('all');
+    setShowAllCompanies(false);
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-hidden">
       <PageHeader
         eyebrow="BD Workspace"
         title="BD Relationships"
@@ -1104,6 +1412,682 @@ export default function BDRelationships({ onNavigate }: Props) {
         </Panel>
       ) : null}
 
+      {showFilterDrawer ? (
+        <div className="fixed inset-0 z-50 2xl:hidden">
+          <button
+            type="button"
+            aria-label="Close filters"
+            onClick={() => setShowFilterDrawer(false)}
+            className="absolute inset-0 bg-slate-950/30"
+          />
+          <aside className="absolute left-0 top-0 flex h-full w-full max-w-sm flex-col overflow-hidden border-r border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-950">Filters</p>
+                <p className="text-xs text-slate-500">Narrow accounts without hiding the workspace.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFilterDrawer(false)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+              <button
+                type="button"
+                onClick={clearRelationshipFilters}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-teal-700 shadow-sm transition hover:bg-slate-50"
+              >
+                Clear All
+              </button>
+              <label className="block space-y-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Account Status</span>
+                <select value={accountStatusFilter} onChange={(event) => setAccountStatusFilter(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100">
+                  <option value="all">All Statuses</option>
+                  {accountStatusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+                </select>
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Hiring Signal</span>
+                <select value={hiringSignalFilter} onChange={(event) => setHiringSignalFilter(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100">
+                  <option value="all">All Signals</option>
+                  {['High', 'Medium', 'Low', 'None'].map((signal) => <option key={signal} value={signal}>{signal}</option>)}
+                </select>
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Priority</span>
+                <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100">
+                  <option value="all">All Priorities</option>
+                  {['High Opportunity', 'Medium Opportunity', 'Watchlist', 'High Priority', 'Medium Priority', 'Low Priority'].map((priority) => <option key={priority} value={priority}>{priority}</option>)}
+                </select>
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Source</span>
+                <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100">
+                  <option value="all">All Sources</option>
+                  {sourceOptions.map((source) => <option key={source} value={source}>{source}</option>)}
+                </select>
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Industry</span>
+                <select disabled className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-400 outline-none">
+                  <option>All Industries</option>
+                </select>
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Owner</span>
+                <select disabled className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-400 outline-none">
+                  <option>All Owners</option>
+                </select>
+              </label>
+              <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                <span>Only My Accounts</span>
+                <input type="checkbox" checked={false} readOnly className="h-4 w-4 rounded border-slate-300 text-teal-600" />
+              </label>
+              <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                <span>Show all companies</span>
+                <input type="checkbox" checked={showAllCompanies} onChange={(event) => setShowAllCompanies(event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-200" />
+              </label>
+            </div>
+          </aside>
+        </div>
+      ) : null}
+
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(280px,0.78fr)_minmax(0,1.22fr)] 2xl:grid-cols-[260px_minmax(340px,0.85fr)_minmax(0,1.25fr)]">
+        <aside className="hidden space-y-3 2xl:sticky 2xl:top-6 2xl:block 2xl:self-start">
+          <Panel padded={false} className="overflow-hidden">
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Filters</p>
+              <button
+                type="button"
+                onClick={clearRelationshipFilters}
+                className="text-xs font-semibold text-teal-700 hover:text-teal-800"
+              >
+                Clear all
+              </button>
+            </div>
+            <div className="space-y-3 p-4">
+              <label className="block space-y-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Account Status</span>
+                <select
+                  value={accountStatusFilter}
+                  onChange={(event) => setAccountStatusFilter(event.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                >
+                  <option value="all">All Statuses</option>
+                  {accountStatusOptions.map((status) => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Hiring Signal</span>
+                <select
+                  value={hiringSignalFilter}
+                  onChange={(event) => setHiringSignalFilter(event.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                >
+                  <option value="all">All Signals</option>
+                  {['High', 'Medium', 'Low', 'None'].map((signal) => (
+                    <option key={signal} value={signal}>{signal}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Priority</span>
+                <select
+                  value={priorityFilter}
+                  onChange={(event) => setPriorityFilter(event.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                >
+                  <option value="all">All Priorities</option>
+                  {['High Opportunity', 'Medium Opportunity', 'Watchlist', 'High Priority', 'Medium Priority', 'Low Priority'].map((priority) => (
+                    <option key={priority} value={priority}>{priority}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Source</span>
+                <select
+                  value={sourceFilter}
+                  onChange={(event) => setSourceFilter(event.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                >
+                  <option value="all">All Sources</option>
+                  {sourceOptions.map((source) => (
+                    <option key={source} value={source}>{source}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Industry</span>
+                <select disabled className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-400 outline-none">
+                  <option>All Industries</option>
+                </select>
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Owner</span>
+                <select disabled className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-400 outline-none">
+                  <option>All Owners</option>
+                </select>
+              </label>
+              <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                <span>Only My Accounts</span>
+                <input type="checkbox" checked={false} readOnly className="h-4 w-4 rounded border-slate-300 text-teal-600" />
+              </label>
+              <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                <span>Show all companies</span>
+                <input
+                  type="checkbox"
+                  checked={showAllCompanies}
+                  onChange={(event) => setShowAllCompanies(event.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-200"
+                />
+              </label>
+              {companiesRestricted ? (
+                <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Company details are restricted by database policies. Showing contact-linked placeholders.
+                </p>
+              ) : null}
+            </div>
+          </Panel>
+        </aside>
+
+        <Panel padded={false} className="min-w-0 overflow-hidden">
+          <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-950">All Accounts ({filteredCompanies.length})</p>
+              <p className="text-xs text-slate-500">Select an account to open the relationship workspace.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowFilterDrawer(true)}
+                className="inline-flex min-h-[34px] items-center justify-center rounded-xl border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-semibold text-teal-800 shadow-sm transition hover:border-teal-300 hover:bg-teal-100 focus:outline-none focus:ring-2 focus:ring-teal-100 2xl:hidden"
+              >
+                Filters
+              </button>
+              {jobsIntelError ? <Badge tone="amber">Job signals unavailable</Badge> : null}
+              <select
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+              >
+                <option value="score">Sort by Score</option>
+                <option value="activity">Sort by Activity</option>
+                <option value="name">Sort by Name</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="max-h-[calc(100vh-220px)] divide-y divide-slate-100 overflow-y-auto">
+            {loading ? (
+              <div className="px-4 py-5 text-sm text-slate-500">Loading BD relationships...</div>
+            ) : error ? (
+              <div className="px-4 py-5 text-sm text-red-700">{error}</div>
+            ) : filteredCompanies.length === 0 ? (
+              <div className="px-4 py-8 text-center text-sm text-slate-500">No matching companies or contacts found.</div>
+            ) : (
+              filteredCompanies.map((company) => {
+                const companyIdString = String(company.id);
+                const isExpanded = companyIdString === expandedCompanyId;
+                const companyContacts = contactsByCompanyId.get(company.id) ?? [];
+                const key = normalizeCompanyKey(company.company_name);
+                const companyJobs = key ? jobsByCompanyKey.get(key) ?? [] : [];
+                const intel = computeCompanyIntel({ company, companyContacts, companyJobs });
+                const relationshipScore = computeRelationshipWinScore(company, companyContacts).score;
+
+                return (
+                  <button
+                    key={company.id}
+                    type="button"
+                    onClick={() => {
+                      setExpandedCompanyId(companyIdString);
+                      setActiveWorkspaceTab('overview');
+                    }}
+                    className={`w-full px-4 py-3 text-left transition ${
+                      isExpanded ? 'bg-blue-50/70 ring-1 ring-inset ring-blue-100' : 'bg-white hover:bg-slate-50/80'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-xs font-bold text-teal-700 shadow-sm">
+                        {companyInitials(company.company_name)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-950">{company.company_name}</p>
+                            <p className="mt-0.5 truncate text-xs text-slate-500">
+                              {formatCompanyLocation(company) || formatCompanySourceLabel(company.source_type)} • {companyContacts.length} contacts
+                            </p>
+                          </div>
+                          <Badge tone={scoreTone(relationshipScore)}>Score {relationshipScore}</Badge>
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          <Badge tone={hiringSignalTone(intel.hiringSignal)}>{intel.hiringSignal} Signal</Badge>
+                          <Badge tone={priorityTone(intel.priority)}>{intel.priority}</Badge>
+                          <Badge tone={sourceStatusTone(company)}>Source {deriveCompanySourceStatus(company)}</Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </Panel>
+
+        <Panel
+          padded={false}
+          className="flex min-w-0 overflow-hidden xl:sticky xl:top-6 xl:max-h-[calc(100vh-120px)] xl:flex-col xl:self-start"
+        >
+          {!expandedCompany ? (
+            <div className="flex min-h-[520px] items-center justify-center px-6 text-center">
+              <div>
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+                  <Building2 size={20} />
+                </div>
+                <p className="mt-4 text-sm font-semibold text-slate-950">Select an account</p>
+                <p className="mt-1 max-w-sm text-sm text-slate-500">
+                  Search or choose a company to review relationship intelligence, contacts, activity, and next actions.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="border-b border-slate-100 px-4 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm font-bold text-teal-700 shadow-sm">
+                      {companyInitials(expandedCompany.company_name)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-lg font-semibold text-slate-950">{expandedCompany.company_name}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {formatCompanySourceLabel(expandedCompany.source_type)} • {formatCompanyLocation(expandedCompany) || 'Malaysia'}
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <Badge tone={scoreTone(computeRelationshipWinScore(expandedCompany, expandedContacts).score)}>
+                          Score {computeRelationshipWinScore(expandedCompany, expandedContacts).score}
+                        </Badge>
+                        {expandedCompanyIntel ? (
+                          <>
+                            <Badge tone={hiringSignalTone(expandedCompanyIntel.hiringSignal)}>
+                              {expandedCompanyIntel.hiringSignal} Hiring Signal
+                            </Badge>
+                            <Badge tone={priorityTone(expandedCompanyIntel.priority)}>{expandedCompanyIntel.priority}</Badge>
+                          </>
+                        ) : null}
+                        <Badge tone={sourceStatusTone(expandedCompany)}>Source {deriveCompanySourceStatus(expandedCompany)}</Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-b border-slate-100 px-4">
+                <div className="flex gap-1 overflow-x-auto">
+                  {(['overview', 'contacts', 'activity', 'notes'] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setActiveWorkspaceTab(tab)}
+                      className={`border-b-2 px-3 py-3 text-xs font-semibold capitalize transition ${
+                        activeWorkspaceTab === tab
+                          ? 'border-teal-600 text-teal-700'
+                          : 'border-transparent text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      {tab}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+                {activeWorkspaceTab === 'overview' && expandedCompanyIntel ? (
+                  <div className="space-y-4">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <p className="text-sm font-semibold text-slate-950">Account Summary</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        {jobsIntelError ? jobsIntelError : expandedCompanyIntel.why.slice(0, 2).join(' ')}
+                      </p>
+                      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <div><p className="text-lg font-semibold text-slate-950">{expandedCompanyIntel.activeJobs}</p><p className="text-xs text-slate-500">Active Jobs</p></div>
+                        <div><p className="text-lg font-semibold text-slate-950">{expandedCompanyIntel.openRolesSnapshot.length}</p><p className="text-xs text-slate-500">Open Roles</p></div>
+                        <div><p className="text-lg font-semibold text-slate-950">{expandedCompanyIntel.lastActivityLabel}</p><p className="text-xs text-slate-500">Last Activity</p></div>
+                        <div><p className="text-lg font-semibold text-slate-950">{expandedContacts.length}</p><p className="text-xs text-slate-500">Coverage</p></div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <p className="text-sm font-semibold text-slate-950">Key Signals</p>
+                      <div className="mt-3 grid gap-2">
+                        {expandedCompanyIntel.signals.slice(0, 6).map((signal) => (
+                          <div key={signal.label} className="flex items-center gap-2 text-sm text-slate-700">
+                            <span className="h-1.5 w-1.5 rounded-full bg-teal-500" />
+                            {signal.label}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-slate-950">Top Contacts</p>
+                        <button type="button" onClick={() => setActiveWorkspaceTab('contacts')} className="text-xs font-semibold text-teal-700 hover:text-teal-800">
+                          View all
+                        </button>
+                      </div>
+                      <div className="mt-3 divide-y divide-slate-100">
+                        {expandedContacts.slice(0, 3).map((contact) => (
+                          <div key={contact.id} className="py-3">
+                            <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="truncate text-sm font-semibold text-slate-950">{contact.full_name}</p>
+                                  {renderStatusTag(getUiStatus(contact))}
+                                </div>
+                                <p className="mt-0.5 truncate text-xs text-slate-500">{contact.job_title ?? 'Contact'}</p>
+                                <div className="mt-2 grid gap-x-3 gap-y-1 text-[11px] text-slate-600 sm:grid-cols-2">
+                                  <span className="truncate">Email: {contact.email || 'Not captured'}</span>
+                                  <span className="truncate">Mobile: {contact.mobile_phone || 'Not captured'}</span>
+                                  <span className="truncate">Direct: {contact.phone || 'Not captured'}</span>
+                                  <span className="truncate">
+                                    Last: {contact.last_contacted_at ? daysAgoLabel(contact.last_contacted_at) : 'Never'}
+                                  </span>
+                                  <span className="truncate sm:col-span-2">
+                                    Next: {nextActionLabel(contact.next_action, contact.next_action_date)}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                                <a
+                                  href={contact.email ? `mailto:${contact.email}` : undefined}
+                                  aria-disabled={!contact.email}
+                                  className={`rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold shadow-sm transition ${
+                                    contact.email
+                                      ? 'bg-white text-slate-700 hover:bg-slate-50'
+                                      : 'pointer-events-none bg-slate-50 text-slate-400'
+                                  }`}
+                                >
+                                  Email
+                                </a>
+                                <a
+                                  href={contact.mobile_phone || contact.phone ? `tel:${contact.mobile_phone || contact.phone}` : undefined}
+                                  aria-disabled={!contact.mobile_phone && !contact.phone}
+                                  className={`rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold shadow-sm transition ${
+                                    contact.mobile_phone || contact.phone
+                                      ? 'bg-white text-slate-700 hover:bg-slate-50'
+                                      : 'pointer-events-none bg-slate-50 text-slate-400'
+                                  }`}
+                                >
+                                  Call
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const splitNotes = splitNotesForDisplay(contact.notes);
+                                    setEditingContact({
+                                      id: contact.id,
+                                      full_name: contact.full_name,
+                                      job_title: contact.job_title,
+                                      email: contact.email,
+                                      phone: contact.phone,
+                                      mobile_phone: contact.mobile_phone,
+                                      relationship_status: contact.relationship_status,
+                                      notes: splitNotes.display,
+                                      hiddenMigrationNotes: splitNotes.hidden,
+                                    });
+                                  }}
+                                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                                >
+                                  Edit
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        {expandedContacts.length === 0 ? <p className="py-3 text-sm text-slate-500">No contacts found for this account yet.</p> : null}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {activeWorkspaceTab === 'contacts' ? (
+                  expandedContacts.length === 0 ? (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-500">No contacts found for this account yet.</div>
+                  ) : (
+                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                      <div className="hidden grid-cols-[1.1fr_0.9fr_1.2fr_0.9fr_0.9fr_0.8fr_0.9fr_1.1fr_1.2fr] gap-3 border-b border-slate-100 bg-slate-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500 2xl:grid">
+                        <span>Name</span>
+                        <span>Role</span>
+                        <span>Email</span>
+                        <span>Mobile</span>
+                        <span>Direct Phone</span>
+                        <span>Status</span>
+                        <span>Last Contacted</span>
+                        <span>Next Action</span>
+                        <span>Actions</span>
+                      </div>
+                      <div className="divide-y divide-slate-100">
+                        {expandedContacts.map((contact) => {
+                          const splitNotes = splitNotesForDisplay(contact.notes);
+                          return (
+                            <div
+                              key={contact.id}
+                              className="grid min-w-0 gap-2 px-3 py-3 text-sm transition hover:bg-slate-50/70 2xl:grid-cols-[1.1fr_0.9fr_1.2fr_0.9fr_0.9fr_0.8fr_0.9fr_1.1fr_1.2fr] 2xl:items-center 2xl:gap-3"
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate font-semibold text-slate-950">{contact.full_name}</p>
+                                <p className="mt-0.5 text-[11px] text-slate-500 2xl:hidden">{contact.job_title ?? 'Contact'}</p>
+                              </div>
+                              <p className="hidden min-w-0 truncate text-xs text-slate-600 2xl:block">{contact.job_title ?? 'Contact'}</p>
+                              <a
+                                href={contact.email ? `mailto:${contact.email}` : undefined}
+                                className={`min-w-0 truncate text-xs ${contact.email ? 'text-teal-700 hover:underline' : 'text-slate-400'}`}
+                              >
+                                {contact.email || 'Not captured'}
+                              </a>
+                              <a
+                                href={contact.mobile_phone ? `tel:${contact.mobile_phone}` : undefined}
+                                className={`min-w-0 truncate text-xs ${contact.mobile_phone ? 'text-slate-700 hover:underline' : 'text-slate-400'}`}
+                              >
+                                {contact.mobile_phone || 'Not captured'}
+                              </a>
+                              <a
+                                href={contact.phone ? `tel:${contact.phone}` : undefined}
+                                className={`min-w-0 truncate text-xs ${contact.phone ? 'text-slate-700 hover:underline' : 'text-slate-400'}`}
+                              >
+                                {contact.phone || 'Not captured'}
+                              </a>
+                              <div>{renderStatusTag(getUiStatus(contact))}</div>
+                              <p className="text-xs text-slate-600">
+                                {contact.last_contacted_at ? daysAgoLabel(contact.last_contacted_at) : 'Never'}
+                              </p>
+                              <div className="min-w-0">
+                                <Badge tone={nextActionTone(contact.next_action_date)}>
+                                  {nextActionLabel(contact.next_action, contact.next_action_date)}
+                                </Badge>
+                                <input
+                                  type="date"
+                                  value={followUpDates[contact.id] ?? contact.next_action_date ?? ''}
+                                  onChange={(event) => setFollowUpDates((prev) => ({ ...prev, [contact.id]: event.target.value }))}
+                                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-800 outline-none"
+                                />
+                              </div>
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <a
+                                  href={contact.email ? `mailto:${contact.email}` : undefined}
+                                  aria-disabled={!contact.email}
+                                  className={`rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold shadow-sm ${
+                                    contact.email ? 'bg-white text-slate-700 hover:bg-slate-50' : 'pointer-events-none bg-slate-50 text-slate-400'
+                                  }`}
+                                >
+                                  Email
+                                </a>
+                                <a
+                                  href={contact.mobile_phone || contact.phone ? `tel:${contact.mobile_phone || contact.phone}` : undefined}
+                                  aria-disabled={!contact.mobile_phone && !contact.phone}
+                                  className={`rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold shadow-sm ${
+                                    contact.mobile_phone || contact.phone ? 'bg-white text-slate-700 hover:bg-slate-50' : 'pointer-events-none bg-slate-50 text-slate-400'
+                                  }`}
+                                >
+                                  Call
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEditingContact({
+                                      id: contact.id,
+                                      full_name: contact.full_name,
+                                      job_title: contact.job_title,
+                                      email: contact.email,
+                                      phone: contact.phone,
+                                      mobile_phone: contact.mobile_phone,
+                                      relationship_status: contact.relationship_status,
+                                      notes: splitNotes.display,
+                                      hiddenMigrationNotes: splitNotes.hidden,
+                                    })
+                                  }
+                                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => markContacted(contact).catch((err) => console.error('[BDRelationships] markContacted failed', err))}
+                                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                                >
+                                  Contacted
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setFollowUp(contact).catch((err) => console.error('[BDRelationships] setFollowUp failed', err))}
+                                  className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                                >
+                                  Follow-up
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )
+                ) : null}
+
+                {activeWorkspaceTab === 'activity' ? (
+                  <div className="space-y-4">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <p className="text-sm font-semibold text-slate-950">Action Queue</p>
+                      <div className="mt-3 divide-y divide-slate-100">
+                        {actionQueue.filter((contact) => contact.company_id === expandedCompany.id).length === 0 ? (
+                          <p className="py-2 text-sm text-slate-500">No follow-ups due for this account.</p>
+                        ) : (
+                          actionQueue.filter((contact) => contact.company_id === expandedCompany.id).map((contact) => (
+                            <div key={contact.id} className="py-2">
+                              <p className="text-sm font-semibold text-slate-950">{contact.full_name}</p>
+                              <p className="text-xs text-slate-500">{nextActionLabel(contact.next_action, contact.next_action_date)}</p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {activeWorkspaceTab === 'notes' ? (
+                  <div className="space-y-3">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-950">BD Working Notes</p>
+                          <p className="mt-1 text-xs text-slate-500">Capture account context, outreach details, and next-step thinking.</p>
+                        </div>
+                        {/* TODO: Create proper BD notes table later with id, company_id, contact_id nullable, note_body, note_type, created_by, created_at, and visibility / owner rules. Future multi-BD support must respect assigned accounts/clients and permitted notes. */}
+                        <button
+                          type="button"
+                          onClick={() => setShowNoteComposer(true)}
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+                        >
+                          Add Note
+                        </button>
+                      </div>
+                      {showNoteComposer ? (
+                        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                          <textarea
+                            value={noteDraft}
+                            onChange={(event) => setNoteDraft(event.target.value)}
+                            rows={4}
+                            placeholder="Write a note about this account..."
+                            className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                          />
+                          {noteError ? <p className="mt-2 text-xs text-red-700">{noteError}</p> : null}
+                          <div className="mt-3 flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowNoteComposer(false);
+                                setNoteDraft('');
+                                setNoteError(null);
+                              }}
+                              disabled={noteSaving}
+                              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void saveBdNote()}
+                              disabled={noteSaving || !noteDraft.trim()}
+                              className="rounded-xl bg-teal-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {noteSaving ? 'Saving...' : 'Save Note'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : expandedCompanyNotes.length === 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowNoteComposer(true)}
+                          className="mt-4 w-full rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-3 py-4 text-left text-sm text-slate-500 transition hover:border-teal-200 hover:bg-teal-50/40"
+                        >
+                          Write a note about this account...
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {expandedCompanyNotes.map((note) => (
+                      <div key={note.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <p className="whitespace-pre-wrap text-sm leading-6 text-slate-800">{note.note_body}</p>
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                          <span>{formatNoteTimestamp(note.created_at)}</span>
+                          <span aria-hidden="true">-</span>
+                          <span>{noteAuthorLabel(note)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="border-t border-slate-100 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button type="button" onClick={() => onNavigate('bd-tasks')} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50">Log Activity</button>
+                  <button type="button" onClick={() => setShowAddContactModal(true)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50">Add Contact</button>
+                  <button type="button" onClick={() => onNavigate('jobs')} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800">Create Opportunity</button>
+                </div>
+              </div>
+            </>
+          )}
+        </Panel>
+      </div>
+
+      <div className="hidden">
+
       <div className="grid gap-3 sm:grid-cols-3">
         <MetricTile
           label="Relationship Companies"
@@ -1120,6 +2104,50 @@ export default function BDRelationships({ onNavigate }: Props) {
           tone={unreviewedCount > 0 ? 'amber' : 'slate'}
         />
       </div>
+
+      <Panel padded={false} className="overflow-hidden">
+        <SectionHeader
+          title="Top Companies We Can Win"
+          description="Dynamic relationship ranking from contacts, stakeholder coverage, source readiness, and activity."
+          icon={<Sparkles size={16} />}
+          meta={<Badge tone="slate">{topCompaniesWeCanWin.length} ranked</Badge>}
+        />
+        <div className="divide-y divide-slate-100">
+          {loading ? (
+            <div className="px-4 py-4 text-sm text-slate-500">Loading relationship intelligence...</div>
+          ) : topCompaniesWeCanWin.length === 0 ? (
+            <div className="px-4 py-4 text-sm text-slate-500">No relationship companies available yet.</div>
+          ) : (
+            topCompaniesWeCanWin.map((item) => (
+              <button
+                key={item.company.id}
+                type="button"
+                onClick={() => setExpandedCompanyId(String(item.company.id))}
+                className="w-full px-4 py-3 text-left transition hover:bg-slate-50/70"
+              >
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate text-sm font-semibold text-slate-950">{item.company.company_name}</p>
+                      <Badge tone={scoreTone(item.score)}>Score {item.score}</Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">{item.recommendedAction}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 lg:justify-end">
+                    <Badge tone="slate">{item.contactCount} contacts</Badge>
+                    <Badge tone={item.hasHrCoverage ? 'emerald' : 'slate'}>HR {item.hasHrCoverage ? 'Yes' : 'No'}</Badge>
+                    <Badge tone={item.hasTaCoverage ? 'emerald' : 'slate'}>TA {item.hasTaCoverage ? 'Yes' : 'No'}</Badge>
+                    <Badge tone={item.hasHiringManagerCoverage ? 'emerald' : 'slate'}>
+                      Hiring Manager {item.hasHiringManagerCoverage ? 'Yes' : 'No'}
+                    </Badge>
+                    <Badge tone={sourceStatusTone(item.company)}>Source {item.sourceStatus}</Badge>
+                  </div>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </Panel>
 
       <Panel padded={false} className="overflow-hidden">
         <SectionHeader
@@ -1239,7 +2267,7 @@ export default function BDRelationships({ onNavigate }: Props) {
             ) : error ? (
               <div className="px-4 py-5 text-sm text-red-700">{error}</div>
             ) : filteredCompanies.length === 0 ? (
-              <div className="px-4 py-5 text-sm text-slate-500">No accounts match your search.</div>
+              <div className="px-4 py-5 text-sm text-slate-500">No matching companies or contacts found.</div>
             ) : (
               filteredCompanies.map((company) => {
                 const companyIdString = String(company.id);
@@ -1345,7 +2373,10 @@ export default function BDRelationships({ onNavigate }: Props) {
           </div>
         </Panel>
 
-        <Panel padded={false} className="overflow-hidden">
+        <Panel
+          padded={false}
+          className="flex overflow-hidden xl:sticky xl:top-6 xl:max-h-[calc(100vh-120px)] xl:flex-col xl:self-start"
+        >
           <SectionHeader
             title={expandedCompany ? expandedCompany.company_name : 'Contacts'}
             description={expandedCompany ? 'Account intelligence and BD contacts.' : 'Select an account to view contacts.'}
@@ -1357,6 +2388,7 @@ export default function BDRelationships({ onNavigate }: Props) {
             }
           />
 
+          <div className="min-h-0 flex-1 overflow-y-auto">
           {!expandedCompany ? (
             <div className="px-4 pb-4 text-sm text-slate-500">No account selected yet.</div>
           ) : (
@@ -1599,7 +2631,9 @@ export default function BDRelationships({ onNavigate }: Props) {
               })}
             </div>
           )}
+          </div>
         </Panel>
+      </div>
       </div>
 
       {editingCompanyIntelligence ? (

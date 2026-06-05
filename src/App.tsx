@@ -5,6 +5,7 @@ import BDDashboard from './pages/BDDashboard';
 import BDRelationships from './pages/BDRelationships';
 import BDTasksFollowUps from './pages/BDTasksFollowUps';
 import BDPhotoIntake from './pages/BDPhotoIntake';
+import Opportunities from './pages/Opportunities';
 import Jobs from './pages/Jobs';
 import ActiveJobs from './pages/ActiveJobs';
 import HiringIntelligence from './pages/HiringIntelligence';
@@ -34,6 +35,7 @@ type Page =
   | 'job-intake'
   | 'bd-queue'
   | 'bd-relationships'
+  | 'opportunities'
   | 'bd-tasks'
   | 'bd-photo-intake'
   | 'interested-candidates'
@@ -65,6 +67,7 @@ const PAGE_TO_PATH: Record<Page, string> = {
   'job-intake': '/job-intake',
   'bd-queue': '/bd-queue',
   'bd-relationships': '/bd-relationships',
+  opportunities: '/opportunities',
   'bd-tasks': '/bd-tasks',
   'bd-photo-intake': '/bd-photo-intake',
   'interested-candidates': '/interested-candidates',
@@ -181,6 +184,7 @@ function AppShell() {
       case 'job-intake':  return <JobIntake onNavigate={navigate} />;
       case 'bd-queue':    return <BDQueue />;
       case 'bd-relationships': return <BDRelationships onNavigate={navigate} />;
+      case 'opportunities': return <Opportunities onNavigate={navigate} />;
       case 'bd-tasks': return <BDTasksFollowUps onNavigate={navigate} />;
       case 'bd-photo-intake': return <BDPhotoIntake />;
       case 'interested-candidates': return <InterestedCandidates />;

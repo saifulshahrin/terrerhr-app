@@ -28,6 +28,7 @@ type AppPage =
   | 'job-intake'
   | 'bd-queue'
   | 'bd-relationships'
+  | 'opportunities'
   | 'bd-tasks'
   | 'interested-candidates'
   | 'autonomous-recruiter';
@@ -69,7 +70,7 @@ const ROLE_NAV: Record<AppRole, NavSection[]> = {
       items: [
         { label: 'Dashboard', icon: LayoutDashboard, targetPage: 'dashboard' },
         { label: 'BD Relationships', icon: Users, targetPage: 'bd-relationships' },
-        { label: 'Opportunities (Coming Soon)', icon: Briefcase, comingSoon: true },
+        { label: 'Opportunities', icon: Briefcase, targetPage: 'opportunities' },
         { label: 'BD Playbook', icon: Sparkles, comingSoon: true },
         { label: 'Tasks & Follow-ups', icon: ClipboardList, targetPage: 'bd-tasks' },
       ],
@@ -142,7 +143,7 @@ const ROLE_NAV: Record<AppRole, NavSection[]> = {
       label: 'Business',
       items: [
         { label: 'BD Relationships', icon: Users, targetPage: 'bd-relationships' },
-        { label: 'Opportunities', icon: Briefcase, targetPage: 'active-jobs' },
+        { label: 'Opportunities', icon: Briefcase, targetPage: 'opportunities' },
         { label: 'Submissions', icon: ClipboardCheck, targetPage: 'bd-queue' },
       ],
     },
