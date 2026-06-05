@@ -1792,9 +1792,9 @@ export default function BDRelationships({ onNavigate }: Props) {
                                 </div>
                                 <p className="mt-0.5 truncate text-xs text-slate-500">{contact.job_title ?? 'Contact'}</p>
                                 <div className="mt-2 grid gap-x-3 gap-y-1 text-[11px] text-slate-600 sm:grid-cols-2">
-                                  <span className="truncate">Email: {contact.email || 'Not captured'}</span>
-                                  <span className="truncate">Mobile: {contact.mobile_phone || 'Not captured'}</span>
-                                  <span className="truncate">Direct: {contact.phone || 'Not captured'}</span>
+                                  <span className="truncate">Email: {contact.email || 'Not available'}</span>
+                                  <span className="truncate">Mobile: {contact.mobile_phone || 'Not available'}</span>
+                                  <span className="truncate">Direct: {contact.phone || 'Not available'}</span>
                                   <span className="truncate">
                                     Last: {contact.last_contacted_at ? daysAgoLabel(contact.last_contacted_at) : 'Never'}
                                   </span>
@@ -1861,64 +1861,59 @@ export default function BDRelationships({ onNavigate }: Props) {
                     <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-500">No contacts found for this account yet.</div>
                   ) : (
                     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                      <div className="hidden grid-cols-[1.1fr_0.9fr_1.2fr_0.9fr_0.9fr_0.8fr_0.9fr_1.1fr_1.2fr] gap-3 border-b border-slate-100 bg-slate-50 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500 2xl:grid">
-                        <span>Name</span>
-                        <span>Role</span>
-                        <span>Email</span>
-                        <span>Mobile</span>
-                        <span>Direct Phone</span>
-                        <span>Status</span>
-                        <span>Last Contacted</span>
-                        <span>Next Action</span>
-                        <span>Actions</span>
-                      </div>
                       <div className="divide-y divide-slate-100">
                         {expandedContacts.map((contact) => {
                           const splitNotes = splitNotesForDisplay(contact.notes);
                           return (
                             <div
                               key={contact.id}
-                              className="grid min-w-0 gap-2 px-3 py-3 text-sm transition hover:bg-slate-50/70 2xl:grid-cols-[1.1fr_0.9fr_1.2fr_0.9fr_0.9fr_0.8fr_0.9fr_1.1fr_1.2fr] 2xl:items-center 2xl:gap-3"
+                              className="grid min-w-0 gap-3 px-3 py-3 text-sm transition hover:bg-slate-50/70 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center"
                             >
                               <div className="min-w-0">
-                                <p className="truncate font-semibold text-slate-950">{contact.full_name}</p>
-                                <p className="mt-0.5 text-[11px] text-slate-500 2xl:hidden">{contact.job_title ?? 'Contact'}</p>
+                                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                  <p className="truncate font-semibold text-slate-950">{contact.full_name}</p>
+                                  {renderStatusTag(getUiStatus(contact))}
+                                </div>
+                                <p className="mt-0.5 truncate text-xs text-slate-500">{contact.job_title ?? 'Contact'}</p>
+                                <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+                                  <a
+                                    href={contact.email ? `mailto:${contact.email}` : undefined}
+                                    className={`max-w-full truncate ${contact.email ? 'text-teal-700 hover:underline' : 'text-slate-400'}`}
+                                  >
+                                    Email: {contact.email || 'Not available'}
+                                  </a>
+                                  <a
+                                    href={contact.mobile_phone ? `tel:${contact.mobile_phone}` : undefined}
+                                    className={`max-w-full truncate ${contact.mobile_phone ? 'text-slate-700 hover:underline' : 'text-slate-400'}`}
+                                  >
+                                    Mobile: {contact.mobile_phone || 'Not available'}
+                                  </a>
+                                  <a
+                                    href={contact.phone ? `tel:${contact.phone}` : undefined}
+                                    className={`max-w-full truncate ${contact.phone ? 'text-slate-700 hover:underline' : 'text-slate-400'}`}
+                                  >
+                                    Direct: {contact.phone || 'Not available'}
+                                  </a>
+                                </div>
+                                <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                                  <span className="truncate">
+                                    Last contacted: {contact.last_contacted_at ? daysAgoLabel(contact.last_contacted_at) : 'Never'}
+                                  </span>
+                                  <span className="flex min-w-0 items-center gap-1.5">
+                                    <span className="shrink-0">Next action:</span>
+                                    <Badge tone={nextActionTone(contact.next_action_date)}>
+                                      {nextActionLabel(contact.next_action, contact.next_action_date)}
+                                    </Badge>
+                                  </span>
+                                  <input
+                                    type="date"
+                                    value={followUpDates[contact.id] ?? contact.next_action_date ?? ''}
+                                    onChange={(event) => setFollowUpDates((prev) => ({ ...prev, [contact.id]: event.target.value }))}
+                                    className="h-7 rounded-lg border border-slate-200 bg-white px-2 text-[11px] text-slate-800 outline-none"
+                                  />
+                                </div>
                               </div>
-                              <p className="hidden min-w-0 truncate text-xs text-slate-600 2xl:block">{contact.job_title ?? 'Contact'}</p>
-                              <a
-                                href={contact.email ? `mailto:${contact.email}` : undefined}
-                                className={`min-w-0 truncate text-xs ${contact.email ? 'text-teal-700 hover:underline' : 'text-slate-400'}`}
-                              >
-                                {contact.email || 'Not captured'}
-                              </a>
-                              <a
-                                href={contact.mobile_phone ? `tel:${contact.mobile_phone}` : undefined}
-                                className={`min-w-0 truncate text-xs ${contact.mobile_phone ? 'text-slate-700 hover:underline' : 'text-slate-400'}`}
-                              >
-                                {contact.mobile_phone || 'Not captured'}
-                              </a>
-                              <a
-                                href={contact.phone ? `tel:${contact.phone}` : undefined}
-                                className={`min-w-0 truncate text-xs ${contact.phone ? 'text-slate-700 hover:underline' : 'text-slate-400'}`}
-                              >
-                                {contact.phone || 'Not captured'}
-                              </a>
-                              <div>{renderStatusTag(getUiStatus(contact))}</div>
-                              <p className="text-xs text-slate-600">
-                                {contact.last_contacted_at ? daysAgoLabel(contact.last_contacted_at) : 'Never'}
-                              </p>
-                              <div className="min-w-0">
-                                <Badge tone={nextActionTone(contact.next_action_date)}>
-                                  {nextActionLabel(contact.next_action, contact.next_action_date)}
-                                </Badge>
-                                <input
-                                  type="date"
-                                  value={followUpDates[contact.id] ?? contact.next_action_date ?? ''}
-                                  onChange={(event) => setFollowUpDates((prev) => ({ ...prev, [contact.id]: event.target.value }))}
-                                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-800 outline-none"
-                                />
-                              </div>
-                              <div className="flex flex-wrap items-center gap-1.5">
+                              <div className="flex flex-wrap items-center gap-1.5 xl:justify-end">
                                 <a
                                   href={contact.email ? `mailto:${contact.email}` : undefined}
                                   aria-disabled={!contact.email}
