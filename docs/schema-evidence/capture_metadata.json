@@ -1,0 +1,7 @@
+{
+  "database_name": "postgres",
+  "connected_role": "cli_login_postgres",
+  "server_version": "17.6",
+  "server_version_num": "170006",
+  "captured_at_utc": "2026-06-06T21:07:53.109Z"
+}

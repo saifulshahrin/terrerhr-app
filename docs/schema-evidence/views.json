@@ -1,0 +1,244 @@
+[
+  {
+    "schema_name": "public",
+    "view_name": "hiring_leaderboard_malaysia",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT company_name,\n    count(*) AS active_jobs\n   FROM jobs_latest_practical\n  WHERE company_name = ANY (ARRAY['Hong Leong Bank'::text, 'Affin Bank'::text, 'Maxis'::text, 'Becton Dickinson'::text, 'GX Bank'::text])\n  GROUP BY company_name\n  ORDER BY (count(*)) DESC, company_name;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "jobs_latest",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT id,\n    external_job_url,\n    job_title,\n    company_name,\n    location,\n    posted_date,\n    source,\n    source_company_id,\n    extracted_at,\n    job_id,\n    rn\n   FROM ( SELECT jobs.id,\n            jobs.external_job_url,\n            jobs.job_title,\n            jobs.company_name,\n            jobs.location,\n            jobs.posted_date,\n            jobs.source,\n            jobs.source_company_id,\n            jobs.extracted_at,\n            jobs.job_id,\n            row_number() OVER (PARTITION BY jobs.job_id ORDER BY jobs.extracted_at DESC) AS rn\n           FROM jobs) t\n  WHERE rn = 1;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "jobs_latest_practical",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT id,\n    external_job_url,\n    job_title,\n    company_name,\n    location,\n    posted_date,\n    source,\n    source_company_id,\n    extracted_at,\n    job_id,\n    rn\n   FROM ( SELECT jobs.id,\n            jobs.external_job_url,\n            jobs.job_title,\n            jobs.company_name,\n            jobs.location,\n            jobs.posted_date,\n            jobs.source,\n            jobs.source_company_id,\n            jobs.extracted_at,\n            jobs.job_id,\n            row_number() OVER (PARTITION BY jobs.company_name, (lower(TRIM(BOTH FROM jobs.job_title))), (lower(TRIM(BOTH FROM COALESCE(jobs.location, ''::text)))) ORDER BY jobs.extracted_at DESC) AS rn\n           FROM jobs) t\n  WHERE rn = 1;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "jobs_reporting",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT id,\n    external_job_url,\n    job_title,\n    company_name,\n    location,\n    posted_date,\n    source,\n    source_company_id,\n    extracted_at,\n    job_id,\n    rn\n   FROM jobs_latest_practical\n  WHERE company_name = ANY (ARRAY['Maxis'::text, 'Shell'::text]);"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "recruiter_active_submissions",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT s.id AS submission_id,\n    c.display_name,\n    j.company_name,\n    j.job_title,\n    s.submission_stage,\n    s.next_action_date,\n    s.stage_updated_at\n   FROM submissions s\n     LEFT JOIN candidates c ON c.candidate_id = s.candidate_id\n     LEFT JOIN jobs j ON j.id = s.job_id\n  WHERE s.submission_stage <> ALL (ARRAY['hired'::text, 'rejected'::text, 'withdrew'::text])\n  ORDER BY s.next_action_date, s.stage_updated_at DESC;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "terrer_hiring_now",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT company_name,\n    count(*)::integer AS active_jobs\n   FROM jobs_latest_practical\n  WHERE company_name IS NOT NULL AND btrim(company_name) <> ''::text\n  GROUP BY company_name;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "terrer_jobs_view",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT j.id,\n    c.company_name,\n    j.job_title,\n    j.city,\n    j.country,\n    j.status,\n    j.source_type,\n    j.source_url,\n    j.created_at\n   FROM terrer_jobs j\n     LEFT JOIN terrer_companies c ON j.company_id = c.id;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "v_match_shortlist",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT match_id,\n    job_id,\n    candidate_id,\n    final_score,\n    match_status\n   FROM job_candidate_matches m\n  WHERE match_status = ANY (ARRAY['shortlisted'::text, 'submitted'::text])\n  ORDER BY final_score DESC;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "v_outreach_due",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT outreach_id,\n    outreach_date,\n    job_id,\n    candidate_id,\n    company_id,\n    outreach_side,\n    contact_person,\n    channel,\n    message_type,\n    response_status,\n    next_action_date,\n    owner,\n    notes,\n    created_at\n   FROM outreach_log\n  WHERE next_action_date <= CURRENT_DATE;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_activity_log_enriched",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT a.id AS activity_id,\n    a.submission_id,\n    a.entity_type,\n    a.entity_id,\n    a.activity_type,\n    a.activity_channel,\n    a.activity_direction,\n    a.subject_line,\n    a.message_summary,\n    a.occurred_at,\n    a.next_action_at,\n    a.created_by,\n    a.created_at,\n    s.submission_stage,\n    s.match_score,\n    s.owner_name,\n    j.job_title,\n    j.company_name,\n    c.display_name,\n    c.full_name,\n    c.email,\n    c.phone,\n    c.linkedin_url,\n    c.github_url\n   FROM activity_log a\n     LEFT JOIN submissions s ON a.submission_id = s.id\n     LEFT JOIN jobs j ON s.job_id = j.id\n     LEFT JOIN candidates c ON s.candidate_id = c.candidate_id;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_candidate_pipeline_summary",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT c.candidate_id,\n    c.display_name,\n    c.full_name,\n    s.submission_stage,\n    count(*) AS submission_count\n   FROM submissions s\n     LEFT JOIN candidates c ON s.candidate_id = c.candidate_id\n  GROUP BY c.candidate_id, c.display_name, c.full_name, s.submission_stage\n  ORDER BY c.display_name, s.submission_stage;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_candidate_search",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT c.candidate_id,\n    c.display_name,\n    c.full_name,\n    c.country,\n    c.city,\n    c.primary_role,\n    sp.source_name,\n    sp.source_handle,\n    sp.source_profile_url,\n    csco.score,\n    csco.score_reason,\n    csco.scored_at,\n    ( SELECT string_agg(DISTINCT s.skill_name, ', '::text ORDER BY s.skill_name) AS string_agg\n           FROM candidate_skills csk\n             JOIN skills s ON s.skill_id = csk.skill_id\n          WHERE csk.candidate_id = c.candidate_id) AS top_skills,\n    ( SELECT string_agg(DISTINCT cc.capability, ', '::text ORDER BY cc.capability) AS string_agg\n           FROM candidate_capabilities cc\n          WHERE cc.candidate_id = c.candidate_id) AS capabilities\n   FROM candidates c\n     LEFT JOIN source_profiles sp ON sp.candidate_id = c.candidate_id\n     LEFT JOIN candidate_scores csco ON csco.candidate_id = c.candidate_id;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_candidate_search_clean",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": [
+      "security_invoker=true"
+    ],
+    "definition": " SELECT DISTINCT ON (candidate_id) candidate_id,\n    display_name,\n    full_name,\n    country,\n    city,\n    primary_role,\n    source_name,\n    source_handle,\n    source_profile_url,\n    score,\n    score_reason,\n    top_skills,\n    capabilities\n   FROM vw_candidate_search\n  ORDER BY candidate_id, scored_at DESC;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_company_pipeline_summary",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT j.company_id,\n    j.company_name,\n    s.submission_stage,\n    count(*) AS submission_count\n   FROM submissions s\n     LEFT JOIN jobs j ON s.job_id = j.id\n  GROUP BY j.company_id, j.company_name, s.submission_stage\n  ORDER BY j.company_name, s.submission_stage;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_followup_queue",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT a.id AS activity_id,\n    a.submission_id,\n    a.activity_type,\n    a.activity_channel,\n    a.subject_line,\n    a.message_summary,\n    a.occurred_at,\n    a.next_action_at,\n    a.created_by,\n    s.submission_stage,\n    s.owner_name,\n    s.match_score,\n    s.shortlist_rank,\n    j.job_title,\n    j.company_name,\n    c.display_name,\n    c.full_name,\n    c.email,\n    c.phone,\n    c.contactability_status,\n    c.tier_label,\n    c.score_total\n   FROM activity_log a\n     LEFT JOIN submissions s ON a.submission_id = s.id\n     LEFT JOIN jobs j ON s.job_id = j.id\n     LEFT JOIN candidates c ON s.candidate_id = c.candidate_id\n  WHERE a.next_action_at IS NOT NULL AND (s.submission_stage = ANY (ARRAY['submitted_to_client'::text, 'client_review'::text, 'interview'::text, 'offer'::text]))\n  ORDER BY a.next_action_at;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_job_shortlist",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT submission_id,\n    job_id,\n    company_id,\n    company_name,\n    job_title,\n    candidate_id,\n    display_name,\n    full_name,\n    primary_role,\n    city,\n    country,\n    email,\n    phone,\n    linkedin_url,\n    github_url,\n    match_score,\n    score_total,\n    tier_label,\n    contactability_status,\n    shortlist_rank,\n    submission_stage,\n    stage_updated_at,\n    owner_name,\n    created_at\n   FROM vw_submissions_enriched s\n  WHERE submission_stage = ANY (ARRAY['identified'::text, 'shortlisted'::text, 'approached'::text, 'replied'::text, 'qualified'::text])\n  ORDER BY job_title, shortlist_rank, match_score DESC NULLS LAST, score_total DESC NULLS LAST, created_at DESC;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_jobs_tier1_malaysia",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " WITH tier1 AS (\n         SELECT j.id,\n            j.external_job_url,\n            j.job_title,\n            j.company_name,\n            j.location,\n            j.posted_date,\n            j.source,\n            j.source_company_id,\n            j.extracted_at,\n            j.job_id,\n            j.company_id,\n            j.updated_at,\n            j.operational_status,\n            j.last_seen_at,\n            j.freshness_status,\n            j.market_cluster,\n            j.is_market_signal_eligible,\n            j.market_signal_exclusion_reason,\n            j.job_source_id,\n            j.normalized_job_title,\n            j.role_family,\n            j.seniority,\n            j.job_description_html,\n            j.job_description_text,\n            j.responsibilities,\n            j.qualifications\n           FROM jobs j\n             LEFT JOIN job_sources js ON js.id = j.job_source_id\n          WHERE js.tier = 'tier_1'::text OR (lower(COALESCE(j.source, ''::text)) = ANY (ARRAY['workday'::text, 'oracle'::text, 'manual_intake'::text]))\n        ), malaysia_only AS (\n         SELECT tier1.id,\n            tier1.external_job_url,\n            tier1.job_title,\n            tier1.company_name,\n            tier1.location,\n            tier1.posted_date,\n            tier1.source,\n            tier1.source_company_id,\n            tier1.extracted_at,\n            tier1.job_id,\n            tier1.company_id,\n            tier1.updated_at,\n            tier1.operational_status,\n            tier1.last_seen_at,\n            tier1.freshness_status,\n            tier1.market_cluster,\n            tier1.is_market_signal_eligible,\n            tier1.market_signal_exclusion_reason,\n            tier1.job_source_id,\n            tier1.normalized_job_title,\n            tier1.role_family,\n            tier1.seniority,\n            tier1.job_description_html,\n            tier1.job_description_text,\n            tier1.responsibilities,\n            tier1.qualifications\n           FROM tier1\n          WHERE (lower(COALESCE(tier1.location, ''::text)) ~~ '%malaysia%'::text OR lower(COALESCE(tier1.location, ''::text)) ~~ '%kuala lumpur%'::text OR lower(COALESCE(tier1.location, ''::text)) ~~ '%selangor%'::text OR lower(COALESCE(tier1.location, ''::text)) ~~ '%penang%'::text OR lower(COALESCE(tier1.location, ''::text)) ~~ '%johor%'::text) AND NOT ((lower(COALESCE(tier1.location, ''::text)) ~~ '%brazil%'::text OR lower(COALESCE(tier1.location, ''::text)) ~~ '%poland%'::text OR lower(COALESCE(tier1.location, ''::text)) ~~ '% india%'::text OR lower(COALESCE(tier1.location, ''::text)) ~~ '%singapore%'::text OR lower(COALESCE(tier1.location, ''::text)) ~~ '%china%'::text OR lower(COALESCE(tier1.location, ''::text)) ~~ '%europe%'::text OR lower(COALESCE(tier1.location, ''::text)) ~~ '%united states%'::text OR lower(COALESCE(tier1.location, ''::text)) ~~ '% usa%'::text OR lower(COALESCE(tier1.location, ''::text)) ~~ '% us%'::text OR lower(COALESCE(tier1.location, ''::text)) ~~ '%united kingdom%'::text OR lower(COALESCE(tier1.location, ''::text)) ~~ '% uk%'::text OR lower(COALESCE(tier1.location, ''::text)) ~~ '%remote%'::text) AND lower(COALESCE(tier1.location, ''::text)) !~~ '%malaysia%'::text)\n        )\n SELECT id,\n    external_job_url,\n    job_title,\n    company_name,\n    location,\n    posted_date,\n    source,\n    source_company_id,\n    extracted_at,\n    job_id,\n    company_id,\n    updated_at,\n    operational_status,\n    last_seen_at,\n    freshness_status,\n    market_cluster,\n    is_market_signal_eligible,\n    market_signal_exclusion_reason,\n    job_source_id,\n    normalized_job_title,\n    role_family,\n    seniority,\n    job_description_html,\n    job_description_text,\n    responsibilities,\n    qualifications\n   FROM malaysia_only;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_live_work_queue",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT id AS submission_id,\n    job_id,\n    candidate_id,\n    company_id,\n    submission_stage,\n    next_action_date,\n        CASE\n            WHEN next_action_date < CURRENT_DATE THEN 'overdue'::text\n            WHEN next_action_date = CURRENT_DATE THEN 'due_today'::text\n            WHEN next_action_date = (CURRENT_DATE + 1) THEN 'due_tomorrow'::text\n            ELSE 'upcoming'::text\n        END AS urgency,\n    owner_name,\n    created_at,\n    updated_at\n   FROM submissions s\n  WHERE submission_stage <> ALL (ARRAY['hired'::text, 'rejected'::text, 'withdrew'::text]);"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_market_signals",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT market_cluster,\n    freshness_status,\n    count(*) AS role_count,\n    count(DISTINCT company_name) AS company_count,\n    array_agg(DISTINCT company_name) FILTER (WHERE company_name IS NOT NULL) AS companies,\n    array_agg(DISTINCT location) FILTER (WHERE location IS NOT NULL) AS locations\n   FROM jobs\n  WHERE is_market_signal_eligible = true AND market_cluster IS NOT NULL\n  GROUP BY market_cluster, freshness_status;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_market_signals_active",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT market_cluster,\n    count(*) AS role_count,\n    count(DISTINCT company_name) AS company_count,\n    array_agg(DISTINCT company_name) AS companies,\n    array_agg(DISTINCT location) AS locations\n   FROM jobs\n  WHERE freshness_status = 'active'::text\n  GROUP BY market_cluster;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_market_signals_realtime",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " WITH base AS (\n         SELECT j.id,\n            j.external_job_url,\n            j.job_title,\n            j.company_name,\n            j.location,\n            j.posted_date,\n            j.source,\n            j.source_company_id,\n            j.extracted_at,\n            j.job_id,\n            j.company_id,\n            j.updated_at,\n            j.operational_status,\n            j.last_seen_at,\n            j.freshness_status,\n            j.market_cluster,\n            j.is_market_signal_eligible,\n            j.market_signal_exclusion_reason,\n            COALESCE(j.updated_at, j.extracted_at::timestamp with time zone) AS signal_at\n           FROM jobs j\n        ), filtered AS (\n         SELECT base.id,\n            base.external_job_url,\n            base.job_title,\n            base.company_name,\n            base.location,\n            base.posted_date,\n            base.source,\n            base.source_company_id,\n            base.extracted_at,\n            base.job_id,\n            base.company_id,\n            base.updated_at,\n            base.operational_status,\n            base.last_seen_at,\n            base.freshness_status,\n            base.market_cluster,\n            base.is_market_signal_eligible,\n            base.market_signal_exclusion_reason,\n            base.signal_at\n           FROM base\n          WHERE base.freshness_status = 'active'::text AND base.market_cluster IS NOT NULL AND base.signal_at >= (now() - '30 days'::interval)\n        )\n SELECT id,\n    job_id,\n    job_title,\n    company_name,\n    location,\n    market_cluster,\n    source,\n    source_company_id,\n    external_job_url,\n    posted_date,\n    extracted_at,\n    updated_at,\n    freshness_status,\n    signal_at,\n        CASE\n            WHEN signal_at >= (now() - '14 days'::interval) THEN 'core'::text\n            ELSE 'recent'::text\n        END AS signal_tier\n   FROM filtered;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_market_signals_recent",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT id,\n    job_id,\n    job_title,\n    company_name,\n    location,\n    market_cluster,\n    extracted_at::timestamp with time zone AS signal_at\n   FROM jobs\n  WHERE freshness_status = 'active'::text AND market_cluster IS NOT NULL AND extracted_at::timestamp with time zone >= (now() - '10 days'::interval)\n  ORDER BY (extracted_at::timestamp with time zone) DESC;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_outcomes_summary",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT submission_stage,\n    count(*) AS outcome_count\n   FROM submissions\n  WHERE submission_stage = ANY (ARRAY['hired'::text, 'rejected'::text, 'withdrew'::text])\n  GROUP BY submission_stage\n  ORDER BY submission_stage;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_pipeline_summary",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT submission_stage,\n    count(*) AS submission_count\n   FROM submissions\n  GROUP BY submission_stage\n  ORDER BY submission_stage;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_recruiter_dashboard",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " WITH latest_activity AS (\n         SELECT DISTINCT ON (a.submission_id) a.submission_id,\n            a.activity_type,\n            a.activity_channel,\n            a.subject_line,\n            a.message_summary,\n            a.occurred_at,\n            a.next_action_at,\n            a.created_by\n           FROM activity_log a\n          ORDER BY a.submission_id, a.occurred_at DESC, a.id DESC\n        )\n SELECT s.submission_id,\n    s.company_name,\n    s.job_title,\n    s.display_name,\n    s.full_name,\n    s.email,\n    s.phone,\n    s.match_score,\n    s.score_total,\n    s.tier_label,\n    s.contactability_status,\n    s.submission_stage,\n    s.stage_updated_at,\n    s.owner_name,\n    la.next_action_at,\n    s.created_at\n   FROM vw_submissions_enriched s\n     LEFT JOIN latest_activity la ON s.submission_id = la.submission_id\n  WHERE s.submission_stage = ANY (ARRAY['approached'::text, 'replied'::text, 'qualified'::text, 'submitted_to_client'::text, 'client_review'::text, 'interview'::text, 'offer'::text, 'placed'::text])\n  ORDER BY (\n        CASE\n            WHEN la.next_action_at IS NULL THEN 1\n            ELSE 0\n        END), la.next_action_at, s.stage_updated_at DESC, s.created_at DESC;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_submissions_enriched",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT s.id AS submission_id,\n    s.job_id,\n    s.candidate_id,\n    s.company_id,\n    s.submission_stage,\n    s.stage_updated_at,\n    s.match_score,\n    s.shortlist_rank,\n    s.submitted_to_client_at,\n    s.owner_name,\n    s.decision_reason,\n    s.outcome,\n    s.notes,\n    s.created_at,\n    s.updated_at,\n    j.job_title,\n    j.company_name,\n    c.display_name,\n    c.full_name,\n    c.primary_role,\n    c.city,\n    c.country,\n    c.email,\n    c.phone,\n    c.linkedin_url,\n    c.github_url,\n    c.score_total,\n    c.tier_label,\n    c.contactability_status,\n    c.source_type AS candidate_source_type\n   FROM submissions s\n     LEFT JOIN jobs j ON s.job_id = j.id\n     LEFT JOIN candidates c ON s.candidate_id = c.candidate_id;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_tier1_source_diagnostics",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT company_name,\n    source,\n    total_jobs,\n    malaysia_jobs,\n    jobs_with_jd,\n    total_jobs - jobs_with_jd AS jobs_missing_jd,\n    total_jobs - malaysia_jobs AS non_malaysia_jobs,\n    latest_updated_at,\n        CASE\n            WHEN latest_updated_at < (now() - '30 days'::interval) THEN true\n            ELSE false\n        END AS is_stale,\n        CASE\n            WHEN refined_health_status = 'Noisy'::text THEN 'Low Malaysia relevance'::text\n            WHEN refined_health_status = 'Broken'::text AND malaysia_jobs = 0 THEN 'No Malaysia jobs detected'::text\n            WHEN refined_health_status = 'Broken'::text AND jobs_with_jd = 0 THEN 'JD extraction failure'::text\n            WHEN refined_health_status = 'Partial'::text AND (total_jobs - jobs_with_jd) > malaysia_jobs THEN 'Low JD enrichment coverage'::text\n            WHEN refined_health_status = 'Partial'::text THEN 'Needs controlled enrichment'::text\n            WHEN refined_health_status ~~ 'Healthy%'::text THEN 'Operationally healthy'::text\n            ELSE 'Needs investigation'::text\n        END AS dominant_failure_reason,\n    refined_health_status\n   FROM vw_tier1_source_health_v2\n  ORDER BY (\n        CASE\n            WHEN refined_health_status = 'Broken'::text THEN 1\n            WHEN refined_health_status = 'Noisy'::text THEN 2\n            WHEN refined_health_status = 'Partial'::text THEN 3\n            WHEN refined_health_status ~~ 'Healthy%'::text THEN 4\n            ELSE 5\n        END), (total_jobs - jobs_with_jd) DESC, (total_jobs - malaysia_jobs) DESC;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_tier1_source_health",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " WITH base AS (\n         SELECT COALESCE(js.company_name, j.company_name, 'Unknown'::text) AS company_name,\n            COALESCE(js.source_name, j.source, 'unknown'::text) AS source,\n            count(*) AS total_jobs,\n            count(*) FILTER (WHERE lower(COALESCE(j.location, ''::text)) ~ '(malaysia|kuala lumpur|kl|selangor|penang|johor|cyberjaya|putrajaya|shah alam|petaling jaya|pj|subang|puchong|melaka|malacca|perak|sabah|sarawak)'::text) AS malaysia_jobs,\n            count(*) FILTER (WHERE NULLIF(TRIM(BOTH FROM COALESCE(j.job_description_text, ''::text)), ''::text) IS NOT NULL AND length(TRIM(BOTH FROM COALESCE(j.job_description_text, ''::text))) >= 200) AS jobs_with_jd,\n            max(j.updated_at) AS latest_updated_at\n           FROM jobs j\n             LEFT JOIN job_sources js ON js.id = j.job_source_id\n          WHERE (COALESCE(lower(js.tier), '1'::text) = ANY (ARRAY['1'::text, 'tier 1'::text, 'tier_1'::text, 'tier1'::text])) OR (lower(COALESCE(j.source, ''::text)) = ANY (ARRAY['workday'::text, 'oracle'::text]))\n          GROUP BY (COALESCE(js.company_name, j.company_name, 'Unknown'::text)), (COALESCE(js.source_name, j.source, 'unknown'::text))\n        ), scored AS (\n         SELECT base.company_name,\n            base.source,\n            base.total_jobs,\n            base.malaysia_jobs,\n            base.jobs_with_jd,\n            base.latest_updated_at,\n            round(\n                CASE\n                    WHEN base.total_jobs = 0 THEN 0::numeric\n                    ELSE base.jobs_with_jd::numeric / base.total_jobs::numeric * 100::numeric\n                END, 1) AS jd_coverage_pct,\n            round(\n                CASE\n                    WHEN base.total_jobs = 0 THEN 0::numeric\n                    ELSE base.malaysia_jobs::numeric / base.total_jobs::numeric * 100::numeric\n                END, 1) AS malaysia_coverage_pct\n           FROM base\n        ), classified AS (\n         SELECT scored.company_name,\n            scored.source,\n            scored.total_jobs,\n            scored.malaysia_jobs,\n            scored.jobs_with_jd,\n            scored.latest_updated_at,\n            scored.jd_coverage_pct,\n            scored.malaysia_coverage_pct,\n                CASE\n                    WHEN scored.total_jobs = 0 THEN 'Broken'::text\n                    WHEN scored.malaysia_jobs = 0 AND scored.total_jobs >= 20 THEN 'Noisy'::text\n                    WHEN scored.jd_coverage_pct >= 60::numeric AND scored.malaysia_coverage_pct >= 50::numeric THEN 'Healthy'::text\n                    WHEN scored.jd_coverage_pct >= 20::numeric AND scored.malaysia_jobs > 0 THEN 'Partial'::text\n                    WHEN scored.jd_coverage_pct < 20::numeric AND scored.malaysia_jobs > 0 THEN 'Partial'::text\n                    ELSE 'Broken'::text\n                END AS health_status\n           FROM scored\n        )\n SELECT company_name,\n    source,\n    total_jobs,\n    malaysia_jobs,\n    jobs_with_jd,\n    latest_updated_at,\n    jd_coverage_pct,\n    malaysia_coverage_pct,\n    health_status\n   FROM classified\n  ORDER BY (\n        CASE\n            WHEN health_status = 'Healthy'::text THEN 1\n            WHEN health_status = 'Partial'::text THEN 2\n            WHEN health_status = 'Noisy'::text THEN 3\n            WHEN health_status = 'Broken'::text THEN 4\n            ELSE 5\n        END), jobs_with_jd DESC, total_jobs DESC;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_tier1_source_health_summary",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT count(*) FILTER (WHERE refined_health_status = 'Healthy'::text) AS healthy_sources,\n    count(*) FILTER (WHERE refined_health_status = 'Healthy - Small Sample'::text) AS healthy_small_sample_sources,\n    count(*) FILTER (WHERE refined_health_status = 'Partial'::text) AS partial_sources,\n    count(*) FILTER (WHERE refined_health_status = 'Noisy'::text) AS noisy_sources,\n    count(*) FILTER (WHERE refined_health_status = 'Broken'::text) AS broken_sources,\n    sum(malaysia_jobs) AS total_malaysia_jobs,\n    sum(jobs_with_jd) AS total_jobs_with_jd,\n    round(\n        CASE\n            WHEN sum(total_jobs) = 0::numeric THEN 0::numeric\n            ELSE sum(jobs_with_jd) / sum(total_jobs) * 100::numeric\n        END, 1) AS overall_jd_coverage_pct,\n    max(latest_updated_at) AS latest_pipeline_activity\n   FROM vw_tier1_source_health_v2;"
+  },
+  {
+    "schema_name": "public",
+    "view_name": "vw_tier1_source_health_v2",
+    "view_kind": "v",
+    "owner_name": "postgres",
+    "reloptions": null,
+    "definition": " SELECT company_name,\n    source,\n    total_jobs,\n    malaysia_jobs,\n    jobs_with_jd,\n    latest_updated_at,\n    jd_coverage_pct,\n    malaysia_coverage_pct,\n    health_status,\n        CASE\n            WHEN total_jobs = 0 THEN 'Broken'::text\n            WHEN malaysia_jobs = 0 AND total_jobs >= 5 THEN 'Broken'::text\n            WHEN total_jobs >= 15 AND jd_coverage_pct >= 60::numeric AND malaysia_coverage_pct >= 50::numeric THEN 'Healthy'::text\n            WHEN total_jobs < 15 AND jd_coverage_pct >= 60::numeric AND malaysia_coverage_pct >= 50::numeric THEN 'Healthy - Small Sample'::text\n            WHEN total_jobs >= 100 AND malaysia_coverage_pct < 40::numeric THEN 'Noisy'::text\n            WHEN malaysia_jobs > 0 OR jobs_with_jd > 0 THEN 'Partial'::text\n            ELSE 'Broken'::text\n        END AS refined_health_status\n   FROM vw_tier1_source_health;"
+  }
+]

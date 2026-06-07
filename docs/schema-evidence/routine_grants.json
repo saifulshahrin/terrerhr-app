@@ -1,0 +1,227 @@
+[
+  {
+    "object_schema": "public",
+    "object_name": "create_submission_with_activity",
+    "specific_name": "create_submission_with_activity_28540",
+    "grantor": "postgres",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "public",
+    "object_name": "is_current_user_admin",
+    "specific_name": "is_current_user_admin_33682",
+    "grantor": "postgres",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "public",
+    "object_name": "rls_auto_enable",
+    "specific_name": "rls_auto_enable_23893",
+    "grantor": "postgres",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "public",
+    "object_name": "set_updated_at",
+    "specific_name": "set_updated_at_21174",
+    "grantor": "postgres",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "public",
+    "object_name": "sync_submission_next_action_from_activity",
+    "specific_name": "sync_submission_next_action_from_activity_28541",
+    "grantor": "postgres",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "public",
+    "object_name": "sync_submission_stage_from_activity",
+    "specific_name": "sync_submission_stage_from_activity_28543",
+    "grantor": "postgres",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "public",
+    "object_name": "update_submission_stage_timestamp",
+    "specific_name": "update_submission_stage_timestamp_25122",
+    "grantor": "postgres",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "public",
+    "object_name": "update_updated_at_column",
+    "specific_name": "update_updated_at_column_25027",
+    "grantor": "postgres",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "storage",
+    "object_name": "allow_any_operation",
+    "specific_name": "allow_any_operation_31176",
+    "grantor": "supabase_storage_admin",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "storage",
+    "object_name": "allow_only_operation",
+    "specific_name": "allow_only_operation_31175",
+    "grantor": "supabase_storage_admin",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "storage",
+    "object_name": "can_insert_object",
+    "specific_name": "can_insert_object_17183",
+    "grantor": "supabase_storage_admin",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "storage",
+    "object_name": "enforce_bucket_name_length",
+    "specific_name": "enforce_bucket_name_length_17239",
+    "grantor": "supabase_storage_admin",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "storage",
+    "object_name": "extension",
+    "specific_name": "extension_17158",
+    "grantor": "supabase_storage_admin",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "storage",
+    "object_name": "filename",
+    "specific_name": "filename_17157",
+    "grantor": "supabase_storage_admin",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "storage",
+    "object_name": "foldername",
+    "specific_name": "foldername_17156",
+    "grantor": "supabase_storage_admin",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "storage",
+    "object_name": "get_common_prefix",
+    "specific_name": "get_common_prefix_17296",
+    "grantor": "supabase_storage_admin",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "storage",
+    "object_name": "get_size_by_bucket",
+    "specific_name": "get_size_by_bucket_17170",
+    "grantor": "supabase_storage_admin",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "storage",
+    "object_name": "list_multipart_uploads_with_delimiter",
+    "specific_name": "list_multipart_uploads_with_delimiter_17222",
+    "grantor": "supabase_storage_admin",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "storage",
+    "object_name": "list_objects_with_delimiter",
+    "specific_name": "list_objects_with_delimiter_17297",
+    "grantor": "supabase_storage_admin",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "storage",
+    "object_name": "operation",
+    "specific_name": "operation_17238",
+    "grantor": "supabase_storage_admin",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "storage",
+    "object_name": "protect_delete",
+    "specific_name": "protect_delete_17303",
+    "grantor": "supabase_storage_admin",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "storage",
+    "object_name": "search",
+    "specific_name": "search_17172",
+    "grantor": "supabase_storage_admin",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "storage",
+    "object_name": "search_by_timestamp",
+    "specific_name": "search_by_timestamp_17301",
+    "grantor": "supabase_storage_admin",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "storage",
+    "object_name": "search_v2",
+    "specific_name": "search_v2_17300",
+    "grantor": "supabase_storage_admin",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  },
+  {
+    "object_schema": "storage",
+    "object_name": "update_updated_at_column",
+    "specific_name": "update_updated_at_column_17173",
+    "grantor": "supabase_storage_admin",
+    "grantee": "PUBLIC",
+    "privilege_type": "EXECUTE",
+    "is_grantable": "NO"
+  }
+]

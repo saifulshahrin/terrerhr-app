@@ -1,0 +1,956 @@
+[
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_17128",
+    "dependent_kind": "t",
+    "referenced_schema": "storage",
+    "referenced_name": "buckets",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_17138",
+    "dependent_kind": "t",
+    "referenced_schema": "storage",
+    "referenced_name": "objects",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_17187",
+    "dependent_kind": "t",
+    "referenced_schema": "storage",
+    "referenced_name": "s3_multipart_uploads",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_17201",
+    "dependent_kind": "t",
+    "referenced_schema": "storage",
+    "referenced_name": "s3_multipart_uploads_parts",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_17248",
+    "dependent_kind": "t",
+    "referenced_schema": "storage",
+    "referenced_name": "buckets_analytics",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_17261",
+    "dependent_kind": "t",
+    "referenced_schema": "storage",
+    "referenced_name": "buckets_vectors",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_17271",
+    "dependent_kind": "t",
+    "referenced_schema": "storage",
+    "referenced_name": "vector_indexes",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_17500",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "candidates",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_17507",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "source_profiles",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_17519",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "evidence_signals",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_17531",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "skills",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_17538",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "candidate_skills",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_17553",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "candidate_capabilities",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_17563",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "candidate_scores",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_18767",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "jobs",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_21158",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "companies",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_21175",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_companies",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_21190",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_company_contacts",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_21207",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_jobs",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_21229",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_candidates",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_21260",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_skills",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_21295",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_pipeline",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_22661",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "job_requirements",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_22673",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "job_candidate_matches",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_22694",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "outreach_log",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_25063",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "submissions",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_25091",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "activity_log",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_31046",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "jobs_intake",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_31109",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "applications",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_31133",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "ai_assessments",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_32430",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "web_candidate_intakes",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_32467",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "web_job_interest",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_32551",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "target_companies",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_32702",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "job_sources",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_32765",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "match_interactions",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_33117",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "bd_contacts",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_33533",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "autonomous_recruiter_runs",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_33553",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "autonomous_recruiter_memory",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_33613",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "profiles",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_33721",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "employer_job_intake",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_33736",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "employer_intake_actions",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_33781",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "staging_bullhorn_companies",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_33791",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "staging_bullhorn_contacts",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_34032",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "bd_notes",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "pg_toast",
+    "dependent_name": "pg_toast_34065",
+    "dependent_kind": "t",
+    "referenced_schema": "public",
+    "referenced_name": "company_identity_merge_v1_snapshot",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "autonomous_recruiter_memory_confidence_level_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "autonomous_recruiter_memory",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "autonomous_recruiter_memory_created_at_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "autonomous_recruiter_memory",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "autonomous_recruiter_memory_role_family_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "autonomous_recruiter_memory",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "autonomous_recruiter_runs_created_at_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "autonomous_recruiter_runs",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "autonomous_recruiter_runs_job_title_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "autonomous_recruiter_runs",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "autonomous_recruiter_runs_mode_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "autonomous_recruiter_runs",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "autonomous_recruiter_runs_run_status_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "autonomous_recruiter_runs",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "bd_contacts_company_id_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "bd_contacts",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "bd_contacts_email_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "bd_contacts",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "bd_contacts_email_uniq",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "bd_contacts",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "bd_contacts_relationship_status_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "bd_contacts",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "bd_notes_company_id_created_at_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "bd_notes",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "bd_notes_contact_id_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "bd_notes",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "bd_notes_created_by_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "bd_notes",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "companies_id_seq",
+    "dependent_kind": "S",
+    "referenced_schema": "public",
+    "referenced_name": "companies",
+    "referenced_kind": "r",
+    "dependency_type": "i"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "idx_candidate_skills_candidate_id",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "candidate_skills",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "idx_employer_job_intake_fingerprint",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "employer_job_intake",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "idx_job_requirements_job_id",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "job_requirements",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "idx_matches_candidate",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "job_candidate_matches",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "idx_matches_job",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "job_candidate_matches",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "idx_matches_score",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "job_candidate_matches",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "idx_outreach_candidate",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "outreach_log",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "idx_outreach_next_action",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "outreach_log",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "idx_target_companies_company_name_unique",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "target_companies",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "idx_terrer_candidates_email",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_candidates",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "idx_terrer_candidates_name",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_candidates",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "idx_terrer_companies_name",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_companies",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "idx_terrer_company_contacts_company_id",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_company_contacts",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "idx_terrer_jobs_company_id",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_jobs",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "idx_terrer_jobs_status",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_jobs",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "idx_terrer_jobs_title",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_jobs",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "idx_terrer_pipeline_candidate_id",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_pipeline",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "idx_terrer_pipeline_job_id",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_pipeline",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "idx_terrer_pipeline_stage",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_pipeline",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "job_sources_company_name_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "job_sources",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "job_sources_source_type_tier_status_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "job_sources",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "job_sources_source_url_uidx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "job_sources",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "staging_bullhorn_companies_batch_image_uniq",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "staging_bullhorn_companies",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "staging_bullhorn_companies_bullhorn_contact_id_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "staging_bullhorn_companies",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "staging_bullhorn_companies_import_status_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "staging_bullhorn_companies",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "staging_bullhorn_companies_parent_company_key_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "staging_bullhorn_companies",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "staging_bullhorn_companies_possible_duplicate_group_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "staging_bullhorn_companies",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "staging_bullhorn_contacts_batch_image_uniq",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "staging_bullhorn_contacts",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "staging_bullhorn_contacts_bullhorn_contact_id_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "staging_bullhorn_contacts",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "staging_bullhorn_contacts_company_key_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "staging_bullhorn_contacts",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "staging_bullhorn_contacts_email_1_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "staging_bullhorn_contacts",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "staging_bullhorn_contacts_email_2_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "staging_bullhorn_contacts",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "staging_bullhorn_contacts_import_status_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "staging_bullhorn_contacts",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "staging_bullhorn_contacts_possible_duplicate_group_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "staging_bullhorn_contacts",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "submissions_job_candidate_unique",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "submissions",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "uq_terrer_companies_name_website",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_companies",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "uq_terrer_jobs_source_url",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_jobs",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "uq_terrer_skills_name",
+    "dependent_kind": "i",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_skills",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "storage",
+    "dependent_name": "bname",
+    "dependent_kind": "i",
+    "referenced_schema": "storage",
+    "referenced_name": "buckets",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "storage",
+    "dependent_name": "bucketid_objname",
+    "dependent_kind": "i",
+    "referenced_schema": "storage",
+    "referenced_name": "objects",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "storage",
+    "dependent_name": "buckets_analytics_unique_name_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "storage",
+    "referenced_name": "buckets_analytics",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "storage",
+    "dependent_name": "idx_multipart_uploads_list",
+    "dependent_kind": "i",
+    "referenced_schema": "storage",
+    "referenced_name": "s3_multipart_uploads",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "storage",
+    "dependent_name": "idx_objects_bucket_id_name",
+    "dependent_kind": "i",
+    "referenced_schema": "storage",
+    "referenced_name": "objects",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "storage",
+    "dependent_name": "idx_objects_bucket_id_name_lower",
+    "dependent_kind": "i",
+    "referenced_schema": "storage",
+    "referenced_name": "objects",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "storage",
+    "dependent_name": "name_prefix_search",
+    "dependent_kind": "i",
+    "referenced_schema": "storage",
+    "referenced_name": "objects",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  },
+  {
+    "dependent_schema": "storage",
+    "dependent_name": "vector_indexes_name_bucket_id_idx",
+    "dependent_kind": "i",
+    "referenced_schema": "storage",
+    "referenced_name": "vector_indexes",
+    "referenced_kind": "r",
+    "dependency_type": "a"
+  }
+]

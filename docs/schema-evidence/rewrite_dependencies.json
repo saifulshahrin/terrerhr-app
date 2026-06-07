@@ -1,0 +1,461 @@
+[
+  {
+    "dependent_schema": "public",
+    "dependent_name": "hiring_leaderboard_malaysia",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "jobs_latest_practical",
+    "referenced_kind": "v",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "jobs_latest",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "jobs",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "jobs_latest_practical",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "jobs",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "jobs_reporting",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "jobs_latest_practical",
+    "referenced_kind": "v",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "recruiter_active_submissions",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "candidates",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "recruiter_active_submissions",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "jobs",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "recruiter_active_submissions",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "submissions",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "terrer_hiring_now",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "jobs_latest_practical",
+    "referenced_kind": "v",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "terrer_jobs_view",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_companies",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "terrer_jobs_view",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "terrer_jobs",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "v_match_shortlist",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "job_candidate_matches",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "v_outreach_due",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "outreach_log",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_activity_log_enriched",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "activity_log",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_activity_log_enriched",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "candidates",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_activity_log_enriched",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "jobs",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_activity_log_enriched",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "submissions",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_candidate_pipeline_summary",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "candidates",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_candidate_pipeline_summary",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "submissions",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_candidate_search",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "candidate_capabilities",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_candidate_search",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "candidate_scores",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_candidate_search",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "candidate_skills",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_candidate_search",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "candidates",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_candidate_search",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "skills",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_candidate_search",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "source_profiles",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_candidate_search_clean",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "vw_candidate_search",
+    "referenced_kind": "v",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_company_pipeline_summary",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "jobs",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_company_pipeline_summary",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "submissions",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_followup_queue",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "activity_log",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_followup_queue",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "candidates",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_followup_queue",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "jobs",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_followup_queue",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "submissions",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_job_shortlist",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "vw_submissions_enriched",
+    "referenced_kind": "v",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_jobs_tier1_malaysia",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "job_sources",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_jobs_tier1_malaysia",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "jobs",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_live_work_queue",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "submissions",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_market_signals",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "jobs",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_market_signals_active",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "jobs",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_market_signals_realtime",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "jobs",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_market_signals_recent",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "jobs",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_outcomes_summary",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "submissions",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_pipeline_summary",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "submissions",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_recruiter_dashboard",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "activity_log",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_recruiter_dashboard",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "vw_submissions_enriched",
+    "referenced_kind": "v",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_submissions_enriched",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "candidates",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_submissions_enriched",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "jobs",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_submissions_enriched",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "submissions",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_tier1_source_diagnostics",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "vw_tier1_source_health_v2",
+    "referenced_kind": "v",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_tier1_source_health",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "job_sources",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_tier1_source_health",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "jobs",
+    "referenced_kind": "r",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_tier1_source_health_summary",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "vw_tier1_source_health_v2",
+    "referenced_kind": "v",
+    "dependency_type": "n"
+  },
+  {
+    "dependent_schema": "public",
+    "dependent_name": "vw_tier1_source_health_v2",
+    "dependent_kind": "v",
+    "referenced_schema": "public",
+    "referenced_name": "vw_tier1_source_health",
+    "referenced_kind": "v",
+    "dependency_type": "n"
+  }
+]

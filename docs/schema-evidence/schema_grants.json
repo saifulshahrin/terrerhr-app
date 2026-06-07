@@ -1,0 +1,121 @@
+[
+  {
+    "schema_name": "public",
+    "grantor": "pg_database_owner",
+    "grantee": "PUBLIC",
+    "privilege_type": "USAGE",
+    "is_grantable": false
+  },
+  {
+    "schema_name": "public",
+    "grantor": "pg_database_owner",
+    "grantee": "anon",
+    "privilege_type": "USAGE",
+    "is_grantable": false
+  },
+  {
+    "schema_name": "public",
+    "grantor": "pg_database_owner",
+    "grantee": "authenticated",
+    "privilege_type": "USAGE",
+    "is_grantable": false
+  },
+  {
+    "schema_name": "public",
+    "grantor": "pg_database_owner",
+    "grantee": "pg_database_owner",
+    "privilege_type": "CREATE",
+    "is_grantable": false
+  },
+  {
+    "schema_name": "public",
+    "grantor": "pg_database_owner",
+    "grantee": "pg_database_owner",
+    "privilege_type": "USAGE",
+    "is_grantable": false
+  },
+  {
+    "schema_name": "public",
+    "grantor": "pg_database_owner",
+    "grantee": "postgres",
+    "privilege_type": "USAGE",
+    "is_grantable": false
+  },
+  {
+    "schema_name": "public",
+    "grantor": "pg_database_owner",
+    "grantee": "service_role",
+    "privilege_type": "USAGE",
+    "is_grantable": false
+  },
+  {
+    "schema_name": "storage",
+    "grantor": "supabase_admin",
+    "grantee": "anon",
+    "privilege_type": "USAGE",
+    "is_grantable": false
+  },
+  {
+    "schema_name": "storage",
+    "grantor": "supabase_admin",
+    "grantee": "authenticated",
+    "privilege_type": "USAGE",
+    "is_grantable": false
+  },
+  {
+    "schema_name": "storage",
+    "grantor": "supabase_admin",
+    "grantee": "dashboard_user",
+    "privilege_type": "CREATE",
+    "is_grantable": false
+  },
+  {
+    "schema_name": "storage",
+    "grantor": "supabase_admin",
+    "grantee": "dashboard_user",
+    "privilege_type": "USAGE",
+    "is_grantable": false
+  },
+  {
+    "schema_name": "storage",
+    "grantor": "supabase_admin",
+    "grantee": "postgres",
+    "privilege_type": "USAGE",
+    "is_grantable": true
+  },
+  {
+    "schema_name": "storage",
+    "grantor": "supabase_admin",
+    "grantee": "service_role",
+    "privilege_type": "USAGE",
+    "is_grantable": false
+  },
+  {
+    "schema_name": "storage",
+    "grantor": "supabase_admin",
+    "grantee": "supabase_admin",
+    "privilege_type": "CREATE",
+    "is_grantable": false
+  },
+  {
+    "schema_name": "storage",
+    "grantor": "supabase_admin",
+    "grantee": "supabase_admin",
+    "privilege_type": "USAGE",
+    "is_grantable": false
+  },
+  {
+    "schema_name": "storage",
+    "grantor": "supabase_admin",
+    "grantee": "supabase_storage_admin",
+    "privilege_type": "CREATE",
+    "is_grantable": true
+  },
+  {
+    "schema_name": "storage",
+    "grantor": "supabase_admin",
+    "grantee": "supabase_storage_admin",
+    "privilege_type": "USAGE",
+    "is_grantable": true
+  }
+]

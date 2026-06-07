@@ -1,0 +1,128 @@
+[
+  {
+    "schema_name": "public",
+    "table_name": "activity_log",
+    "trigger_name": "trg_sync_submission_next_action_from_activity",
+    "enabled_state": "O",
+    "definition": "CREATE TRIGGER trg_sync_submission_next_action_from_activity AFTER INSERT ON activity_log FOR EACH ROW EXECUTE FUNCTION sync_submission_next_action_from_activity()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "activity_log",
+    "trigger_name": "trg_sync_submission_stage_from_activity",
+    "enabled_state": "O",
+    "definition": "CREATE TRIGGER trg_sync_submission_stage_from_activity AFTER INSERT ON activity_log FOR EACH ROW EXECUTE FUNCTION sync_submission_stage_from_activity()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "candidates",
+    "trigger_name": "set_updated_at_candidates",
+    "enabled_state": "O",
+    "definition": "CREATE TRIGGER set_updated_at_candidates BEFORE UPDATE ON candidates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "companies",
+    "trigger_name": "set_updated_at",
+    "enabled_state": "O",
+    "definition": "CREATE TRIGGER set_updated_at BEFORE UPDATE ON companies FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "companies",
+    "trigger_name": "set_updated_at_companies",
+    "enabled_state": "O",
+    "definition": "CREATE TRIGGER set_updated_at_companies BEFORE UPDATE ON companies FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "jobs",
+    "trigger_name": "set_updated_at_jobs",
+    "enabled_state": "O",
+    "definition": "CREATE TRIGGER set_updated_at_jobs BEFORE UPDATE ON jobs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "submissions",
+    "trigger_name": "set_submission_stage_updated_at",
+    "enabled_state": "O",
+    "definition": "CREATE TRIGGER set_submission_stage_updated_at BEFORE UPDATE ON submissions FOR EACH ROW EXECUTE FUNCTION update_submission_stage_timestamp()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "submissions",
+    "trigger_name": "set_updated_at_submissions",
+    "enabled_state": "O",
+    "definition": "CREATE TRIGGER set_updated_at_submissions BEFORE UPDATE ON submissions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "target_companies",
+    "trigger_name": "trg_update_target_companies_updated_at",
+    "enabled_state": "O",
+    "definition": "CREATE TRIGGER trg_update_target_companies_updated_at BEFORE UPDATE ON target_companies FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "terrer_candidates",
+    "trigger_name": "trg_terrer_candidates_updated_at",
+    "enabled_state": "O",
+    "definition": "CREATE TRIGGER trg_terrer_candidates_updated_at BEFORE UPDATE ON terrer_candidates FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "terrer_companies",
+    "trigger_name": "trg_terrer_companies_updated_at",
+    "enabled_state": "O",
+    "definition": "CREATE TRIGGER trg_terrer_companies_updated_at BEFORE UPDATE ON terrer_companies FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "terrer_company_contacts",
+    "trigger_name": "trg_terrer_company_contacts_updated_at",
+    "enabled_state": "O",
+    "definition": "CREATE TRIGGER trg_terrer_company_contacts_updated_at BEFORE UPDATE ON terrer_company_contacts FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "terrer_jobs",
+    "trigger_name": "trg_terrer_jobs_updated_at",
+    "enabled_state": "O",
+    "definition": "CREATE TRIGGER trg_terrer_jobs_updated_at BEFORE UPDATE ON terrer_jobs FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "terrer_pipeline",
+    "trigger_name": "trg_terrer_pipeline_updated_at",
+    "enabled_state": "O",
+    "definition": "CREATE TRIGGER trg_terrer_pipeline_updated_at BEFORE UPDATE ON terrer_pipeline FOR EACH ROW EXECUTE FUNCTION set_updated_at()"
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "buckets",
+    "trigger_name": "enforce_bucket_name_length_trigger",
+    "enabled_state": "O",
+    "definition": "CREATE TRIGGER enforce_bucket_name_length_trigger BEFORE INSERT OR UPDATE OF name ON storage.buckets FOR EACH ROW EXECUTE FUNCTION storage.enforce_bucket_name_length()"
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "buckets",
+    "trigger_name": "protect_buckets_delete",
+    "enabled_state": "O",
+    "definition": "CREATE TRIGGER protect_buckets_delete BEFORE DELETE ON storage.buckets FOR EACH STATEMENT EXECUTE FUNCTION storage.protect_delete()"
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "trigger_name": "protect_objects_delete",
+    "enabled_state": "O",
+    "definition": "CREATE TRIGGER protect_objects_delete BEFORE DELETE ON storage.objects FOR EACH STATEMENT EXECUTE FUNCTION storage.protect_delete()"
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "trigger_name": "update_objects_updated_at",
+    "enabled_state": "O",
+    "definition": "CREATE TRIGGER update_objects_updated_at BEFORE UPDATE ON storage.objects FOR EACH ROW EXECUTE FUNCTION storage.update_updated_at_column()"
+  }
+]

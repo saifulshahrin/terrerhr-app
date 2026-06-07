@@ -14,6 +14,8 @@ interface Props {
   onNavigate: (page: string) => void;
 }
 
+const BD_SELECTED_COMPANY_KEY = 'terrer.bd.selectedCompanyId';
+
 interface ContactRow {
   id: string;
   company_id: number | null;
@@ -74,14 +76,28 @@ function daysAgoLabel(iso: string | null): string {
   return `${days} days ago`;
 }
 
-function roleFamilyLabel(title: string): string {
-  const normalized = normalizeRoleTitle(title);
-  if (/software|developer|engineer|frontend|backend|full stack|data|ai|machine learning/i.test(normalized)) return 'Engineering / Tech';
-  if (/finance|account|audit|tax/i.test(normalized)) return 'Finance / Accounting';
-  if (/hr|human resource|recruit|talent|people/i.test(normalized)) return 'HR / Talent';
-  if (/sales|business development|account manager|commercial/i.test(normalized)) return 'Sales / BD';
-  if (/operation|logistics|supply chain|warehouse/i.test(normalized)) return 'Operations';
-  return normalized || 'Other Roles';
+function safeString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function safeRoleLabel(value: unknown): string {
+  const roleObject = value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+  const rawTitle =
+    safeString(value) ??
+    safeString(roleObject?.raw_job_title) ??
+    safeString(roleObject?.job_title) ??
+    safeString(roleObject?.title);
+  const suppliedNormalizedTitle = safeString(roleObject?.normalized_job_title);
+
+  if (suppliedNormalizedTitle) return suppliedNormalizedTitle;
+  if (!rawTitle) return 'Unknown role';
+
+  const normalized = normalizeRoleTitle(rawTitle);
+  return (
+    safeString(normalized.normalized_job_title) ??
+    safeString(normalized.raw_job_title) ??
+    rawTitle
+  );
 }
 
 function contactSignalText(contact: ContactRow): string {
@@ -141,7 +157,7 @@ function computeCompanyIntel(
 
   const roleCounts = new Map<string, number>();
   for (const job of companyJobs) {
-    const label = roleFamilyLabel(job.job_title);
+    const label = safeRoleLabel(job.job_title);
     roleCounts.set(label, (roleCounts.get(label) ?? 0) + 1);
   }
 
@@ -361,16 +377,23 @@ export default function Opportunities({ onNavigate }: Props) {
   const followUpsDue = contacts.filter((contact) => contact.next_action_date && contact.next_action_date.slice(0, 10) <= new Date().toISOString().slice(0, 10));
   const highSignalCount = companyIntelRows.filter((row) => row.intel.hiringSignal === 'High').length;
 
+  function openRelationship(companyId?: number | null) {
+    if (companyId && typeof window !== 'undefined') {
+      window.sessionStorage.setItem(BD_SELECTED_COMPANY_KEY, String(companyId));
+    }
+    onNavigate('bd-relationships');
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader
         eyebrow="BD Intelligence"
         title="Opportunities"
-        description="Prioritise accounts, heating companies, hiring demand, and BD follow-up opportunities."
+        description="Your morning command center for deciding which accounts deserve BD attention first."
         actions={
           <button
             type="button"
-            onClick={() => onNavigate('bd-relationships')}
+            onClick={() => openRelationship()}
             className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50"
           >
             Open Relationships
@@ -405,10 +428,7 @@ export default function Opportunities({ onNavigate }: Props) {
                 <button
                   key={item.company.id}
                   type="button"
-                  onClick={() => {
-                    // TODO: extend app navigation to pass selected company id into BD Relationships.
-                    onNavigate('bd-relationships');
-                  }}
+                  onClick={() => openRelationship(item.company.id)}
                   className="w-full px-4 py-3 text-left transition hover:bg-slate-50/70"
                 >
                   <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
@@ -446,7 +466,7 @@ export default function Opportunities({ onNavigate }: Props) {
                   <button
                     key={row.company.id}
                     type="button"
-                    onClick={() => onNavigate('bd-relationships')}
+                    onClick={() => openRelationship(row.company.id)}
                     className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
                   >
                     <div className="min-w-0">
@@ -467,12 +487,17 @@ export default function Opportunities({ onNavigate }: Props) {
                 <div className="px-4 py-4 text-sm text-slate-500">No overdue follow-ups. BD queue is clear.</div>
               ) : (
                 followUpsDue.slice(0, 10).map((contact) => (
-                  <div key={contact.id} className="px-4 py-3">
+                  <button
+                    key={contact.id}
+                    type="button"
+                    onClick={() => openRelationship(contact.company_id)}
+                    className="w-full px-4 py-3 text-left transition hover:bg-slate-50"
+                  >
                     <p className="truncate text-sm font-semibold text-slate-950">{contact.full_name}</p>
                     <p className="mt-0.5 text-xs text-slate-500">
                       {companies.find((company) => company.id === contact.company_id)?.company_name ?? `Company #${contact.company_id ?? '?'}`} • Due {contact.next_action_date}
                     </p>
-                  </div>
+                  </button>
                 ))
               )}
             </div>
@@ -494,7 +519,7 @@ export default function Opportunities({ onNavigate }: Props) {
               <button
                 key={row.company.id}
                 type="button"
-                onClick={() => onNavigate('bd-relationships')}
+                onClick={() => openRelationship(row.company.id)}
                 className="w-full px-4 py-3 text-left transition hover:bg-slate-50/70"
               >
                 <div className="flex items-start justify-between gap-3">
@@ -513,7 +538,9 @@ export default function Opportunities({ onNavigate }: Props) {
                 {row.intel.openRolesSnapshot.length > 0 ? (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {row.intel.openRolesSnapshot.map((role) => (
-                      <Badge key={role.label} tone="slate">{role.label} ({role.count})</Badge>
+                      <Badge key={`${row.company.id}-${role.label}`} tone="slate">
+                        {safeString(role.label) ?? 'Unknown role'} ({role.count})
+                      </Badge>
                     ))}
                   </div>
                 ) : null}

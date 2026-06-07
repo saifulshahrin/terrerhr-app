@@ -1,0 +1,15 @@
+[
+  {
+    "event_trigger_name": "ensure_rls",
+    "event_name": "ddl_command_end",
+    "enabled_state": "O",
+    "tags": [
+      "CREATE TABLE",
+      "CREATE TABLE AS",
+      "SELECT INTO"
+    ],
+    "owner_name": "postgres",
+    "function_signature": "rls_auto_enable()",
+    "function_schema": "public"
+  }
+]

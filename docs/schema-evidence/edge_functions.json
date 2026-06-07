@@ -1,0 +1,54 @@
+[
+  {
+    "created_at": 1776065429943,
+    "entrypoint_path": "file:///tmp/user_fn_tlufttnmwtjbuhjcrqmp_df67f2b8-c7ac-4997-8938-3a861fcbfd91_7/source/index.ts",
+    "ezbr_sha256": "1266d2e35a039ef671278ccc5353e48869acd9ea906bf0b8aae7fed2d096ba3c",
+    "id": "df67f2b8-c7ac-4997-8938-3a861fcbfd91",
+    "import_map": false,
+    "name": "parse-job-intake",
+    "slug": "parse-job-intake",
+    "status": "ACTIVE",
+    "updated_at": 1776067784288,
+    "verify_jwt": true,
+    "version": 10
+  },
+  {
+    "created_at": 1776131595236,
+    "entrypoint_path": "file:///tmp/user_fn_tlufttnmwtjbuhjcrqmp_650d2bd7-a1f9-4c52-af7b-6112c5a33916_2/source/index.ts",
+    "ezbr_sha256": "6b3026a8f47efc5f3c8cfd066ec7c97f27d7f60b63026e95df755853203c891c",
+    "id": "650d2bd7-a1f9-4c52-af7b-6112c5a33916",
+    "import_map": false,
+    "name": "layer2-assess",
+    "slug": "quick-processor",
+    "status": "ACTIVE",
+    "updated_at": 1776148579160,
+    "verify_jwt": false,
+    "version": 5
+  },
+  {
+    "created_at": 1776694431781,
+    "entrypoint_path": "file:///tmp/user_fn_tlufttnmwtjbuhjcrqmp_0f1992af-6032-40db-b954-8b81398da32a_17/source/supabase/functions/job-intake-parser/index.ts",
+    "ezbr_sha256": "0384fbd92a3c5fd286a4cc3a94714a8a29d4dbd481ecab80dcf9ece5e3985837",
+    "id": "0f1992af-6032-40db-b954-8b81398da32a",
+    "import_map": false,
+    "name": "job-intake-parser",
+    "slug": "job-intake-parser",
+    "status": "ACTIVE",
+    "updated_at": 1779834677308,
+    "verify_jwt": true,
+    "version": 17
+  },
+  {
+    "created_at": 1779378185696,
+    "entrypoint_path": "file:///tmp/user_fn_tlufttnmwtjbuhjcrqmp_f8d4e62d-2f99-4902-83d4-ad217583e3c5_2/source/supabase/functions/bd-photo-vision-extract/index.ts",
+    "ezbr_sha256": "522d876b232b6372b5b36fc9a3ce31083e602494ba30713789acf5b30de85543",
+    "id": "f8d4e62d-2f99-4902-83d4-ad217583e3c5",
+    "import_map": false,
+    "name": "bd-photo-vision-extract",
+    "slug": "bd-photo-vision-extract",
+    "status": "ACTIVE",
+    "updated_at": 1779378549550,
+    "verify_jwt": true,
+    "version": 2
+  }
+]

@@ -1,0 +1,268 @@
+[
+    {
+        "schema_name":  "public",
+        "table_name":  "activity_log",
+        "row_count":  2,
+        "status_code":  206,
+        "content_range":  "0-0/2"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "ai_assessments",
+        "row_count":  9,
+        "status_code":  206,
+        "content_range":  "0-0/9"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "applications",
+        "row_count":  0,
+        "status_code":  200,
+        "content_range":  "*/0"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "autonomous_recruiter_memory",
+        "row_count":  3,
+        "status_code":  206,
+        "content_range":  "0-0/3"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "autonomous_recruiter_runs",
+        "row_count":  8,
+        "status_code":  206,
+        "content_range":  "0-0/8"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "bd_contacts",
+        "row_count":  204,
+        "status_code":  206,
+        "content_range":  "0-0/204"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "bd_notes",
+        "row_count":  0,
+        "status_code":  200,
+        "content_range":  "*/0"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "candidate_capabilities",
+        "row_count":  1620,
+        "status_code":  206,
+        "content_range":  "0-0/1620"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "candidate_scores",
+        "row_count":  182,
+        "status_code":  206,
+        "content_range":  "0-0/182"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "candidate_skills",
+        "row_count":  2709,
+        "status_code":  206,
+        "content_range":  "0-0/2709"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "candidates",
+        "row_count":  189,
+        "status_code":  206,
+        "content_range":  "0-0/189"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "companies",
+        "row_count":  113,
+        "status_code":  206,
+        "content_range":  "0-0/113"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "company_identity_merge_v1_snapshot",
+        "row_count":  22,
+        "status_code":  206,
+        "content_range":  "0-0/22"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "employer_intake_actions",
+        "row_count":  0,
+        "status_code":  200,
+        "content_range":  "*/0"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "employer_job_intake",
+        "row_count":  2,
+        "status_code":  206,
+        "content_range":  "0-0/2"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "evidence_signals",
+        "row_count":  1164,
+        "status_code":  206,
+        "content_range":  "0-0/1164"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "job_candidate_matches",
+        "row_count":  3,
+        "status_code":  206,
+        "content_range":  "0-0/3"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "job_requirements",
+        "row_count":  6,
+        "status_code":  206,
+        "content_range":  "0-0/6"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "job_sources",
+        "row_count":  11,
+        "status_code":  206,
+        "content_range":  "0-0/11"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "jobs",
+        "row_count":  2236,
+        "status_code":  206,
+        "content_range":  "0-0/2236"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "jobs_intake",
+        "row_count":  19,
+        "status_code":  206,
+        "content_range":  "0-0/19"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "match_interactions",
+        "row_count":  6,
+        "status_code":  206,
+        "content_range":  "0-0/6"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "outreach_log",
+        "row_count":  1,
+        "status_code":  200,
+        "content_range":  "0-0/1"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "profiles",
+        "row_count":  1,
+        "status_code":  200,
+        "content_range":  "0-0/1"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "skills",
+        "row_count":  53,
+        "status_code":  206,
+        "content_range":  "0-0/53"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "source_profiles",
+        "row_count":  583,
+        "status_code":  206,
+        "content_range":  "0-0/583"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "staging_bullhorn_companies",
+        "row_count":  106,
+        "status_code":  206,
+        "content_range":  "0-0/106"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "staging_bullhorn_contacts",
+        "row_count":  232,
+        "status_code":  206,
+        "content_range":  "0-0/232"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "submissions",
+        "row_count":  11,
+        "status_code":  206,
+        "content_range":  "0-0/11"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "target_companies",
+        "row_count":  51,
+        "status_code":  206,
+        "content_range":  "0-0/51"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "terrer_candidates",
+        "row_count":  3,
+        "status_code":  206,
+        "content_range":  "0-0/3"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "terrer_companies",
+        "row_count":  2,
+        "status_code":  206,
+        "content_range":  "0-0/2"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "terrer_company_contacts",
+        "row_count":  0,
+        "status_code":  200,
+        "content_range":  "*/0"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "terrer_jobs",
+        "row_count":  18,
+        "status_code":  206,
+        "content_range":  "0-0/18"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "terrer_pipeline",
+        "row_count":  1,
+        "status_code":  200,
+        "content_range":  "0-0/1"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "terrer_skills",
+        "row_count":  0,
+        "status_code":  200,
+        "content_range":  "*/0"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "web_candidate_intakes",
+        "row_count":  0,
+        "status_code":  200,
+        "content_range":  "*/0"
+    },
+    {
+        "schema_name":  "public",
+        "table_name":  "web_job_interest",
+        "row_count":  37,
+        "status_code":  206,
+        "content_range":  "0-0/37"
+    }
+]

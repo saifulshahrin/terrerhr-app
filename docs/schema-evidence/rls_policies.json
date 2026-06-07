@@ -1,0 +1,742 @@
+[
+  {
+    "schema_name": "public",
+    "table_name": "activity_log",
+    "policy_name": "activity_log_insert_anon",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{anon}",
+    "using_expression": null,
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "activity_log",
+    "policy_name": "activity_log_select_anon",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ai_assessments",
+    "policy_name": "Allow anon select on ai_assessments",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ai_assessments",
+    "policy_name": "Anon users can insert ai_assessments",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{anon}",
+    "using_expression": null,
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ai_assessments",
+    "policy_name": "Anon users can read ai_assessments",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "ai_assessments",
+    "policy_name": "Anon users can update ai_assessments",
+    "permissive": true,
+    "command": "UPDATE",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "autonomous_recruiter_memory",
+    "policy_name": "autonomous_recruiter_memory_insert_authenticated",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{authenticated}",
+    "using_expression": null,
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "autonomous_recruiter_memory",
+    "policy_name": "autonomous_recruiter_memory_select_authenticated",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{authenticated}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "autonomous_recruiter_runs",
+    "policy_name": "autonomous_recruiter_runs_insert_authenticated",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{authenticated}",
+    "using_expression": null,
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "autonomous_recruiter_runs",
+    "policy_name": "autonomous_recruiter_runs_select_anon_demo",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "autonomous_recruiter_runs",
+    "policy_name": "autonomous_recruiter_runs_select_authenticated",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{authenticated}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "bd_contacts",
+    "policy_name": "Anon users can read bd_contacts",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "bd_contacts",
+    "policy_name": "Anon users can update bd_contacts",
+    "permissive": true,
+    "command": "UPDATE",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "bd_contacts",
+    "policy_name": "Authenticated users can insert bd_contacts",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{authenticated}",
+    "using_expression": null,
+    "check_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE p.id = auth.uid() AND p.is_active = true AND (p.role = ANY (ARRAY['admin'::text, 'recruiter'::text, 'bd'::text]))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "bd_contacts",
+    "policy_name": "Authenticated users can read bd_contacts",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{authenticated}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "bd_contacts",
+    "policy_name": "Authenticated users can update bd_contacts",
+    "permissive": true,
+    "command": "UPDATE",
+    "roles": "{authenticated}",
+    "using_expression": "true",
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "bd_notes",
+    "policy_name": "Authenticated users can insert bd_notes",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{authenticated}",
+    "using_expression": null,
+    "check_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE p.id = auth.uid() AND p.is_active = true AND (p.role = ANY (ARRAY['admin'::text, 'recruiter'::text, 'bd'::text]))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "bd_notes",
+    "policy_name": "Authenticated users can read bd_notes",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{authenticated}",
+    "using_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE p.id = auth.uid() AND p.is_active = true AND (p.role = ANY (ARRAY['admin'::text, 'recruiter'::text, 'bd'::text]))))",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "bd_notes",
+    "policy_name": "Authenticated users can update own bd_notes",
+    "permissive": true,
+    "command": "UPDATE",
+    "roles": "{authenticated}",
+    "using_expression": "created_by = auth.uid() AND (EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE p.id = auth.uid() AND p.is_active = true AND (p.role = ANY (ARRAY['admin'::text, 'recruiter'::text, 'bd'::text]))))",
+    "check_expression": "created_by = auth.uid() AND (EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE p.id = auth.uid() AND p.is_active = true AND (p.role = ANY (ARRAY['admin'::text, 'recruiter'::text, 'bd'::text]))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "candidate_skills",
+    "policy_name": "Anon can insert candidate_skills",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{anon}",
+    "using_expression": null,
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "candidate_skills",
+    "policy_name": "Anon can read candidate_skills",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "candidate_skills",
+    "policy_name": "Anon can update candidate_skills",
+    "permissive": true,
+    "command": "UPDATE",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "companies",
+    "policy_name": "Anon users can read companies",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "companies",
+    "policy_name": "Authenticated users can insert companies",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{authenticated}",
+    "using_expression": null,
+    "check_expression": "(EXISTS ( SELECT 1\n   FROM profiles p\n  WHERE p.id = auth.uid() AND p.is_active = true AND (p.role = ANY (ARRAY['admin'::text, 'recruiter'::text, 'bd'::text]))))"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "companies",
+    "policy_name": "Authenticated users can read companies",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{authenticated}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "employer_intake_actions",
+    "policy_name": "anon_insert_employer_intake_actions",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{anon}",
+    "using_expression": null,
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "employer_intake_actions",
+    "policy_name": "anon_select_employer_intake_actions",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "employer_intake_actions",
+    "policy_name": "auth_read_employer_intake_actions",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{authenticated}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "employer_job_intake",
+    "policy_name": "anon_insert_employer_job_intake",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{anon}",
+    "using_expression": null,
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "employer_job_intake",
+    "policy_name": "anon_select_employer_job_intake",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "employer_job_intake",
+    "policy_name": "auth_read_employer_job_intake",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{authenticated}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "job_requirements",
+    "policy_name": "Anon can insert job_requirements",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{anon}",
+    "using_expression": null,
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "job_requirements",
+    "policy_name": "Anon can read job_requirements",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "job_requirements",
+    "policy_name": "Anon can update job_requirements",
+    "permissive": true,
+    "command": "UPDATE",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "job_sources",
+    "policy_name": "Anon users can read job_sources",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "job_sources",
+    "policy_name": "Authenticated users can read job_sources",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{authenticated}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "jobs",
+    "policy_name": "Anon users can insert jobs",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{anon}",
+    "using_expression": null,
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "jobs",
+    "policy_name": "Anon users can read jobs",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "jobs",
+    "policy_name": "Anon users can update jobs",
+    "permissive": true,
+    "command": "UPDATE",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "jobs",
+    "policy_name": "Authenticated users can insert jobs",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{authenticated}",
+    "using_expression": null,
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "jobs",
+    "policy_name": "Authenticated users can read jobs",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{authenticated}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "jobs",
+    "policy_name": "Authenticated users can update jobs",
+    "permissive": true,
+    "command": "UPDATE",
+    "roles": "{authenticated}",
+    "using_expression": "true",
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "jobs_intake",
+    "policy_name": "jobs_intake_insert_anon",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{anon,authenticated}",
+    "using_expression": null,
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "jobs_intake",
+    "policy_name": "jobs_intake_select_anon",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{anon,authenticated}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "profiles",
+    "policy_name": "profiles_select_admin_all",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{authenticated}",
+    "using_expression": "is_current_user_admin()",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "profiles",
+    "policy_name": "profiles_select_own",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{authenticated}",
+    "using_expression": "auth.uid() = id",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "profiles",
+    "policy_name": "profiles_update_admin_all",
+    "permissive": true,
+    "command": "UPDATE",
+    "roles": "{authenticated}",
+    "using_expression": "is_current_user_admin()",
+    "check_expression": "is_current_user_admin()"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "profiles",
+    "policy_name": "profiles_update_own",
+    "permissive": true,
+    "command": "UPDATE",
+    "roles": "{authenticated}",
+    "using_expression": "auth.uid() = id",
+    "check_expression": "auth.uid() = id"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "submissions",
+    "policy_name": "Anon users can delete submissions",
+    "permissive": true,
+    "command": "DELETE",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "submissions",
+    "policy_name": "Anon users can insert submissions",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{anon}",
+    "using_expression": null,
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "submissions",
+    "policy_name": "Anon users can read submissions",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "submissions",
+    "policy_name": "Anon users can update submissions",
+    "permissive": true,
+    "command": "UPDATE",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "submissions",
+    "policy_name": "Authenticated users can delete submissions",
+    "permissive": true,
+    "command": "DELETE",
+    "roles": "{authenticated}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "submissions",
+    "policy_name": "Authenticated users can insert submissions",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{authenticated}",
+    "using_expression": null,
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "submissions",
+    "policy_name": "Authenticated users can read submissions",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{authenticated}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "submissions",
+    "policy_name": "Authenticated users can update submissions",
+    "permissive": true,
+    "command": "UPDATE",
+    "roles": "{authenticated}",
+    "using_expression": "true",
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "submissions",
+    "policy_name": "allow anon insert submissions",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{anon}",
+    "using_expression": null,
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "submissions",
+    "policy_name": "demo_allow_anon_delete_submissions",
+    "permissive": true,
+    "command": "DELETE",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "submissions",
+    "policy_name": "demo_allow_anon_select_submissions",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "submissions",
+    "policy_name": "demo_allow_anon_update_submissions",
+    "permissive": true,
+    "command": "UPDATE",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "web_candidate_intakes",
+    "policy_name": "Allow authenticated users to read candidate intakes",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{authenticated}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "public",
+    "table_name": "web_candidate_intakes",
+    "policy_name": "Allow public candidate intake insert",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{anon}",
+    "using_expression": null,
+    "check_expression": "email IS NOT NULL"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "web_job_interest",
+    "policy_name": "Allow public job interest insert",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{anon}",
+    "using_expression": null,
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "web_job_interest",
+    "policy_name": "allow anon update web_job_interest for now",
+    "permissive": true,
+    "command": "UPDATE",
+    "roles": "{anon}",
+    "using_expression": "true",
+    "check_expression": "true"
+  },
+  {
+    "schema_name": "public",
+    "table_name": "web_job_interest",
+    "policy_name": "allow read all for now",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{PUBLIC}",
+    "using_expression": "true",
+    "check_expression": null
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "Allow authenticated users to read resumes",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{authenticated}",
+    "using_expression": "bucket_id = 'candidate-resumes'::text",
+    "check_expression": null
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "Allow public resume uploads",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{anon}",
+    "using_expression": null,
+    "check_expression": "bucket_id = 'candidate-resumes'::text"
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "Allow upload from web i5g8va_0",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{anon}",
+    "using_expression": null,
+    "check_expression": "bucket_id = 'resumes'::text"
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "Authenticated app users can read candidate resumes",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{authenticated}",
+    "using_expression": "bucket_id = 'candidate-resumes'::text",
+    "check_expression": null
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "Authenticated app users can upload candidate resumes",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{authenticated}",
+    "using_expression": null,
+    "check_expression": "bucket_id = 'candidate-resumes'::text"
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "bd_photo_intake_delete_own_authenticated",
+    "permissive": true,
+    "command": "DELETE",
+    "roles": "{authenticated}",
+    "using_expression": "bucket_id = 'bd-photo-intake'::text",
+    "check_expression": null
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "bd_photo_intake_insert_own_authenticated",
+    "permissive": true,
+    "command": "INSERT",
+    "roles": "{authenticated}",
+    "using_expression": null,
+    "check_expression": "bucket_id = 'bd-photo-intake'::text"
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "bd_photo_intake_read_authenticated",
+    "permissive": true,
+    "command": "SELECT",
+    "roles": "{authenticated}",
+    "using_expression": "bucket_id = 'bd-photo-intake'::text",
+    "check_expression": null
+  },
+  {
+    "schema_name": "storage",
+    "table_name": "objects",
+    "policy_name": "bd_photo_intake_update_own_authenticated",
+    "permissive": true,
+    "command": "UPDATE",
+    "roles": "{authenticated}",
+    "using_expression": "bucket_id = 'bd-photo-intake'::text",
+    "check_expression": "bucket_id = 'bd-photo-intake'::text"
+  }
+]

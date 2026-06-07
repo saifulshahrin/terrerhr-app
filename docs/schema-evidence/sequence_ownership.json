@@ -1,0 +1,9 @@
+[
+  {
+    "sequence_schema": "public",
+    "sequence_name": "companies_id_seq",
+    "table_schema": "public",
+    "table_name": "companies",
+    "column_name": "id"
+  }
+]

@@ -17,6 +17,7 @@ interface Props {
   onNavigate: (page: string) => void;
 }
 const NEW_COMPANY_SENTINEL = '__create_new_company__';
+const BD_SELECTED_COMPANY_KEY = 'terrer.bd.selectedCompanyId';
 
 type CompanyStatus = string | null;
 type RelationshipStatus = string | null;
@@ -275,6 +276,24 @@ interface CompanyIntel {
   followUpLabel: string;
 }
 
+type StakeholderRole =
+  | 'HR'
+  | 'Talent Acquisition'
+  | 'Recruiter'
+  | 'Hiring Manager'
+  | 'Decision Maker'
+  | 'Department Head'
+  | 'Unknown';
+
+interface RevenueRecommendation {
+  action: string;
+  reason: string;
+  bestContact: ContactRow | null;
+  contactability: string;
+  lastContacted: string;
+  nextAction: string;
+}
+
 interface RelationshipWinScore {
   company: CompanyRow;
   score: number;
@@ -324,6 +343,122 @@ function companyInitials(name: string): string {
 
 function contactSignalText(contact: ContactRow): string {
   return `${contact.job_title ?? ''} ${contact.relationship_status ?? ''} ${contact.notes ?? ''}`.toLowerCase();
+}
+
+function inferStakeholderRoles(contact: ContactRow): StakeholderRole[] {
+  const title = normalize(contact.job_title);
+  const roles: StakeholderRole[] = [];
+
+  if (/\b(hr|human resources?|human capital|people ops|people operations)\b/i.test(title)) roles.push('HR');
+  if (/\b(talent acquisition|talent partner|talent lead|sourcing)\b/i.test(title)) roles.push('Talent Acquisition');
+  if (/\b(recruiter|recruitment|recruiting)\b/i.test(title)) roles.push('Recruiter');
+  if (
+    /\b(hiring manager)\b/i.test(title) ||
+    (/\b(manager|lead)\b/i.test(title) && !/\b(hr|human resources?|talent acquisition|recruit|people)\b/i.test(title))
+  ) {
+    roles.push('Hiring Manager');
+  }
+  if (/\b(head|director|chief|ceo|coo|cfo|cto|vp|vice president|owner|founder|general manager)\b/i.test(title)) {
+    roles.push('Decision Maker');
+  }
+  if (/\b(head of|department head|director of)\b/i.test(title)) roles.push('Department Head');
+
+  return roles.length > 0 ? Array.from(new Set(roles)).slice(0, 2) : ['Unknown'];
+}
+
+function stakeholderRoleTone(role: StakeholderRole): Parameters<typeof Badge>[0]['tone'] {
+  if (role === 'Decision Maker' || role === 'Department Head') return 'emerald';
+  if (role === 'HR' || role === 'Talent Acquisition') return 'blue';
+  if (role === 'Recruiter' || role === 'Hiring Manager') return 'teal';
+  return 'slate';
+}
+
+function contactabilityLabel(contact: ContactRow): string {
+  const hasEmail = Boolean(contact.email);
+  const hasPhone = Boolean(contact.mobile_phone || contact.phone);
+  if (hasEmail && hasPhone) return 'Email + phone available';
+  if (hasPhone) return 'Phone available';
+  if (hasEmail) return 'Email available';
+  return 'Contact details incomplete';
+}
+
+function stakeholderScore(contact: ContactRow): number {
+  const roles = inferStakeholderRoles(contact);
+  let score = 0;
+  if (roles.includes('Decision Maker')) score += 8;
+  if (roles.includes('Department Head')) score += 7;
+  if (roles.includes('Talent Acquisition')) score += 6;
+  if (roles.includes('HR')) score += 6;
+  if (roles.includes('Hiring Manager')) score += 5;
+  if (roles.includes('Recruiter')) score += 4;
+  if (contact.mobile_phone || contact.phone) score += 3;
+  if (contact.email) score += 2;
+  if (normalize(contact.relationship_status) === 'responded') score += 2;
+  if (normalize(contact.relationship_status) === 'active') score += 1;
+  return score;
+}
+
+function buildRevenueRecommendation(companyContacts: ContactRow[], intel: CompanyIntel): RevenueRecommendation {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const orderedContacts = [...companyContacts].sort((a, b) => {
+    const aDue = a.next_action_date?.slice(0, 10);
+    const bDue = b.next_action_date?.slice(0, 10);
+    const aUrgency = aDue && aDue <= todayIso ? 20 : 0;
+    const bUrgency = bDue && bDue <= todayIso ? 20 : 0;
+    return bUrgency + stakeholderScore(b) - (aUrgency + stakeholderScore(a));
+  });
+  const bestContact = orderedContacts[0] ?? null;
+  const latestContacted = companyContacts
+    .map((contact) => contact.last_contacted_at)
+    .filter((value): value is string => Boolean(value))
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
+  const scheduledContact = orderedContacts
+    .filter((contact) => contact.next_action || contact.next_action_date)
+    .sort((a, b) => (a.next_action_date ?? '9999-12-31').localeCompare(b.next_action_date ?? '9999-12-31'))[0];
+
+  if (!bestContact) {
+    return {
+      action: 'Review account and identify best contact',
+      reason:
+        intel.hiringSignal === 'None'
+          ? 'No stakeholder or current hiring activity is available yet.'
+          : `${intel.hiringSignal} hiring activity is visible, but no stakeholder is available for outreach.`,
+      bestContact: null,
+      contactability: 'No contact available',
+      lastContacted: 'No previous contact',
+      nextAction: 'Identify an HR, TA, or hiring decision-maker',
+    };
+  }
+
+  const roles = inferStakeholderRoles(bestContact).filter((role) => role !== 'Unknown');
+  const primaryRole = roles[0] ?? 'stakeholder';
+  const dueDate = bestContact.next_action_date?.slice(0, 10);
+  const hasPhone = Boolean(bestContact.mobile_phone || bestContact.phone);
+  const hasEmail = Boolean(bestContact.email);
+  let action = hasPhone ? `Call ${primaryRole}` : hasEmail ? `Email ${primaryRole}` : 'Update contact details';
+
+  if (dueDate && dueDate <= todayIso) {
+    action = bestContact.next_action || `Follow up with ${bestContact.full_name}`;
+  } else if (intel.hiringSignal === 'None') {
+    action = `Reconnect with ${bestContact.full_name}`;
+  }
+
+  const reasonParts = [
+    intel.hiringSignal === 'None' ? 'No confirmed hiring activity yet' : `${intel.hiringSignal} hiring activity`,
+    `${companyContacts.length} contact${companyContacts.length === 1 ? '' : 's'} available`,
+  ];
+  if (roles.length > 0) reasonParts.push(`${primaryRole} stakeholder identified`);
+
+  return {
+    action,
+    reason: `${reasonParts.join(' and ')}.`,
+    bestContact,
+    contactability: contactabilityLabel(bestContact),
+    lastContacted: latestContacted ? daysAgoLabel(latestContacted) : 'No previous contact',
+    nextAction: scheduledContact
+      ? nextActionLabel(scheduledContact.next_action, scheduledContact.next_action_date)
+      : 'Confirm hiring needs and agree next step',
+  };
 }
 
 function hasHrSignal(contact: ContactRow): boolean {
@@ -652,16 +787,20 @@ export default function BDRelationships({ onNavigate }: Props) {
   const [bdNotes, setBdNotes] = useState<BdNoteRow[]>([]);
   const [jobs, setJobs] = useState<JobListRow[]>([]);
   const [jobsIntelError, setJobsIntelError] = useState<string | null>(null);
-  const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(null);
+  const [expandedCompanyId, setExpandedCompanyId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const selectedCompanyId = window.sessionStorage.getItem(BD_SELECTED_COMPANY_KEY);
+    if (selectedCompanyId) window.sessionStorage.removeItem(BD_SELECTED_COMPANY_KEY);
+    return selectedCompanyId;
+  });
   const [search, setSearch] = useState('');
   const [companiesRestricted, setCompaniesRestricted] = useState(false);
   const [showAllCompanies, setShowAllCompanies] = useState(false);
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'overview' | 'contacts' | 'activity' | 'notes'>('overview');
   const [accountStatusFilter, setAccountStatusFilter] = useState('all');
   const [hiringSignalFilter, setHiringSignalFilter] = useState('all');
-  const [priorityFilter, setPriorityFilter] = useState('all');
   const [sourceFilter, setSourceFilter] = useState('all');
-  const [sortBy, setSortBy] = useState<'score' | 'name' | 'activity'>('score');
+  const [sortBy, setSortBy] = useState<'name' | 'activity'>('activity');
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [showNoteComposer, setShowNoteComposer] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
@@ -904,7 +1043,6 @@ export default function BDRelationships({ onNavigate }: Props) {
 
       if (accountStatusFilter !== 'all' && status !== normalize(accountStatusFilter)) return false;
       if (hiringSignalFilter !== 'all' && intel.hiringSignal !== hiringSignalFilter) return false;
-      if (priorityFilter !== 'all' && intel.priority !== priorityFilter && intel.bdPriority !== priorityFilter) return false;
       if (sourceFilter !== 'all' && sourceStatus !== sourceFilter) return false;
 
       if (!query) return true;
@@ -941,9 +1079,7 @@ export default function BDRelationships({ onNavigate }: Props) {
           .at(-1) ?? '';
         return bLatest.localeCompare(aLatest);
       }
-      const aScore = computeRelationshipWinScore(a, contactsByCompanyId.get(a.id) ?? []).score;
-      const bScore = computeRelationshipWinScore(b, contactsByCompanyId.get(b.id) ?? []).score;
-      return bScore - aScore;
+      return a.company_name.localeCompare(b.company_name);
     });
   }, [
     accountStatusFilter,
@@ -951,7 +1087,6 @@ export default function BDRelationships({ onNavigate }: Props) {
     contactsByCompanyId,
     hiringSignalFilter,
     jobsByCompanyKey,
-    priorityFilter,
     relationshipCompanies,
     search,
     showAllCompanies,
@@ -1016,9 +1151,10 @@ export default function BDRelationships({ onNavigate }: Props) {
   }, [newContact.company_id, companySearch, newContact.full_name, newContact.email, newContact.phone, newContact.mobile_phone]);
 
   const expandedCompany = expandedCompanyId ? companiesById.get(Number(expandedCompanyId)) : null;
-  const expandedContacts = expandedCompanyId
-    ? contactsByCompanyId.get(Number(expandedCompanyId)) ?? []
-    : [];
+  const expandedContacts = useMemo(
+    () => (expandedCompanyId ? contactsByCompanyId.get(Number(expandedCompanyId)) ?? [] : []),
+    [contactsByCompanyId, expandedCompanyId]
+  );
   const expandedCompanyIntel = useMemo(() => {
     if (!expandedCompany) return null;
     const companyContacts = contactsByCompanyId.get(expandedCompany.id) ?? [];
@@ -1026,6 +1162,10 @@ export default function BDRelationships({ onNavigate }: Props) {
     const companyJobs = key ? jobsByCompanyKey.get(key) ?? [] : [];
     return computeCompanyIntel({ company: expandedCompany, companyContacts, companyJobs });
   }, [contactsByCompanyId, expandedCompany, jobsByCompanyKey]);
+  const expandedRevenueRecommendation = useMemo(() => {
+    if (!expandedCompanyIntel) return null;
+    return buildRevenueRecommendation(expandedContacts, expandedCompanyIntel);
+  }, [expandedCompanyIntel, expandedContacts]);
 
   const expandedCompanyNotes = useMemo(() => {
     if (!expandedCompany) return [];
@@ -1365,7 +1505,6 @@ export default function BDRelationships({ onNavigate }: Props) {
   function clearRelationshipFilters() {
     setAccountStatusFilter('all');
     setHiringSignalFilter('all');
-    setPriorityFilter('all');
     setSourceFilter('all');
     setShowAllCompanies(false);
   }
@@ -1457,13 +1596,6 @@ export default function BDRelationships({ onNavigate }: Props) {
                 </select>
               </label>
               <label className="block space-y-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Priority</span>
-                <select value={priorityFilter} onChange={(event) => setPriorityFilter(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100">
-                  <option value="all">All Priorities</option>
-                  {['High Opportunity', 'Medium Opportunity', 'Watchlist', 'High Priority', 'Medium Priority', 'Low Priority'].map((priority) => <option key={priority} value={priority}>{priority}</option>)}
-                </select>
-              </label>
-              <label className="block space-y-1.5">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Source</span>
                 <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100">
                   <option value="all">All Sources</option>
@@ -1536,19 +1668,6 @@ export default function BDRelationships({ onNavigate }: Props) {
                 </select>
               </label>
               <label className="block space-y-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Priority</span>
-                <select
-                  value={priorityFilter}
-                  onChange={(event) => setPriorityFilter(event.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
-                >
-                  <option value="all">All Priorities</option>
-                  {['High Opportunity', 'Medium Opportunity', 'Watchlist', 'High Priority', 'Medium Priority', 'Low Priority'].map((priority) => (
-                    <option key={priority} value={priority}>{priority}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="block space-y-1.5">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Source</span>
                 <select
                   value={sourceFilter}
@@ -1615,7 +1734,6 @@ export default function BDRelationships({ onNavigate }: Props) {
                 onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
                 className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
               >
-                <option value="score">Sort by Score</option>
                 <option value="activity">Sort by Activity</option>
                 <option value="name">Sort by Name</option>
               </select>
@@ -1637,7 +1755,6 @@ export default function BDRelationships({ onNavigate }: Props) {
                 const key = normalizeCompanyKey(company.company_name);
                 const companyJobs = key ? jobsByCompanyKey.get(key) ?? [] : [];
                 const intel = computeCompanyIntel({ company, companyContacts, companyJobs });
-                const relationshipScore = computeRelationshipWinScore(company, companyContacts).score;
 
                 return (
                   <button
@@ -1663,12 +1780,12 @@ export default function BDRelationships({ onNavigate }: Props) {
                               {formatCompanyLocation(company) || formatCompanySourceLabel(company.source_type)} • {companyContacts.length} contacts
                             </p>
                           </div>
-                          <Badge tone={scoreTone(relationshipScore)}>Score {relationshipScore}</Badge>
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                          <Badge tone={hiringSignalTone(intel.hiringSignal)}>{intel.hiringSignal} Signal</Badge>
-                          <Badge tone={priorityTone(intel.priority)}>{intel.priority}</Badge>
-                          <Badge tone={sourceStatusTone(company)}>Source {deriveCompanySourceStatus(company)}</Badge>
+                          <Badge tone="slate">{intel.lastActivityLabel}</Badge>
+                          <Badge tone={intel.followUpLabel.includes('overdue') || intel.followUpLabel.includes('due today') ? 'amber' : 'slate'}>
+                            {intel.followUpLabel}
+                          </Badge>
                         </div>
                       </div>
                     </div>
@@ -1709,18 +1826,14 @@ export default function BDRelationships({ onNavigate }: Props) {
                         {formatCompanySourceLabel(expandedCompany.source_type)} • {formatCompanyLocation(expandedCompany) || 'Malaysia'}
                       </p>
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        <Badge tone={scoreTone(computeRelationshipWinScore(expandedCompany, expandedContacts).score)}>
-                          Score {computeRelationshipWinScore(expandedCompany, expandedContacts).score}
-                        </Badge>
                         {expandedCompanyIntel ? (
-                          <>
-                            <Badge tone={hiringSignalTone(expandedCompanyIntel.hiringSignal)}>
-                              {expandedCompanyIntel.hiringSignal} Hiring Signal
-                            </Badge>
-                            <Badge tone={priorityTone(expandedCompanyIntel.priority)}>{expandedCompanyIntel.priority}</Badge>
-                          </>
+                          <Badge tone={hiringSignalTone(expandedCompanyIntel.hiringSignal)}>
+                            {expandedCompanyIntel.hiringSignal === 'None'
+                              ? 'No Hiring Activity'
+                              : `${expandedCompanyIntel.hiringSignal} Hiring Activity`}
+                          </Badge>
                         ) : null}
-                        <Badge tone={sourceStatusTone(expandedCompany)}>Source {deriveCompanySourceStatus(expandedCompany)}</Badge>
+                        <Badge tone="slate">{expandedContacts.length} contacts available</Badge>
                       </div>
                     </div>
                   </div>
@@ -1749,6 +1862,56 @@ export default function BDRelationships({ onNavigate }: Props) {
               <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
                 {activeWorkspaceTab === 'overview' && expandedCompanyIntel ? (
                   <div className="space-y-4">
+                    {expandedRevenueRecommendation ? (
+                      <div className="overflow-hidden rounded-2xl border border-teal-200 bg-teal-50/50">
+                        <div className="flex flex-col gap-3 border-b border-teal-100 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-teal-700">Recommended Action</p>
+                            <p className="mt-1 text-base font-semibold text-slate-950">{expandedRevenueRecommendation.action}</p>
+                            <p className="mt-1 text-xs leading-5 text-slate-600">{expandedRevenueRecommendation.reason}</p>
+                          </div>
+                          <Badge tone={hiringSignalTone(expandedCompanyIntel.hiringSignal)}>
+                            {expandedCompanyIntel.hiringSignal === 'None'
+                              ? 'No Hiring Activity'
+                              : `${expandedCompanyIntel.hiringSignal} Hiring Activity`}
+                          </Badge>
+                        </div>
+                        <div className="grid gap-px bg-teal-100/80 sm:grid-cols-2">
+                          <div className="bg-white/90 px-4 py-3">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">Best Contact</p>
+                            {expandedRevenueRecommendation.bestContact ? (
+                              <>
+                                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                  <p className="text-sm font-semibold text-slate-950">
+                                    {expandedRevenueRecommendation.bestContact.full_name}
+                                  </p>
+                                  {inferStakeholderRoles(expandedRevenueRecommendation.bestContact).map((role) => (
+                                    <Badge key={role} tone={stakeholderRoleTone(role)}>{role}</Badge>
+                                  ))}
+                                </div>
+                                <p className="mt-0.5 text-xs text-slate-500">
+                                  {expandedRevenueRecommendation.bestContact.job_title || 'Role not specified'}
+                                </p>
+                                <p className="mt-1 text-xs font-medium text-teal-700">{expandedRevenueRecommendation.contactability}</p>
+                              </>
+                            ) : (
+                              <p className="mt-1 text-sm text-slate-600">No stakeholder identified yet.</p>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-2 gap-px bg-slate-100">
+                            <div className="bg-white/90 px-3 py-3">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">Last Contacted</p>
+                              <p className="mt-1 text-xs font-semibold text-slate-800">{expandedRevenueRecommendation.lastContacted}</p>
+                            </div>
+                            <div className="bg-white/90 px-3 py-3">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">Next Action</p>
+                              <p className="mt-1 text-xs font-semibold text-slate-800">{expandedRevenueRecommendation.nextAction}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+
                     <div className="rounded-2xl border border-slate-200 bg-white p-4">
                       <p className="text-sm font-semibold text-slate-950">Account Summary</p>
                       <p className="mt-2 text-sm leading-6 text-slate-600">
@@ -1756,9 +1919,9 @@ export default function BDRelationships({ onNavigate }: Props) {
                       </p>
                       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                         <div><p className="text-lg font-semibold text-slate-950">{expandedCompanyIntel.activeJobs}</p><p className="text-xs text-slate-500">Active Jobs</p></div>
-                        <div><p className="text-lg font-semibold text-slate-950">{expandedCompanyIntel.openRolesSnapshot.length}</p><p className="text-xs text-slate-500">Open Roles</p></div>
-                        <div><p className="text-lg font-semibold text-slate-950">{expandedCompanyIntel.lastActivityLabel}</p><p className="text-xs text-slate-500">Last Activity</p></div>
-                        <div><p className="text-lg font-semibold text-slate-950">{expandedContacts.length}</p><p className="text-xs text-slate-500">Coverage</p></div>
+                        <div><p className="text-lg font-semibold text-slate-950">{expandedCompanyIntel.hiringSignal}</p><p className="text-xs text-slate-500">Hiring Activity</p></div>
+                        <div><p className="text-sm font-semibold text-slate-950">{expandedRevenueRecommendation?.lastContacted ?? 'No activity'}</p><p className="text-xs text-slate-500">Last Contacted</p></div>
+                        <div><p className="text-lg font-semibold text-slate-950">{expandedContacts.length}</p><p className="text-xs text-slate-500">Contacts Available</p></div>
                       </div>
                     </div>
 
@@ -1789,6 +1952,9 @@ export default function BDRelationships({ onNavigate }: Props) {
                                 <div className="flex flex-wrap items-center gap-2">
                                   <p className="truncate text-sm font-semibold text-slate-950">{contact.full_name}</p>
                                   {renderStatusTag(getUiStatus(contact))}
+                                  {inferStakeholderRoles(contact).map((role) => (
+                                    <Badge key={role} tone={stakeholderRoleTone(role)}>{role}</Badge>
+                                  ))}
                                 </div>
                                 <p className="mt-0.5 truncate text-xs text-slate-500">{contact.job_title ?? 'Contact'}</p>
                                 <div className="mt-2 grid gap-x-3 gap-y-1 text-[11px] text-slate-600 sm:grid-cols-2">
@@ -1853,6 +2019,27 @@ export default function BDRelationships({ onNavigate }: Props) {
                         {expandedContacts.length === 0 ? <p className="py-3 text-sm text-slate-500">No contacts found for this account yet.</p> : null}
                       </div>
                     </div>
+
+                    <details className="rounded-2xl border border-slate-200 bg-slate-50/60">
+                      <summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-slate-600">
+                        Technical account details
+                      </summary>
+                      <div className="grid gap-3 border-t border-slate-200 px-4 py-3 text-xs text-slate-600 sm:grid-cols-2">
+                        <p><span className="font-semibold text-slate-700">Source status:</span> {deriveCompanySourceStatus(expandedCompany)}</p>
+                        <p><span className="font-semibold text-slate-700">ATS family:</span> {expandedCompany.ats_family || 'Unknown'}</p>
+                        <p><span className="font-semibold text-slate-700">Source confidence:</span> {expandedCompany.source_confidence ?? 'Not available'}</p>
+                        <p>
+                          <span className="font-semibold text-slate-700">Careers page:</span>{' '}
+                          {expandedCompany.career_url ? (
+                            <a href={expandedCompany.career_url} target="_blank" rel="noreferrer" className="text-teal-700 hover:underline">
+                              Open careers page
+                            </a>
+                          ) : (
+                            'Not available'
+                          )}
+                        </p>
+                      </div>
+                    </details>
                   </div>
                 ) : null}
 
@@ -1873,6 +2060,9 @@ export default function BDRelationships({ onNavigate }: Props) {
                                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                                   <p className="truncate font-semibold text-slate-950">{contact.full_name}</p>
                                   {renderStatusTag(getUiStatus(contact))}
+                                  {inferStakeholderRoles(contact).map((role) => (
+                                    <Badge key={role} tone={stakeholderRoleTone(role)}>{role}</Badge>
+                                  ))}
                                 </div>
                                 <p className="mt-0.5 truncate text-xs text-slate-500">{contact.job_title ?? 'Contact'}</p>
                                 <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
@@ -1896,6 +2086,7 @@ export default function BDRelationships({ onNavigate }: Props) {
                                   </a>
                                 </div>
                                 <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                                  <span className="font-medium text-teal-700">{contactabilityLabel(contact)}</span>
                                   <span className="truncate">
                                     Last contacted: {contact.last_contacted_at ? daysAgoLabel(contact.last_contacted_at) : 'Never'}
                                   </span>
@@ -2777,9 +2968,9 @@ export default function BDRelationships({ onNavigate }: Props) {
       ) : null}
 
       {editingContact ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
-          <div className="w-full max-w-lg rounded-3xl border border-gray-200 bg-white shadow-xl">
-            <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black/40 px-4 py-6">
+          <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-xl">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-gray-100 px-5 py-4">
               <div>
                 <p className="text-sm font-semibold text-gray-950">Edit Contact</p>
                 <p className="mt-1 text-xs text-gray-500">Update details for BD relationship tracking.</p>
@@ -2793,7 +2984,7 @@ export default function BDRelationships({ onNavigate }: Props) {
               </button>
             </div>
 
-            <div className="space-y-4 px-5 py-4">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
               {editError ? <div className="text-xs text-red-700">{editError}</div> : null}
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -2935,17 +3126,17 @@ export default function BDRelationships({ onNavigate }: Props) {
               </label>
 
               <label className="space-y-1 block">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Notes / Address</span>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">Contact Notes</span>
                 <textarea
                   value={editingContact.notes ?? ''}
                   onChange={(e) => setEditingContact({ ...editingContact, notes: e.target.value })}
-                  rows={4}
-                  className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
+                  rows={3}
+                  className="max-h-28 w-full resize-y rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-100"
                 />
               </label>
             </div>
 
-            <div className="flex items-center justify-end gap-2 border-t border-gray-100 px-5 py-4">
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-gray-100 bg-white px-5 py-4">
               <button
                 type="button"
                 onClick={() => setEditingContact(null)}
