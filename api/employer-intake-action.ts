@@ -94,7 +94,9 @@ export default async function handler(req: any, res: any) {
 
   try {
     const body = await readBody(req);
-    const employerJobIntakeId = normalizeText(body.employerJobIntakeId ?? body.employer_job_intake_id);
+    const employerJobIntakeId = normalizeText(
+      body.intakeId ?? body.employerJobIntakeId ?? body.employer_job_intake_id
+    );
     const actionType = normalizeText(body.actionType ?? body.action_type);
     const employerNote = normalizeText(body.employerNote ?? body.employer_note);
     const status = normalizeText(body.status) ?? 'new';
