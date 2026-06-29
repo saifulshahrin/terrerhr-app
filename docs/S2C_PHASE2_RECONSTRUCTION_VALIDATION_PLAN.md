@@ -3,6 +3,7 @@
 ## Document Status
 
 - Mode: documentation only.
+- Role: canonical S2C Phase 2 execution document.
 - Proposed target: disposable Supabase project `terrer-schema-s2c-bootstrap`.
 - Proposed project ref: `epigstfenpqbslgeyrtn`.
 - Phase 1 status: successful.
@@ -15,6 +16,8 @@
 Define exactly how S2C Phase 2 would validate reconstruction of Terrer's approved exact-live canonical database objects in the existing disposable Supabase project.
 
 Phase 2 is intended to prove that the canonical physical schema can be reconstructed in dependency order, compared with authoritative evidence, and exercised with synthetic non-PII fixtures. It is validation of rebuild feasibility, not production migration design or authorization.
+
+This document supersedes the earlier Batch 1-first ordering. The revised strategy is dependency-first and separates pipeline verification from object reconstruction so execution failures are easier to classify.
 
 No SQL, schema change, table, function, trigger, view, policy, storage object, migration, fixture, or project modification is created by this plan.
 
@@ -250,120 +253,164 @@ Supabase-managed storage tables, functions, and triggers are platform-owned and 
 
 These objects require a separate compatibility, prototype, staging, or preserve-only decision. They must not enter Phase 2 by implication.
 
-## 4. Exact Reconstruction Order
+## 4. Revised Execution Ladder
 
-The following is the required category order. A category must pass its structural checks before the next dependent category begins.
+The original Batch 1 order:
 
-| Order | Object category | Rationale | Dependency | Expected validation |
-|---:|---|---|---|---|
-| 1 | Target and platform verification | Prevents reconstruction against an unknown or production-like target. | Approved project name/ref and current human authorization. | Project ref is `epigstfenpqbslgeyrtn`; target is disposable; no production credentials or data are present. |
-| 2 | Phase 1 Auth/Profile preservation | Protects the successful bootstrap and confirms identity dependencies remain valid. | Existing disposable Auth users and `profiles` rows. | Both UUID links, roles, active states, and production isolation still pass. |
-| 3 | Supabase platform prerequisites | Confirms platform-owned schemas, roles, extensions, and storage internals exist before Terrer objects reference them. | Disposable Supabase platform. | Required schemas, roles, UUID capability, PostgreSQL version, and relevant platform settings are recorded. |
-| 4 | Canonical sequence | `companies.id` depends on the sequence and its ownership/default relationship. | Platform prerequisites. | `companies_id_seq` definition, ownership, privileges, and expected next-value behavior match evidence. |
-| 5 | Root canonical tables | Establishes parent entities with no Terrer-table dependency or only platform dependency. | Platform prerequisites and sequence. | Existing `profiles` is compared; `companies`, `job_sources`, `candidates`, `skills`, `autonomous_recruiter_runs`, `web_candidate_intakes`, and `web_job_interest` match columns, defaults, nullability, constraints, and indexes. |
-| 6 | First-level dependent tables | Adds objects that reference root tables or platform identity. | Root tables and Auth/Profile state. | `bd_contacts`, `jobs`, `source_profiles`, `candidate_scores`, `candidate_capabilities`, and `autonomous_recruiter_memory` reconstruct with valid references and catalog definitions. |
-| 7 | Relationship and requirement tables | Establishes operational joins and requirement capture after all parent tables exist. | Root and first-level tables. | `bd_notes`, `jobs_intake`, `job_requirements`, and `candidate_skills` reconstruct; FKs, checks, indexes, and known missing logical constraints are documented. |
-| 8 | Conditional evidence table | Keeps unresolved evidence production outside the core path unless explicitly approved. | Candidates/source profiles and human approval. | If approved, `evidence_signals` matches exact-live structure and its unresolved writer lifecycle is recorded; otherwise it is marked deferred. |
-| 9 | Execution tables | Establishes matching and recruiter execution entities after jobs, candidates, and companies exist. | Candidate, job, company, and relationship layers. | `ai_assessments`, `submissions`, and `activity_log` reconstruct with expected FKs, checks, uniqueness, indexes, and defaults. |
-| 10 | Preserve-only audit table | Adds full-fidelity audit evidence without blocking operational reconstruction. | Stable canonical table layer and explicit inclusion confirmation. | `company_identity_merge_v1_snapshot` matches evidence or is explicitly deferred without affecting core pass status. |
-| 11 | Constraints, indexes, defaults, and ownership reconciliation | Ensures table creation did not omit physical contract details before behavior is added. | All approved tables and sequence. | Catalog comparison shows expected columns, types, defaults, nullability, PKs, FKs, checks, unique constraints, indexes, and ownership. |
-| 12 | Canonical public functions | Functions must exist before dependent triggers, policies, grants, or RPC tests. | Required tables and Auth/Profile state. | Six canonical functions match signature, body, volatility/security settings, search path, and return contract. |
-| 13 | Conditional RLS automation function | Isolates the unresolved event-trigger governance decision from core reconstruction. | Table layer and explicit human approval. | `rls_auto_enable()` is reconstructed and inspected only if approved; otherwise recorded as deferred. |
-| 14 | Canonical table triggers | Trigger functions and target tables now exist, allowing exact trigger attachment. | Functions and tables. | Candidate, job, submission, and activity triggers exist once each and bind to the expected function/timing/event. |
-| 15 | Conditional company triggers | Duplicate exact-live behavior must be observed without converting it into an accidental target-state decision. | `companies`, update helper, and explicit approval. | Approved trigger count is exact; timestamp behavior and duplicate firing are documented; no canonical cleanup decision is made. |
-| 16 | Conditional event trigger | Event-trigger creation can affect later DDL and therefore must occur only after normal object creation and a separate checkpoint. | `rls_auto_enable()`, platform support, and explicit approval. | If approved, `ensure_rls` creation/behavior is recorded; if unsupported or deferred, core reconstruction may continue with manual RLS validation. |
-| 17 | Candidate views | Candidate read models depend on candidate-domain tables and should be validated before broader app views. | Candidate, source, skill, score, and capability tables. | `vw_candidate_search` then `vw_candidate_search_clean` create successfully and expose expected columns/types. |
-| 18 | Pipeline base views | Builds direct read models over submissions, jobs, candidates, companies, and activity. | Execution tables and parent tables. | Base pipeline views create and return expected synthetic rows. |
-| 19 | Pipeline dependent views | Views that depend on enriched/base views must follow them. | Pipeline base views. | `vw_job_shortlist` and `vw_recruiter_dashboard` resolve dependencies and return expected outputs. |
-| 20 | Jobs and market base views | Establishes direct demand and market read models over jobs and sources. | `jobs` and `job_sources`. | Base jobs, market, Malaysia, and source-health views create with expected columns and filters. |
-| 21 | Jobs and source-health dependent views | Reporting chains must follow their base views. | `jobs_latest_practical`, `vw_tier1_source_health`, and `vw_tier1_source_health_v2`. | Reporting, leaderboard, hiring-now, diagnostics, and summary views resolve and return expected synthetic outputs. |
-| 22 | Relation, sequence, and function grants | Privileges should be applied only after all referenced objects exist. | Tables, sequence, functions, and views. | Catalog grants match exact-live evidence for intended roles; unexpected privilege expansion is classified. |
-| 23 | RLS enablement and table policies | Policies may reference Auth/Profile helpers and must follow function creation. | Tables, `is_current_user_admin()`, roles, and grants. | Expected policies exist; admin/recruiter/anonymous allow-deny behavior is recorded; unsafe exact-live behavior is evidence, not target approval. |
-| 24 | Storage buckets | Bucket rows depend on Supabase-managed storage services but not Terrer table reconstruction. | Verified storage platform and explicit approval. | `candidate-resumes` and `bd-photo-intake` match expected private/configuration state. |
-| 25 | Storage object policies | Policies require buckets, roles, and Auth sessions. | Buckets, Auth users, and storage platform. | Expected policy definitions and synthetic role behavior are recorded, including any broad or unsafe access. |
-| 26 | Synthetic business fixtures | Fixtures should load only after structure, functions, triggers, policies, and buckets are stable. | All approved reconstruction layers. | Deterministic fixture counts and relationships pass without PII or production identifiers. |
-| 27 | Behavioral validation | Proves reconstructed functions, triggers, views, RLS, and storage behavior rather than presence alone. | Synthetic fixtures and approved sessions. | RPC side effects, timestamp behavior, role checks, view outputs, policy decisions, and storage operations match expected assertions or are classified. |
-| 28 | Generated types and contract comparison | Confirms the reconstructed schema presents the expected application-facing type contract. | Completed schema and separately approved type generation. | Types generate successfully; critical drift is absent or explicitly documented. |
-| 29 | Evidence reconciliation and final report | Produces the decision record required before migration design can be considered. | All validation results. | Every object is PASS, FAIL, DEFERRED, or NOT APPLICABLE; evidence contains no secrets or PII; GO/NO-GO is explicit. |
-| 30 | Cleanup or controlled hold | Prevents unmanaged disposable resources after validation. | Human teardown decision. | Project and fixtures are either deleted by approval or assigned an owner, inactive state, and cleanup deadline. |
+- `companies_id_seq`
+- `companies`
+- `job_sources`
 
-### Exact Table Order Within Categories
+is now superseded. It bundled pipeline verification with multiple root objects and made the first failure harder to interpret.
 
-1. Verify existing `profiles`.
-2. Reconstruct `companies`.
-3. Reconstruct `job_sources`.
-4. Reconstruct `candidates`.
-5. Reconstruct `skills`.
-6. Reconstruct `autonomous_recruiter_runs`.
-7. Reconstruct `web_candidate_intakes`.
-8. Reconstruct `web_job_interest`.
-9. Reconstruct `bd_contacts`.
-10. Reconstruct `jobs`.
-11. Reconstruct `source_profiles`.
-12. Reconstruct `candidate_scores`.
-13. Reconstruct `candidate_capabilities`.
-14. Reconstruct `autonomous_recruiter_memory`.
-15. Reconstruct `bd_notes`.
-16. Reconstruct `jobs_intake`.
-17. Reconstruct `job_requirements`.
-18. Reconstruct `candidate_skills`.
-19. Reconstruct conditional `evidence_signals`, if approved.
-20. Reconstruct `ai_assessments`.
-21. Reconstruct `submissions`.
-22. Reconstruct `activity_log`.
-23. Reconstruct `company_identity_merge_v1_snapshot`, if full-fidelity inclusion is confirmed.
+### Why the strategy changed
 
-### Exact Function Order
+The Batch 1 failure showed that the immediate question is not whether Terrer can reconstruct the full S2C Phase 2 object set. The immediate question is whether the disposable execution pipeline can persist the smallest reliable DDL units and prove them immediately. The revised strategy separates that proof into lower-dependency steps so each result is easier to trust and easier to debug.
 
-1. `update_updated_at_column()`
-2. `update_submission_stage_timestamp()`
-3. `sync_submission_next_action_from_activity()`
-4. `sync_submission_stage_from_activity()`
-5. `is_current_user_admin()`
-6. `create_submission_with_activity(...)`
-7. Conditional `rls_auto_enable()`
+### Phase 2-0: Execution pipeline verification
 
-### Exact Trigger Order
+Prove the disposable execution path before attempting any broader reconstruction.
 
-1. `set_updated_at_candidates`
-2. `set_updated_at_jobs`
-3. `set_submission_stage_updated_at`
-4. `set_updated_at_submissions`
-5. `trg_sync_submission_next_action_from_activity`
-6. `trg_sync_submission_stage_from_activity`
-7. Conditional `set_updated_at` on `companies`
-8. Conditional `set_updated_at_companies`
-9. Conditional `ensure_rls`
+- Confirm target identity, isolation, and pre-state inventory.
+- Revalidate the preserved Phase 1 `profiles` rows and Auth state.
+- Reconstruct and validate `companies_id_seq` only.
+- Confirm sequence ownership and no unintended side effects.
 
-### Exact View Order
+#### Phase 2-0 Execution Checklist
 
-1. `vw_candidate_search`
-2. `vw_candidate_search_clean`
-3. `recruiter_active_submissions`
-4. `vw_submissions_enriched`
-5. `vw_company_pipeline_summary`
-6. `vw_candidate_pipeline_summary`
-7. `vw_activity_log_enriched`
-8. `vw_pipeline_summary`
-9. `vw_outcomes_summary`
-10. `vw_live_work_queue`
-11. `vw_followup_queue`
-12. `vw_job_shortlist`
-13. `vw_recruiter_dashboard`
-14. `jobs_latest`
-15. `jobs_latest_practical`
-16. `jobs_reporting`
-17. `hiring_leaderboard_malaysia`
-18. `terrer_hiring_now`
-19. `vw_jobs_tier1_malaysia`
-20. `vw_market_signals`
-21. `vw_market_signals_active`
-22. `vw_market_signals_realtime`
-23. `vw_market_signals_recent`
-24. `vw_tier1_source_health`
-25. `vw_tier1_source_health_v2`
-26. `vw_tier1_source_diagnostics`
-27. `vw_tier1_source_health_summary`
+Use this checklist exactly, in order:
+
+1. Confirm the disposable project ref is `epigstfenpqbslgeyrtn` and the project name is `terrer-schema-s2c-bootstrap`.
+2. Confirm the linked target is the disposable project and not production by checking the active Supabase link metadata before any SQL runs.
+3. Confirm the local repository context is the current branch `schema-s1-stabilization`.
+4. Confirm the execution method is `supabase db query --linked` against the linked disposable project only.
+5. Confirm no migration file, SQL file, or production connection string will be used for this phase.
+6. Run a read-only pre-state query to confirm:
+   - `public.profiles` exists and still has the preserved Phase 1 rows.
+   - `public.companies_id_seq` does not yet exist.
+   - `public.companies` does not yet exist.
+   - `public.job_sources` does not yet exist.
+7. Execute a single reviewed SQL statement batch that creates only `public.companies_id_seq`.
+8. Run read-only validation queries for:
+   - `to_regclass('public.companies_id_seq')`
+   - sequence ownership
+   - sequence next-value behavior
+   - absence of any unintended new objects outside the sequence
+   
+   ```sql
+   SELECT
+     to_regclass('public.companies_id_seq') AS companies_id_seq,
+     to_regclass('public.companies') AS companies,
+     to_regclass('public.job_sources') AS job_sources;
+
+   SELECT last_value, is_called
+   FROM public.companies_id_seq;
+
+   SELECT pg_get_userbyid(c.relowner) AS sequence_owner
+   FROM pg_class c
+   WHERE c.oid = 'public.companies_id_seq'::regclass;
+   ```
+9. Record the command output, validation output, and the exact object inventory before and after the run.
+10. Stop immediately after validation. Do not continue to Phase 2-1 until the human approval gate is cleared.
+
+Phase 2-0 success criteria:
+
+- The disposable target was verified before SQL execution.
+- Production remained unreachable from the approved execution method.
+- `public.companies_id_seq` exists after the run.
+- `public.profiles` remained present and unchanged.
+- No unapproved object was created.
+- Validation queries returned the expected sequence ownership and next-value results.
+- Evidence was captured without secrets or production data.
+
+Phase 2-0 failure criteria:
+
+- The project ref or project name does not match the approved disposable target.
+- The active link metadata points to production or an unapproved project.
+- The execution method is anything other than `supabase db query --linked` for the linked disposable project.
+- `public.companies_id_seq` is absent after the run.
+- `public.profiles` changes unexpectedly.
+- Any object outside the sequence is created, altered, or dropped.
+- Any SQL error, permission error, or persistence mismatch occurs.
+
+Phase 2-0 stop conditions:
+
+- Stop immediately after pre-state capture if the target cannot be verified.
+- Stop immediately after SQL submission if the command returns an error.
+- Stop immediately after validation if the sequence or profile state does not match the expected result.
+- Stop immediately before Phase 2-1 unless a human explicitly approves continuation.
+
+Phase 2-0 rollback expectations:
+
+- If the sequence creation fails, do not attempt repair SQL in the same run.
+- If the wrong target is detected, stop and do not retry until the target is re-approved.
+- If the sequence is created incorrectly, remove only the disposable-project change and preserve Phase 1 `profiles`.
+- If any rollback requires a destructive action, obtain a separate approval before acting.
+
+Phase 2-0 evidence to capture:
+
+- Git branch and working-tree status.
+- Disposable project name and ref.
+- Active link metadata proving the target is disposable.
+- Pre-state object inventory.
+- SQL submission command used.
+- Validation query output.
+- Post-state object inventory.
+- Any mismatch or error text.
+
+### Phase 2-1: First independent canonical table
+
+Use one independent table to prove a full table DDL cycle after the sequence smoke test.
+
+- Reconstruct `job_sources`.
+- Validate columns, defaults, nullability, constraints, indexes, and ownership.
+- Treat success here as the first proof that a standalone canonical table can persist cleanly.
+
+### Phase 2-2: Parent and root entities
+
+Reconstruct the parent/root objects that anchor downstream relationships.
+
+- Reconstruct `companies`.
+- Reconstruct `skills`.
+- Reconstruct `autonomous_recruiter_runs`.
+- Validate each object before moving to any dependent layer.
+
+### Phase 2-3: Candidate-domain root entities
+
+Bring in the candidate-side root objects after the upstream roots are stable.
+
+- Reconstruct `candidates`.
+- Reconstruct `web_candidate_intakes`.
+- Reconstruct `web_job_interest`.
+- Preserve the distinction between candidate intake roots and later matching/execution tables.
+
+### Phase 2-4: First dependent entities
+
+Reconstruct the first dependency wave, then the deeper dependent wave, before any policy or trigger work.
+
+- First dependent wave: `bd_contacts`, `jobs`, `source_profiles`, `candidate_scores`, `candidate_capabilities`, `autonomous_recruiter_memory`.
+- Second dependent wave: `bd_notes`, `jobs_intake`, `job_requirements`, `candidate_skills`, `ai_assessments`, `submissions`, `activity_log`.
+- If `evidence_signals` is approved, place it only after the candidate/source dependencies are stable.
+- If `company_identity_merge_v1_snapshot` is approved, keep it as preserve-only evidence after the operational tables are stable.
+
+### Phase 2-5: Functions, triggers, RLS, policies
+
+Only after the table graph is stable, add the behavior and security layer.
+
+- Reconstruct canonical public functions.
+- Reconstruct canonical table triggers.
+- Reconstruct the conditional company trigger pair only if explicitly approved as exact-live evidence.
+- Reconstruct `rls_auto_enable()` and `ensure_rls` only if explicitly approved.
+- Apply grants, RLS enablement, and table policies only after the function layer is stable.
+- Reconstruct storage buckets and `storage.objects` policies only after the policy model is settled.
+
+### Post-Phase Security and Validation Tail
+
+- Synthetic fixtures.
+- Behavioral validation.
+- Generated type comparison, if separately approved.
+- Evidence reconciliation and final report.
+- Cleanup or controlled hold.
 
 ## 5. Validation Sequence
 
@@ -373,19 +420,22 @@ The following is the required category order. A category must pass its structura
 4. Record region, organization/workspace, PostgreSQL version, platform settings, extensions, and teardown owner.
 5. Revalidate Phase 1 Auth/Profile assertions.
 6. Capture pre-reconstruction object inventory.
-7. Reconstruct approved objects in the Exact Reconstruction Order.
-8. Compare each category against live evidence before continuing.
-9. Load the approved minimum synthetic fixture set.
-10. Validate row counts and relationships.
-11. Validate canonical functions.
-12. Validate trigger side effects and trigger counts.
-13. Validate candidate, pipeline, jobs, market, and source-health views.
-14. Validate grants and role-specific RLS behavior.
-15. Validate storage bucket and object-policy behavior.
-16. Generate and compare types only if separately approved.
-17. Classify every difference as `PASS`, `FAIL`, `DEFERRED`, or `NOT APPLICABLE`.
-18. Produce the Phase 2 validation report.
-19. Obtain the human cleanup/hold decision.
+7. Run Phase 2-0 pipeline verification using the checklist above and reconstruct `companies_id_seq` only.
+8. Run Phase 2-1 and validate `job_sources`.
+9. Run Phase 2-2 and validate parent/root entities.
+10. Run Phase 2-3 and validate candidate-domain root entities.
+11. Run Phase 2-4 and validate dependent entities in dependency order.
+12. Run Phase 2-5 for functions, triggers, RLS, policies, and storage security.
+13. Load the approved minimum synthetic fixture set only after the structural and security layers are stable.
+14. Validate row counts and relationships.
+15. Validate canonical functions.
+16. Validate trigger side effects and trigger counts.
+17. Validate candidate, pipeline, jobs, market, and source-health views.
+18. Validate grants, RLS, and storage object behavior.
+19. Generate and compare types only if separately approved.
+20. Classify every difference as `PASS`, `FAIL`, `DEFERRED`, or `NOT APPLICABLE`.
+21. Produce the Phase 2 validation report.
+22. Obtain the human cleanup/hold decision.
 
 Validation must stop at the affected category when a blocker or critical security failure occurs. Independent, already validated categories may remain recorded, but dependent reconstruction must not continue.
 
