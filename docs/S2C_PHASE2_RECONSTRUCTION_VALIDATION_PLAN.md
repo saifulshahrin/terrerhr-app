@@ -375,6 +375,193 @@ Reconstruct the parent/root objects that anchor downstream relationships.
 - Reconstruct `autonomous_recruiter_runs`.
 - Validate each object before moving to any dependent layer.
 
+#### Phase 2-2 Canonical Package: `public.companies`
+
+This is a phased reconstruction adaptation, not a schema redesign.
+
+- The canonical live schema uses an identity-backed `companies.id`.
+- Phase 2-0 already created and validated `public.companies_id_seq`.
+- Because the sequence already exists, reconstruction must preserve it instead of creating a second implicit identity sequence.
+- The logical schema target remains canonical.
+- The reconstruction method differs only because objects are being rebuilt in phases.
+- The expected final catalog state should match the canonical live schema as closely as possible without replacing the validated sequence.
+
+##### Preconditions
+
+- `public.companies_id_seq` exists and has already been validated in Phase 2-0.
+- `public.companies` does not yet exist.
+- The disposable project ref is still `epigstfenpqbslgeyrtn`.
+- No production link or production SQL path is active.
+
+##### Exact Reconstruction Method
+
+Use the pre-existing sequence explicitly in the column default, then attach ownership after the table exists:
+
+```sql
+CREATE TABLE "public"."companies" (
+  "id" bigint NOT NULL DEFAULT nextval('public.companies_id_seq'::regclass),
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "company_name" text COLLATE "pg_catalog"."default",
+  "company_slug" text COLLATE "pg_catalog"."default",
+  "website_url" text COLLATE "pg_catalog"."default",
+  "linkedin_url" text COLLATE "pg_catalog"."default",
+  "hq_country" text COLLATE "pg_catalog"."default",
+  "primary_city" text COLLATE "pg_catalog"."default",
+  "company_status" text COLLATE "pg_catalog"."default" DEFAULT 'active'::text,
+  "source_type" text COLLATE "pg_catalog"."default",
+  "notes" text COLLATE "pg_catalog"."default",
+  "updated_at" timestamp with time zone DEFAULT now(),
+  "career_url" text COLLATE "pg_catalog"."default",
+  "ats_family" text COLLATE "pg_catalog"."default",
+  "source_confidence" integer,
+  "source_status" text COLLATE "pg_catalog"."default",
+  "source_notes" text COLLATE "pg_catalog"."default",
+  "last_enriched_at" timestamp with time zone,
+  "last_checked_at" timestamp with time zone
+);
+
+ALTER TABLE "public"."companies" OWNER TO "postgres";
+ALTER TABLE "public"."companies" ENABLE ROW LEVEL SECURITY;
+ALTER SEQUENCE "public"."companies_id_seq" OWNED BY "public"."companies"."id";
+
+ALTER TABLE ONLY "public"."companies"
+  ADD CONSTRAINT "companies_pkey" PRIMARY KEY ("id");
+
+ALTER TABLE ONLY "public"."companies"
+  ADD CONSTRAINT "companies_source_status_check"
+  CHECK (
+    "source_status" IS NULL OR
+    ("source_status" = ANY (ARRAY['missing'::text, 'queued'::text, 'partial'::text, 'ready'::text, 'blocked'::text]))
+  );
+```
+
+##### Canonical Live Evidence
+
+- Table shape, owner, and RLS: `companies` live DDL.
+- Sequence ownership: `companies_id_seq` owned by `companies.id`.
+- Constraints: `companies_pkey`, `companies_source_status_check`.
+- Policies: anon read, authenticated insert, authenticated read.
+- Grants: full table grants for `anon`, `authenticated`, `postgres`, and `service_role`; sequence grants for `anon`, `authenticated`, `postgres`, and `service_role`.
+
+##### Validation Queries
+
+Pre-state existence only:
+
+```sql
+SELECT to_regclass('public.companies_id_seq') AS companies_id_seq;
+SELECT to_regclass('public.companies') AS companies;
+```
+
+Post-state catalog validation:
+
+```sql
+SELECT to_regclass('public.companies') AS companies;
+
+SELECT pg_get_serial_sequence('public.companies', 'id') AS companies_id_seq;
+
+SELECT a.attname, pg_get_expr(d.adbin, d.adrelid) AS column_default
+FROM pg_attrdef d
+JOIN pg_attribute a
+  ON a.attrelid = d.adrelid
+ AND a.attnum = d.adnum
+WHERE d.adrelid = 'public.companies'::regclass
+  AND a.attname = 'id';
+
+SELECT c.relname AS sequence_name, t.relname AS table_name, a.attname AS column_name
+FROM pg_class c
+JOIN pg_depend dep ON dep.objid = c.oid
+JOIN pg_class t ON t.oid = dep.refobjid
+JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = dep.refobjsubid
+WHERE c.oid = 'public.companies_id_seq'::regclass;
+
+SELECT conname, contype
+FROM pg_constraint
+WHERE conrelid = 'public.companies'::regclass
+ORDER BY conname;
+
+SELECT relrowsecurity
+FROM pg_class
+WHERE oid = 'public.companies'::regclass;
+
+SELECT policyname, cmd, roles
+FROM pg_policies
+WHERE schemaname = 'public'
+  AND tablename = 'companies'
+ORDER BY policyname;
+```
+
+##### Behavior Validation
+
+```sql
+INSERT INTO public.companies (
+  company_name,
+  source_status
+) VALUES (
+  'S2C Phase 2-2 validation company',
+  'ready'
+)
+RETURNING id, company_status, source_status;
+
+INSERT INTO public.companies (
+  company_name,
+  source_status
+) VALUES (
+  'S2C Phase 2-2 invalid source_status',
+  'not_allowed'
+);
+```
+
+- The first insert must succeed and return a generated `id`.
+- The second insert must fail with `companies_source_status_check`.
+
+##### Expected Catalog State
+
+- `public.companies` exists.
+- `public.companies_id_seq` exists.
+- `public.companies.id` uses `public.companies_id_seq` as its default value source.
+- `public.companies_id_seq` is owned by `public.companies.id`.
+- `companies_pkey` exists.
+- `companies_source_status_check` exists.
+- RLS is enabled.
+- The live policies and grants match the evidence.
+
+##### Success Criteria
+
+- The table is created without creating a second sequence.
+- The preserved sequence remains valid and attached.
+- Catalog validation matches the live evidence as closely as the phased method allows.
+- The valid insert succeeds.
+- The invalid `source_status` insert is rejected.
+
+##### Failure Criteria
+
+- A second identity or sequence path is created for `id`.
+- `companies_id_seq` is detached, renamed, or replaced.
+- The default does not resolve to `companies_id_seq`.
+- The ownership mapping does not point to `companies.id`.
+- The primary key, check constraint, RLS, policies, or grants diverge from the live evidence.
+- The valid insert fails or the invalid `source_status` insert succeeds.
+
+##### Rollback Procedure
+
+- Disposable project only.
+- If the package fails before completion, stop immediately.
+- If rollback is approved, drop only `public.companies` in the disposable project and preserve Phase 2-0 evidence unless a separate approval says otherwise.
+
+##### Evidence to Capture
+
+- Pre-state existence checks.
+- SQL execution output.
+- Post-state catalog checks.
+- Policy and grant verification.
+- Behavior validation success and failure output.
+- Any exact error text.
+
+##### Human Approval Gate
+
+- Human approval is required before running the package against `epigstfenpqbslgeyrtn`.
+- No SQL should run until the linked ref is verified and the pre-state existence checks pass.
+
 ### Phase 2-3: Candidate-domain root entities
 
 Bring in the candidate-side root objects after the upstream roots are stable.
