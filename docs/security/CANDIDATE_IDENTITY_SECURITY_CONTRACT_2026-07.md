@@ -4,95 +4,59 @@ Date: 2026-07
 
 This contract describes the secure target state for candidate identity, ownership, browsing, and interest tracking.
 
-It is written for the `terrer-web` implementation and for future RLS/policy migration review.
+It is written for the `terrer-web` implementation and for the verified-session baseline introduced in web commit `5006e1e`.
 
 ## Core Rules
 
-1. `auth.uid()` is the authoritative candidate ownership source.
+1. `auth.jwt() ->> 'email'` is the compatibility source for candidate self-access.
 2. `localStorage` is only a UX cache.
-3. Browser code must not rely on `candidate_id`, candidate email, or candidate name as an authorization boundary.
-4. No anonymous candidate PII read is allowed.
-5. No anonymous UPDATE or DELETE is allowed.
-6. Public browsing stays on a deliberate publication contract such as `candidate_web_jobs`.
-7. Employer preview remains server-only and returns anonymized data only.
+3. Browser code must not rely on `candidate_id` as authority.
+4. Browser code must not use candidate email or name as an authority boundary outside verified auth.
+5. No anonymous candidate PII read is allowed.
+6. No anonymous `UPDATE`, `INSERT`, or `DELETE` is allowed on `web_job_interest`.
+7. Public browsing stays on `candidate_web_jobs`.
+8. Employer preview remains server-only and returns anonymized data only.
 
 ## Sign-In Flow
 
-1. The user signs in with Supabase Auth.
+1. The user signs in with Supabase Auth magic-link session.
 2. The browser reads the current session from Supabase Auth.
-3. The browser may read its own `public.profiles` row to determine app role and active state.
-4. The browser then requests the linked candidate record through a narrow server endpoint or self-only database policy.
-5. If no candidate link exists, the app shows a claim state rather than guessing by email or localStorage.
+3. Private candidate routes are gated until the session is verified.
+4. Candidate identity is resolved from the verified auth email.
+5. If more than one candidate row matches that verified email, the app treats the state as ambiguous and surfaces recovery.
 
 ## Candidate Ownership Model
 
-### Proposed mapping relation
+### Verified-email access
 
-Use a dedicated mapping relation instead of overloading `public.candidates`:
+Use the canonical `candidates.email` column and compare it to the verified JWT email in lower case.
 
-- `public.candidate_auth_links`
+Conceptually:
 
-Recommended columns:
+```sql
+lower(candidates.email) = lower(auth.jwt() ->> 'email')
+```
 
-- `candidate_id uuid not null references public.candidates(candidate_id) on delete cascade`
-- `auth_user_id uuid not null references auth.users(id) on delete cascade`
-- `verified_email text null`
-- `claim_source text not null`
-- `claim_status text not null default 'linked'`
-- `claimed_at timestamptz not null default now()`
-- `updated_at timestamptz not null default now()`
-- `claimed_by uuid null references auth.users(id) on delete set null`
-- `claim_notes text null`
+The exact SQL must also guard against nulls and should use the live `candidates.email` text column.
 
-Recommended constraints:
+### Transitional duplicate-email handling
 
-- unique `(candidate_id)`
-- unique `(auth_user_id)`
-- optional unique `(verified_email)` only if the verified-email path is approved for the recovery workflow
-
-### Why a mapping table is preferred
-
-- It preserves the current `candidates` shape.
-- It prevents one account from claiming multiple unrelated profiles.
-- It prevents multiple accounts from claiming the same profile.
-- It supports re-linking during recovery without rewriting candidate business fields.
-- It gives an auditable claim history when paired with row timestamps and an optional event log.
-
-### Claim flow
-
-1. The browser submits a claim request after verified auth sign-in.
-2. A trusted server endpoint verifies the auth session and reads `auth.uid()` plus the verified email claim.
-3. The server finds the intended candidate by approved recovery rules.
-4. If exactly one safe match exists, the server inserts or updates `candidate_auth_links`.
-5. If there is ambiguity, the request is routed to manual review.
-
-### Duplicate-email handling
-
-Do not bind solely by email.
+Duplicate candidate emails are allowed to surface as a transitional risk.
 
 Recommended handling:
 
-- exact verified auth email may be a hint
-- if multiple candidate rows share the same email, do not auto-link
-- require manual review or a one-time claim token
-- prefer the candidate ID already known to the internal claim workflow
-
-### Future recovery
-
-Recovery should support:
-
-- verified auth re-login
-- admin-assisted re-linking
-- revocation and re-claim
-- duplicate email resolution without exposing full candidate lists
+- exact verified auth email may match more than one candidate row
+- if multiple candidate rows share the same email, the web app should treat the state as ambiguous
+- do not auto-merge profiles in this sprint
+- recommend a later `candidate_account_links` table if strict one-to-one ownership becomes necessary
 
 ## Browser Access Contract
 
 ### Allowed from browser
 
 - `public.candidate_web_jobs`
-- `public.candidates` only for the signed-in owner row, after claim link exists and RLS enforces self-only access
-- `public.web_job_interest` only for the signed-in owner row, after claim link exists and RLS enforces self-only access
+- `public.candidates` only for the signed-in owner rows, after RLS enforces verified-email self-access
+- `public.web_job_interest` only for the signed-in owner rows, after RLS enforces verified-email self-access
 - `public.profiles` only for the signed-in user row and only for role/active-state checks
 
 ### Not allowed from browser
@@ -102,6 +66,7 @@ Recovery should support:
 - browser access to `public.employer_job_intake`
 - browser access to `public.employer_intake_actions`
 - browser access to employer preview candidate lists
+- caller-supplied `candidate_id` as an authorization boundary
 
 ### LocalStorage assumptions to remove
 
@@ -116,18 +81,18 @@ These values may remain as UX cache only and must be ignored when auth ownership
 ### `public.candidates`
 
 - anon: no access
-- authenticated candidate: self-only select and self-only update on owned row
-- authorised recruiter/admin: select all, update scoped by role policy
+- authenticated candidate: self-only `SELECT` by verified auth email
+- authenticated staff: read/write/delete as needed for internal recruiter workflows
 - service-role: full access
-- operations: no anonymous read, update, or delete
+- operations: no anonymous read, write, or delete
 - sensitive columns: name, email, phone, URLs, notes, resume, consent, representation, salary, location, source, scoring, status
 - consumer: candidate self-service, internal recruiter app, service workflows
 
 ### `public.web_job_interest`
 
 - anon: no access
-- authenticated candidate: self-only select/insert/update on owned row
-- authorised recruiter/admin: read all and limited internal status updates
+- authenticated candidate: self-only `SELECT`, `INSERT`, `UPDATE` through the owned candidate row
+- authenticated staff: read/update for internal review workflows
 - service-role: full access
 - operations: no anonymous write or delete
 - sensitive columns: candidate_id, job_id, job_title, company_name, status, next_action, representation fields, recruiter review fields
@@ -135,11 +100,10 @@ These values may remain as UX cache only and must be ignored when auth ownership
 
 ### `public.jobs`
 
-- anon: no browser access for candidate pages
-- authenticated candidate: no direct dependency for candidate browsing
-- authorised recruiter/admin: select all; insert/update only through staff workflows
+- anon: no broad browser access
+- authenticated staff: select/insert/update for internal workflows
 - service-role: full access
-- operations: browser candidate pages should not depend on this table
+- operations: candidate browsing should not depend on this table
 - sensitive columns: operational status, source intelligence, extraction fields, descriptions, internal notes
 - consumer: internal job operations, reporting, staff tools
 
@@ -147,9 +111,9 @@ These values may remain as UX cache only and must be ignored when auth ownership
 
 - anon: select published rows only
 - authenticated candidate: select published rows only
-- authorised recruiter/admin: manage publication rows
+- authenticated staff: manage publication rows
 - service-role: full access
-- operations: public SELECT only for published jobs; staff manage publication state
+- operations: public `SELECT` only for published jobs; staff manage publication state
 - sensitive columns: linked job_id and publication metadata
 - consumer: public candidate browsing and publication management
 
@@ -157,9 +121,9 @@ These values may remain as UX cache only and must be ignored when auth ownership
 
 - anon: no access
 - authenticated candidate: no access
-- authorised recruiter/admin: server-mediated access only
+- authenticated staff: server-mediated access only if explicitly needed
 - service-role: full access
-- operations: INSERT and SELECT only through trusted server flow
+- operations: `INSERT` and `SELECT` only through trusted server flow
 - sensitive columns: employer contact fields, intake narrative, fingerprint, status
 - consumer: employer intake preview and staff review
 
@@ -167,27 +131,29 @@ These values may remain as UX cache only and must be ignored when auth ownership
 
 - anon: no access
 - authenticated candidate: no access
-- authorised recruiter/admin: server-mediated access only
+- authenticated staff: server-mediated access only if explicitly needed
 - service-role: full access
-- operations: INSERT only through trusted server flow
+- operations: `INSERT` only through trusted server flow
 - sensitive columns: employer note, intake linkage, status
 - consumer: employer intake action logging
 
 ## Rollout Order
 
-1. Deploy compatible web changes first.
-2. Add candidate ownership support.
-3. Enable strict candidate self-only RLS.
-4. Remove anonymous candidate PII access.
-5. Tighten employer preview and staff-only flows.
-6. Verify smoke tests and only then consider further hardening.
+1. Review the app security branch and web security branch together.
+2. Back up production Supabase.
+3. Ensure Supabase Auth magic-link settings are configured.
+4. Deploy the web branch first.
+5. Smoke test public jobs and candidate sign-in.
+6. Apply the database migrations.
+7. Smoke test My Matches, My Activity, Profile, interest actions, and employer preview.
+8. Rerun Supabase Advisor.
+9. Monitor logs.
 
 ## Error and Recovery States
 
 - no session: prompt sign-in
-- session present but no linked candidate: prompt claim flow
-- duplicate claim detected: manual review
+- session present but no linked candidate: prompt recovery
+- duplicate-email match: ambiguous state, no automatic binding
 - link revoked: prompt re-claim or support
 - claim ambiguous: no automatic binding
 - auth mismatch: block browser candidate reads until verified
-

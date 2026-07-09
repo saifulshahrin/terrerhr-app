@@ -7,27 +7,34 @@ This document records the target security posture for the 43 Advisor objects in 
 - 14 RLS-disabled tables
 - 29 security-definer views
 
-It is a first draft for review, not an execution plan.
+It reflects the compatible web baseline introduced by web commit `5006e1e` (`Harden candidate access with verified sessions`).
 
 ## Candidate Ownership Design
 
-Use `public.candidate_auth_links` as the smallest compatible ownership mapping.
+Use verified Supabase Auth email as the compatibility boundary for the current sprint.
 
 Rationale:
 
-- It avoids changing the core `candidates` table shape.
-- It gives one canonical auth user per candidate profile.
-- It blocks one user from claiming multiple unrelated profiles.
-- It blocks multiple users from claiming one profile.
-- It supports manual recovery and admin re-linking.
-- It can be audited with timestamps and a claim source.
+- It matches the web branch that now derives candidate identity from a Supabase Auth session.
+- It avoids introducing a new claim/link table during this sprint.
+- It keeps localStorage out of the authorization path.
+- It tolerates duplicate candidate emails as a transitional ambiguity state.
+- It can be upgraded later to a dedicated `candidate_account_links` table if the product needs stricter one-to-one ownership.
 
-Recommended policies:
+Recommended policy shape:
 
-- authenticated candidate: self-only on linked row
-- recruiter/admin: read all, manage claims
+- authenticated candidate: self-only by verified auth email
+- recruiter/admin: read and manage internal records
 - service-role: full access
-- anon: none
+- anon: no access to sensitive candidate data
+
+## Web Compatibility Rules
+
+- `auth.jwt() ->> 'email'` is the compatibility source for candidate self-access.
+- Browser-supplied `candidate_id` must never be treated as authority.
+- Candidate-facing public browsing stays on `candidate_web_jobs`.
+- Candidate interest actions must validate ownership through the candidate row.
+- Employer preview stays service-role only and anonymised.
 
 ## Table Plan
 
@@ -35,231 +42,176 @@ Recommended policies:
 
 - Sensitivity: high PII
 - anon: deny all
-- authenticated candidate: self-only SELECT and UPDATE
-- authorised recruiter/admin: full SELECT, scoped UPDATE
+- authenticated candidate: self-only SELECT by verified auth email
+- authenticated staff: read/write/delete as needed for internal recruiter workflows
 - service-role: full
-- ACL correction: remove anonymous privileges
-- compatibility risk: direct browser access must move to auth-backed self access or server endpoints
-- rollback: re-enable old policies only temporarily if a release fails
+- compatibility note: duplicate-email matches are allowed for the same verified email account during the transition
+- rollback: restore previous broader access only if the verified-email web branch must be temporarily reverted
 
 ### `public.web_job_interest`
 
 - Sensitivity: high PII and workflow state
 - anon: deny all
-- authenticated candidate: self-only SELECT/INSERT/UPDATE
-- authorised recruiter/admin: SELECT all, internal status updates
+- authenticated candidate: self-only SELECT/INSERT/UPDATE through the owned candidate row
+- authenticated staff: read/update for internal review workflows
 - service-role: full
-- ACL correction: remove anonymous SELECT/UPDATE
-- compatibility risk: browser pages that rely on unauthenticated writes must be migrated to verified auth
-- rollback: keep reads and writes scoped to the owner
+- compatibility note: ownership is checked through `candidates.candidate_id` and verified auth email, not browser identity
+- rollback: preserve the owner check even if the candidate UX is degraded
 
 ### `public.jobs`
 
-- Sensitivity: operational data, not candidate PII but still internal
-- anon: deny direct table access for candidate pages
-- authenticated candidate: no direct dependency
-- authorised recruiter/admin: SELECT, limited INSERT/UPDATE
+- Sensitivity: operational data and rich internal descriptions
+- anon: deny broad direct table access
+- authenticated staff: read/write for internal app workflows
 - service-role: full
-- ACL correction: remove anonymous mutation and direct candidate browsing dependency
-- compatibility risk: existing browser pages that query `jobs` directly need to switch to `candidate_web_jobs`
-- rollback: keep publication contract intact while re-clamping direct table access
+- compatibility note: candidate browsing should use `candidate_web_jobs`, not the base table
+- rollback: keep `candidate_web_jobs` public if the internal jobs table is tightened further
 
 ### `public.candidate_web_jobs`
 
 - Sensitivity: published job data only
 - anon: SELECT published rows only
 - authenticated candidate: SELECT published rows only
-- authorised recruiter/admin: full management
+- authenticated staff: manage publication rows
 - service-role: full
-- ACL correction: keep published read access only, no anonymous mutation
-- compatibility risk: low if publication rows remain stable
-- rollback: retain the publication contract
+- compatibility note: this is the deliberate public publication contract
+- rollback: retain the publication contract unchanged
 
 ### `public.employer_job_intake`
 
 - Sensitivity: employer contact and intake data
 - anon: deny all
 - authenticated candidate: deny all
-- authorised recruiter/admin: server-mediated access only
+- authenticated staff: server-mediated access only if explicitly needed
 - service-role: full
-- ACL correction: remove browser access; keep server-only writes
-- compatibility risk: employer preview API must remain trusted-server only
-- rollback: keep data private even if preview feature is degraded
+- compatibility note: employer preview remains server-only and should not require browser table access
+- rollback: keep data private even if preview is temporarily degraded
 
 ### `public.employer_intake_actions`
 
 - Sensitivity: employer workflow notes
 - anon: deny all
 - authenticated candidate: deny all
-- authorised recruiter/admin: server-mediated access only
+- authenticated staff: server-mediated access only if explicitly needed
 - service-role: full
-- ACL correction: remove browser access
-- compatibility risk: low if only server writes are used
+- compatibility note: action logging should stay on the trusted server path
 - rollback: keep action logging server-only
 
 ### `public.candidate_scores`
 
 - Sensitivity: internal scoring and ranking
 - anon: deny all
-- authenticated candidate: optional self-summary only through a safe view, not the table
-- authorised recruiter/admin: read
+- authenticated staff: read/write/delete for internal candidate workflows
 - service-role: full
-- ACL correction: revoke anonymous broad access
-- compatibility risk: candidate search and review views may need security-invoker treatment
-- rollback: preserve internal read path only
+- compatibility note: these rows feed candidate search and internal profile review
+- rollback: retain staff-only access
 
 ### `public.source_profiles`
 
 - Sensitivity: provenance and source linkage
 - anon: deny all
-- authenticated candidate: no direct browser table access
-- authorised recruiter/admin: read
+- authenticated staff: read/write/delete for internal candidate workflows
 - service-role: full
-- ACL correction: revoke anonymous access
-- compatibility risk: candidate search view dependencies may need invoker mode
-- rollback: retain read availability for trusted staff only
+- compatibility note: candidate profile and resume review still need this table
+- rollback: retain staff-only access
 
 ### `public.skills`
 
 - Sensitivity: taxonomy, low PII
-- anon: deny direct table access unless the public product explicitly needs it
-- authenticated candidate: prefer view-based access only
-- authorised recruiter/admin: read, controlled write
+- anon: deny direct mutation and broad public reads
+- authenticated staff: read-only unless a specific writer is proven
 - service-role: full
-- ACL correction: revoke open mutation
-- compatibility risk: skill-search UI should use a safe read model
-- rollback: keep read access only if a published contract requires it
+- compatibility note: keep the vocabulary available for matching and reporting views
+- rollback: keep read access only
 
 ### `public.candidate_capabilities`
 
 - Sensitivity: derived candidate intelligence
 - anon: deny all
-- authenticated candidate: self-only if exposed at all
-- authorised recruiter/admin: read
+- authenticated staff: read-only
 - service-role: full
-- ACL correction: remove anonymous exposure
-- compatibility risk: search view depends on this data
+- compatibility note: used by search/reporting views, not browser self-service
 - rollback: keep through trusted internal paths only
 
 ### `public.evidence_signals`
 
 - Sensitivity: internal enrichment
 - anon: deny all
-- authenticated candidate: no direct table access
-- authorised recruiter/admin: read
+- authenticated staff: read-only
 - service-role: full
-- ACL correction: revoke anonymous access
-- compatibility risk: none known in current browser code
+- compatibility note: no current browser dependency
 - rollback: internal-only access only
 
 ### `public.job_candidate_matches`
 
 - Sensitivity: internal matching outputs
 - anon: deny all
-- authenticated candidate: no direct table access unless later productized
-- authorised recruiter/admin: read/write
+- authenticated staff: read/write/delete if the prototype is still needed
 - service-role: full
-- ACL correction: remove anonymous exposure
-- compatibility risk: low
+- compatibility note: keep the prototype behind authenticated access only
 - rollback: keep internal-only
-
-### `public.match_interactions`
-
-- Sensitivity: workflow feedback
-- anon: deny all
-- authenticated candidate: no direct table access
-- authorised recruiter/admin: read/write
-- service-role: full
-- ACL correction: revoke anonymous access
-- compatibility risk: none known
-- rollback: internal-only
 
 ### `public.outreach_log`
 
 - Sensitivity: outreach history and contact context
 - anon: deny all
-- authenticated candidate: no direct table access
-- authorised recruiter/admin: read/write
+- authenticated staff: read/write/delete if the prototype is still needed
 - service-role: full
-- ACL correction: revoke anonymous access
-- compatibility risk: none known
-- rollback: internal-only
-
-### `public.target_companies`
-
-- Sensitivity: planning data
-- anon: deny all
-- authenticated candidate: no direct table access
-- authorised recruiter/admin: read/write
-- service-role: full
-- ACL correction: revoke anonymous access
-- compatibility risk: none known
-- rollback: internal-only
+- compatibility note: keep the prototype behind authenticated access only
+- rollback: keep internal-only
 
 ### `public.terrer_candidates`
 
 - Sensitivity: legacy parallel data
 - anon: deny all
-- authenticated candidate: deny all
-- authorised recruiter/admin: internal read only if still needed
+- authenticated: deny all unless a legacy tool still proves need
 - service-role: full
-- ACL correction: revoke browser roles
-- compatibility risk: low because no active consumer was found
+- compatibility note: no active app consumer was found
 - rollback: move out of exposed schema when safe
 
 ### `public.terrer_companies`
 
 - Sensitivity: legacy parallel data
 - anon: deny all
-- authenticated candidate: deny all
-- authorised recruiter/admin: internal read only if still needed
+- authenticated: deny all unless a legacy tool still proves need
 - service-role: full
-- ACL correction: revoke browser roles
-- compatibility risk: low
+- compatibility note: no active app consumer was found
 - rollback: move out of exposed schema when safe
 
 ### `public.terrer_company_contacts`
 
 - Sensitivity: legacy parallel PII
 - anon: deny all
-- authenticated candidate: deny all
-- authorised recruiter/admin: internal read only if still needed
+- authenticated: deny all unless a legacy tool still proves need
 - service-role: full
-- ACL correction: revoke browser roles
-- compatibility risk: low
+- compatibility note: no active app consumer was found
 - rollback: move out of exposed schema when safe
 
 ### `public.terrer_jobs`
 
 - Sensitivity: legacy parallel job data
 - anon: deny all
-- authenticated candidate: deny all
-- authorised recruiter/admin: internal read only if still needed
+- authenticated: deny all unless a legacy tool still proves need
 - service-role: full
-- ACL correction: revoke browser roles
-- compatibility risk: low
+- compatibility note: no active app consumer was found
 - rollback: move out of exposed schema when safe
 
 ### `public.terrer_pipeline`
 
 - Sensitivity: legacy pipeline state
 - anon: deny all
-- authenticated candidate: deny all
-- authorised recruiter/admin: internal read only if still needed
+- authenticated: deny all unless a legacy tool still proves need
 - service-role: full
-- ACL correction: revoke browser roles
-- compatibility risk: low
+- compatibility note: no active app consumer was found
 - rollback: move out of exposed schema when safe
 
 ### `public.terrer_skills`
 
 - Sensitivity: legacy parallel taxonomy
 - anon: deny all
-- authenticated candidate: deny all
-- authorised recruiter/admin: internal read only if still needed
+- authenticated: deny all unless a legacy tool still proves need
 - service-role: full
-- ACL correction: revoke browser roles
-- compatibility risk: low
+- compatibility note: no active app consumer was found
 - rollback: move out of exposed schema when safe
 
 ## View Plan
@@ -279,9 +231,9 @@ Use `security_invoker` where the view should inherit base-table RLS and remain s
 - `vw_tier1_source_health_summary`
 - `vw_tier1_source_health_v2`
 
-These are read-model candidates because they are either public-safe job discovery or source-health/reporting projections that can inherit table-level policy.
+These are read-model candidates that should remain compatible with the verified-session web branch and the internal recruiter app.
 
-### Revoke browser roles and retain trusted internal access
+### Keep authenticated browser/internal access, revoke anon
 
 - `hiring_leaderboard_malaysia`
 - `jobs_latest`
@@ -293,6 +245,7 @@ These are read-model candidates because they are either public-safe job discover
 - `v_outreach_due`
 - `vw_activity_log_enriched`
 - `vw_candidate_pipeline_summary`
+- `vw_candidate_search`
 - `vw_company_pipeline_summary`
 - `vw_followup_queue`
 - `vw_job_shortlist`
@@ -302,34 +255,28 @@ These are read-model candidates because they are either public-safe job discover
 - `vw_recruiter_dashboard`
 - `vw_submissions_enriched`
 
-These are internal reporting or pipeline projections and should not remain browser-facing unless a deliberate product requirement is proven.
+These are internal reporting or pipeline projections and should not remain anonymous-facing.
 
 ### Move outside the exposed schema when safe
 
 - `terrer_jobs_view`
 
-This is a legacy parallel view with no active repository consumer. It is the strongest candidate for schema relocation or retirement after dependency confirmation.
-
-### Re-check before final lock-down
-
-- `vw_candidate_search`
-
-This view directly exposes candidate PII through the search stack. The safest path is likely internal-only access or a narrower invoker contract after the candidate ownership model is in place.
+This is the strongest candidate for schema relocation or retirement after dependency confirmation.
 
 ## Migration Sequence
 
-1. Candidate ownership support.
-2. RLS enablement and policies.
+1. Candidate and `web_job_interest` verified-email compatibility.
+2. Remaining Advisor table RLS lock-down.
 3. ACL corrections.
 4. View-security hardening.
-5. Validation assertions.
+5. Validation assertions and smoke tests.
 
 ## Test Plan
 
 Create transaction-safe tests for:
 
 - anonymous candidate-data denial
-- candidate self-profile access
+- authenticated candidate self-profile access by verified email
 - denial of another candidate profile
 - candidate self-interest access
 - denial of another candidate interest row
@@ -340,4 +287,3 @@ Create transaction-safe tests for:
 - service-role workflows
 - view output compatibility
 - no public candidate PII exposure
-
