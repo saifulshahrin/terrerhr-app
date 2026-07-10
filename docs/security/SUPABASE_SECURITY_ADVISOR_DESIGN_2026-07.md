@@ -291,6 +291,22 @@ The web repo did not define these 13 remaining Advisor tables. They appear to be
 
 Remaining local-reset risk: the table dependency gap is reconciled, but view definitions hardened by `20260709_0004_view_security_hardening.sql` must still be owned by app migration history or otherwise proven before a clean local reset can be considered fully proven. Once Docker or an equivalent local Postgres proof environment is available, run a full reset/apply to validate the table contracts and view hardening together.
 
+## View Definition Reconciliation
+
+`supabase/migrations/20260709_0004_view_security_hardening.sql` hardens 30 views: the 29 Advisor views plus `vw_candidate_search_clean`. `vw_candidate_search_clean` is included because it depends on `vw_candidate_search`, is the active candidate-search clean read model used by the app, and would otherwise remain an unhardened candidate-data view.
+
+The exact live definitions are available in `docs/schema-evidence/live_schema_catalog_ddl.sql`. The app repo already owned 11 recruiter/pipeline view definitions through `supabase/migrations/20260416100404_add_ready_for_bd_review_stage.sql`: `vw_submissions_enriched`, `recruiter_active_submissions`, `vw_company_pipeline_summary`, `vw_candidate_pipeline_summary`, `vw_activity_log_enriched`, `vw_pipeline_summary`, `vw_outcomes_summary`, `vw_live_work_queue`, `vw_followup_queue`, `vw_job_shortlist`, and `vw_recruiter_dashboard`.
+
+The missing view contracts are now reconciled by `supabase/migrations/20260708_0002_reconcile_advisor_view_contracts.sql`: `jobs_latest`, `jobs_latest_practical`, `hiring_leaderboard_malaysia`, `jobs_reporting`, `terrer_hiring_now`, `terrer_jobs_view`, `v_match_shortlist`, `v_outreach_due`, `vw_candidate_search`, `vw_candidate_search_clean`, `vw_jobs_tier1_malaysia`, `vw_market_signals`, `vw_market_signals_active`, `vw_market_signals_realtime`, `vw_market_signals_recent`, `vw_tier1_source_health`, `vw_tier1_source_health_v2`, `vw_tier1_source_diagnostics`, and `vw_tier1_source_health_summary`.
+
+The same migration also reconciles the live `public.jobs` columns required by those exact view definitions, using guarded `add column if not exists` statements. This is dependency-only DDL from `live_schema_catalog_ddl.sql`, not a security or semantic redesign.
+
+Dependency order is now: base tables and compatibility table contracts, then `jobs_latest` / `jobs_latest_practical`, then dependent jobs views; `vw_candidate_search` before `vw_candidate_search_clean`; `vw_tier1_source_health` before `vw_tier1_source_health_v2`, then diagnostics and summary; and earlier recruiter/pipeline views before `20260709_0004`.
+
+Security treatment remains in `20260709_0004`: all target views are set to `security_invoker`, anonymous access is revoked, authenticated read remains for reviewed internal/app contexts, and `service_role` retains read access. Candidate PII views such as candidate search, submission enrichment, job shortlist, follow-up queue, activity enrichment, and recruiter dashboard are not anonymously readable.
+
+No view remains unresolved in migration history based on the available live evidence. A clean local reset should now be structurally possible once Docker or an equivalent local Postgres proof environment is available, subject to local execution proving the SQL against the full migration chain.
+
 ## Test Plan
 
 Create transaction-safe tests for:

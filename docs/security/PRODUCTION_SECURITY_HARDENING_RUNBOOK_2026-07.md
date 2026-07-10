@@ -55,6 +55,20 @@ The app repo owner for those table contracts is now `supabase/migrations/2026070
 
 Before production deployment, also confirm the production migration ledger does not contain an equivalent app-owned migration under a different filename, compare the live table shapes against the captured evidence, and keep the migration in review-only status until local/disposable reset validation is available. A clean local reset should now be possible for the table dependencies once Docker is available, but view definitions hardened by `20260709_0004_view_security_hardening.sql` still need migration-history ownership proof.
 
+## View Definition Reconciliation
+
+`supabase/migrations/20260709_0004_view_security_hardening.sql` hardens 30 views: the 29 Advisor views and the extra dependent view `vw_candidate_search_clean`. `vw_candidate_search_clean` is included because it depends on `vw_candidate_search`, is actively used by app candidate-search workflows, and contains candidate search fields that must not remain anonymously readable.
+
+Definitions were reconciled only from `docs/schema-evidence/live_schema_catalog_ddl.sql`. The app repo already owned 11 views in `supabase/migrations/20260416100404_add_ready_for_bd_review_stage.sql`: `vw_submissions_enriched`, `recruiter_active_submissions`, `vw_company_pipeline_summary`, `vw_candidate_pipeline_summary`, `vw_activity_log_enriched`, `vw_pipeline_summary`, `vw_outcomes_summary`, `vw_live_work_queue`, `vw_followup_queue`, `vw_job_shortlist`, and `vw_recruiter_dashboard`.
+
+`supabase/migrations/20260708_0002_reconcile_advisor_view_contracts.sql` now owns the remaining 19 missing view contracts: `jobs_latest`, `jobs_latest_practical`, `hiring_leaderboard_malaysia`, `jobs_reporting`, `terrer_hiring_now`, `terrer_jobs_view`, `v_match_shortlist`, `v_outreach_due`, `vw_candidate_search`, `vw_candidate_search_clean`, `vw_jobs_tier1_malaysia`, `vw_market_signals`, `vw_market_signals_active`, `vw_market_signals_realtime`, `vw_market_signals_recent`, `vw_tier1_source_health`, `vw_tier1_source_health_v2`, `vw_tier1_source_diagnostics`, and `vw_tier1_source_health_summary`.
+
+The same compatibility migration adds only the missing `public.jobs` columns required to compile those exact live views, guarded with `add column if not exists`. Existing production columns are left untouched; fresh local rebuilds get the dependency surface needed before the views are created.
+
+Creation order is dependency-safe: base tables first, then jobs rollup views, candidate search before the clean candidate view, tier-1 health before v2/diagnostics/summary, and existing recruiter/pipeline views before the security hardening migration. No unresolved view definitions remain based on captured live schema evidence.
+
+Before production deployment, verify the production migration ledger, confirm the live views still match the captured definitions, and run a local or disposable reset/apply once Docker or equivalent local Postgres is available. The compatibility migration uses guarded create-if-missing logic and does not alter existing production view definitions.
+
 ## Smoke Tests
 
 - Public jobs load without sign-in.
