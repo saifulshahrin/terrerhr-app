@@ -32,10 +32,22 @@ It is intentionally conservative and does not modify production by itself.
 - Candidate identity contract reviewed.
 - Verified-email RLS assumptions documented.
 - Duplicate-email transitional risk accepted and documented.
+- Migration dependency reconciliation reviewed.
+- Production migration ledger checked for web-owned migration versions.
 - RLS and ACL deltas reviewed.
 - View treatment reviewed.
 - Tests prepared.
 - Rollback path documented.
+
+## Migration Dependency Reconciliation
+
+`candidate_web_jobs` was missing from the app repo migration history because the table was originally introduced by the web repo migration `20260609090000_add_candidate_web_job_publication.sql`. The security hardening branch now needs to harden that table from the app repo, so the database contract has been reconciled into app history.
+
+The app repo owner for the publication contract is now `supabase/migrations/20260708_0000_reconcile_web_publication_and_employer_contracts.sql`. It creates `public.candidate_web_jobs` idempotently, keeps anonymous access limited to published rows, and does not seed production publication data.
+
+No web-repo migration was copied unchanged. The original candidate-publication migration may already exist in production migration history if it was applied from `terrer-web`, so the app repo uses a new compatibility migration. The web employer-intake migration was not copied unchanged because it no longer matches the captured live contract for `employer_intake_actions`.
+
+Before production deployment, check whether production already records `20260609090000_add_candidate_web_job_publication.sql`, confirm the live columns on `candidate_web_jobs`, `employer_job_intake`, and `employer_intake_actions`, confirm the web branch `5006e1e` is deployed or ready, and run local/disposable migration validation once Docker or an equivalent local Postgres proof environment is available.
 
 ## Smoke Tests
 

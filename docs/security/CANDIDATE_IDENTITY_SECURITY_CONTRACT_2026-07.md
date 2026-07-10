@@ -149,6 +149,16 @@ These values may remain as UX cache only and must be ignored when auth ownership
 8. Rerun Supabase Advisor.
 9. Monitor logs.
 
+## Migration Dependency Reconciliation
+
+`candidate_web_jobs` was missing from the app repo history because the public candidate browsing contract was first created in `terrer-web` via `20260609090000_add_candidate_web_job_publication.sql`. The app hardening branch now owns the security policy for that table, so the app repo must also carry an idempotent table contract before the RLS migration references it.
+
+The app repo now owns that contract in `supabase/migrations/20260708_0000_reconcile_web_publication_and_employer_contracts.sql`. The migration preserves the candidate-facing rule that anonymous users can only read rows where `status = 'published'`.
+
+No web migration was imported unchanged. The original web migration includes seed publication rows and may already be present in production migration history, so the app repo uses a new compatibility migration instead. The related employer intake web migration was also not copied unchanged because its action-table columns differ from the captured live production evidence.
+
+Remaining ownership risk: the web repo still depends on `candidate_web_jobs` and `web_job_interest`, but the app repo is now the database security owner. Before production deployment, verify the production migration ledger, confirm `candidate_web_jobs` exists with the expected columns, confirm `web_job_interest` remains authenticated self-access under web branch `5006e1e`, and validate the migrations in a disposable/local database.
+
 ## Error and Recovery States
 
 - no session: prompt sign-in

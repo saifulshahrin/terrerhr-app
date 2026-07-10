@@ -265,11 +265,23 @@ This is the strongest candidate for schema relocation or retirement after depend
 
 ## Migration Sequence
 
-1. Candidate and `web_job_interest` verified-email compatibility.
-2. Remaining Advisor table RLS lock-down.
-3. ACL corrections.
-4. View-security hardening.
-5. Validation assertions and smoke tests.
+1. Candidate marketplace contract reconciliation.
+2. Web publication and employer intake contract reconciliation.
+3. Candidate and `web_job_interest` verified-email compatibility.
+4. Remaining Advisor table RLS lock-down.
+5. ACL corrections.
+6. View-security hardening.
+7. Validation assertions and smoke tests.
+
+## Migration Dependency Reconciliation
+
+`candidate_web_jobs` was missing from the app repo history because the public job-publication table was introduced in the web repository migration `20260609090000_add_candidate_web_job_publication.sql`. The app security migration started hardening that table, but the app migration history did not own the table creation contract.
+
+The app repo now owns the required compatibility contract through `supabase/migrations/20260708_0000_reconcile_web_publication_and_employer_contracts.sql`. This migration creates `public.candidate_web_jobs` idempotently, preserves the public `status = 'published'` read contract, and intentionally does not import the web migration's seed rows.
+
+No web-repo migration was copied unchanged. The candidate publication migration was reconciled as an idempotent app compatibility migration because the original web filename may already be present in production migration history if it was deployed from `terrer-web`. The web employer-intake migration was not copied unchanged because its `employer_intake_actions.intake_id` / `candidate_ref` shape differs from the captured live app evidence, which uses `employer_job_intake_id`, `employer_note`, and `status`.
+
+Remaining cross-repo DB ownership risk: `terrer-web` still consumes `candidate_web_jobs`, `web_job_interest`, `employer_job_intake`, and `employer_intake_actions`, while the app repo is becoming the canonical security owner. Before production deployment, verify the production migration ledger, confirm whether `20260609090000_add_candidate_web_job_publication.sql` is already recorded, confirm `candidate_web_jobs` rows exist or can be managed separately, and smoke test web branch `5006e1e` against the final RLS contract.
 
 ## Test Plan
 
