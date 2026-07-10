@@ -49,6 +49,12 @@ No web-repo migration was copied unchanged. The original candidate-publication m
 
 Before production deployment, check whether production already records `20260609090000_add_candidate_web_job_publication.sql`, confirm the live columns on `candidate_web_jobs`, `employer_job_intake`, and `employer_intake_actions`, confirm the web branch `5006e1e` is deployed or ready, and run local/disposable migration validation once Docker or an equivalent local Postgres proof environment is available.
 
+This pass reconciles the remaining Advisor RLS-disabled table contracts referenced by `supabase/migrations/20260709_0002_advisor_remaining_table_rls.sql`: `source_profiles`, `evidence_signals`, `skills`, `candidate_capabilities`, `candidate_scores`, `terrer_companies`, `terrer_company_contacts`, `terrer_jobs`, `terrer_candidates`, `terrer_skills`, `terrer_pipeline`, `job_candidate_matches`, and `outreach_log`.
+
+The app repo owner for those table contracts is now `supabase/migrations/20260708_0001_reconcile_advisor_remaining_table_contracts.sql`. The source of evidence is `docs/schema-evidence/live_schema_catalog_ddl.sql`; the web repo did not contain base migrations for these 13 tables. The migration is structural only, uses `create table if not exists`, guarded column additions, and live-confirmed indexes, and it does not add permissive RLS or anonymous grants.
+
+Before production deployment, also confirm the production migration ledger does not contain an equivalent app-owned migration under a different filename, compare the live table shapes against the captured evidence, and keep the migration in review-only status until local/disposable reset validation is available. A clean local reset should now be possible for the table dependencies once Docker is available, but view definitions hardened by `20260709_0004_view_security_hardening.sql` still need migration-history ownership proof.
+
 ## Smoke Tests
 
 - Public jobs load without sign-in.

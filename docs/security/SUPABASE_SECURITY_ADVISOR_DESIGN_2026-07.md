@@ -283,6 +283,14 @@ No web-repo migration was copied unchanged. The candidate publication migration 
 
 Remaining cross-repo DB ownership risk: `terrer-web` still consumes `candidate_web_jobs`, `web_job_interest`, `employer_job_intake`, and `employer_intake_actions`, while the app repo is becoming the canonical security owner. Before production deployment, verify the production migration ledger, confirm whether `20260609090000_add_candidate_web_job_publication.sql` is already recorded, confirm `candidate_web_jobs` rows exist or can be managed separately, and smoke test web branch `5006e1e` against the final RLS contract.
 
+This pass also reconciles the remaining Advisor RLS-disabled table contracts referenced by `supabase/migrations/20260709_0002_advisor_remaining_table_rls.sql`: `source_profiles`, `evidence_signals`, `skills`, `candidate_capabilities`, `candidate_scores`, `terrer_companies`, `terrer_company_contacts`, `terrer_jobs`, `terrer_candidates`, `terrer_skills`, `terrer_pipeline`, `job_candidate_matches`, and `outreach_log`.
+
+The app repo owner for those table contracts is now `supabase/migrations/20260708_0001_reconcile_advisor_remaining_table_contracts.sql`. It is based on `docs/schema-evidence/live_schema_catalog_ddl.sql`, uses guarded structural DDL, adds the live-confirmed indexes, and does not add permissive policies or broad anonymous access.
+
+The web repo did not define these 13 remaining Advisor tables. They appear to be app/internal schema, frozen legacy `terrer_*` schema, or reporting/matching support tables already present in live evidence. No stale web migration was imported for them.
+
+Remaining local-reset risk: the table dependency gap is reconciled, but view definitions hardened by `20260709_0004_view_security_hardening.sql` must still be owned by app migration history or otherwise proven before a clean local reset can be considered fully proven. Once Docker or an equivalent local Postgres proof environment is available, run a full reset/apply to validate the table contracts and view hardening together.
+
 ## Test Plan
 
 Create transaction-safe tests for:

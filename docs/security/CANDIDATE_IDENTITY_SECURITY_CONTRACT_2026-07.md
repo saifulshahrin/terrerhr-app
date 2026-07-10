@@ -159,6 +159,10 @@ No web migration was imported unchanged. The original web migration includes see
 
 Remaining ownership risk: the web repo still depends on `candidate_web_jobs` and `web_job_interest`, but the app repo is now the database security owner. Before production deployment, verify the production migration ledger, confirm `candidate_web_jobs` exists with the expected columns, confirm `web_job_interest` remains authenticated self-access under web branch `5006e1e`, and validate the migrations in a disposable/local database.
 
+This pass also reconciles the app-owned support tables that feed candidate search, scoring, provenance, and internal matching views: `source_profiles`, `evidence_signals`, `skills`, `candidate_capabilities`, `candidate_scores`, `terrer_companies`, `terrer_company_contacts`, `terrer_jobs`, `terrer_candidates`, `terrer_skills`, `terrer_pipeline`, `job_candidate_matches`, and `outreach_log`. Their app migration owner is `supabase/migrations/20260708_0001_reconcile_advisor_remaining_table_contracts.sql`, sourced from `docs/schema-evidence/live_schema_catalog_ddl.sql`.
+
+These support tables do not change the browser identity boundary. Candidate self-access remains anchored on verified Auth email against `public.candidates`; browser code must not treat `source_profiles`, scores, capabilities, matches, or frozen `terrer_*` records as identity authority. A clean local reset should now be possible for these table dependencies once Docker is available, but view-definition ownership still needs proof before production deployment.
+
 ## Error and Recovery States
 
 - no session: prompt sign-in
