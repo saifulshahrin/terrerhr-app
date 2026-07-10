@@ -69,6 +69,18 @@ Creation order is dependency-safe: base tables first, then jobs rollup views, ca
 
 Before production deployment, verify the production migration ledger, confirm the live views still match the captured definitions, and run a local or disposable reset/apply once Docker or equivalent local Postgres is available. The compatibility migration uses guarded create-if-missing logic and does not alter existing production view definitions.
 
+## Migration Ledger / Backfilled Migration Risk
+
+The `20260425000000`, `20260708_0000`, `20260708_0001`, and `20260708_0002` compatibility migrations are intentionally backfilled so local reset can rebuild the schema before the `20260709` security hardening migrations reference candidate, web publication, employer intake, Advisor table, and Advisor view contracts.
+
+These backfilled migrations are safe as local reconstruction inputs, but they must not be treated as an automatic production deployment plan. Production may already have some equivalent objects from earlier app work, web-repo migrations, manual SQL, or Supabase-hosted changes that are not represented by the app repo ledger. Applying this branch with `supabase db push` without a ledger review would be unsafe and ambiguous because the CLI could attempt to apply backfilled migrations after later production migrations are already recorded, or record compatibility migrations that overlap with web-owned history.
+
+A production migration-ledger check is mandatory before any database deployment. Confirm which migration versions already exist in `supabase_migrations.schema_migrations`, especially any web-owned migration such as `20260609090000_add_candidate_web_job_publication.sql`, and compare live object definitions against `docs/schema-evidence/live_schema_catalog_ddl.sql`.
+
+If production already has later migrations recorded, use Supabase migration repair only after an explicit ledger plan is approved. Mark backfilled compatibility migrations as applied only when their live-equivalent changes are already present and verified. If an object differs materially, do not repair blindly; prepare a current-timestamp production wrapper or manual reviewed SQL that applies only the approved delta.
+
+The recommended production strategy is: deploy the compatible web build first, back up Supabase, perform a read-only production ledger and schema comparison, decide whether each backfilled compatibility migration is repair-only or needs a current-timestamp wrapper, then apply only the reviewed security deltas. Direct `supabase db push` from this branch is not allowed until that ledger plan exists and local/disposable reset validation has passed.
+
 ## Smoke Tests
 
 - Public jobs load without sign-in.
