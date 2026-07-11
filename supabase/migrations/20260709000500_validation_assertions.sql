@@ -29,7 +29,8 @@ begin
       on c.relname = required.tablename
     left join pg_namespace n
       on n.oid = c.relnamespace
-    where n.nspname <> 'public'
+    where c.oid is null
+       or n.nspname <> 'public'
        or c.relrowsecurity is distinct from true
   ) then
     raise exception 'one or more Advisor tables still lack RLS';
@@ -129,45 +130,50 @@ end $$;
 
 do $$
 begin
-  if not exists (
+  if exists (
     select 1
-    from pg_class c
-    join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'public'
-      and c.relkind = 'v'
-      and c.relname in (
-        'vw_candidate_search_clean',
-        'vw_jobs_tier1_malaysia',
-        'vw_market_signals',
-        'vw_market_signals_active',
-        'vw_market_signals_realtime',
-        'vw_market_signals_recent',
-        'vw_tier1_source_diagnostics',
-        'vw_tier1_source_health',
-        'vw_tier1_source_health_summary',
-        'vw_tier1_source_health_v2',
-        'hiring_leaderboard_malaysia',
-        'jobs_latest',
-        'jobs_latest_practical',
-        'jobs_reporting',
-        'recruiter_active_submissions',
-        'terrer_hiring_now',
-        'v_match_shortlist',
-        'v_outreach_due',
-        'vw_activity_log_enriched',
-        'vw_candidate_pipeline_summary',
-        'vw_candidate_search',
-        'vw_company_pipeline_summary',
-        'vw_followup_queue',
-        'vw_job_shortlist',
-        'vw_live_work_queue',
-        'vw_outcomes_summary',
-        'vw_pipeline_summary',
-        'vw_recruiter_dashboard',
-        'vw_submissions_enriched',
-        'terrer_jobs_view'
-      )
-      and (reloptions is null or array_to_string(reloptions, ',') not like '%security_invoker=true%')
+    from (
+      values
+        ('vw_candidate_search_clean'),
+        ('vw_jobs_tier1_malaysia'),
+        ('vw_market_signals'),
+        ('vw_market_signals_active'),
+        ('vw_market_signals_realtime'),
+        ('vw_market_signals_recent'),
+        ('vw_tier1_source_diagnostics'),
+        ('vw_tier1_source_health'),
+        ('vw_tier1_source_health_summary'),
+        ('vw_tier1_source_health_v2'),
+        ('hiring_leaderboard_malaysia'),
+        ('jobs_latest'),
+        ('jobs_latest_practical'),
+        ('jobs_reporting'),
+        ('recruiter_active_submissions'),
+        ('terrer_hiring_now'),
+        ('v_match_shortlist'),
+        ('v_outreach_due'),
+        ('vw_activity_log_enriched'),
+        ('vw_candidate_pipeline_summary'),
+        ('vw_candidate_search'),
+        ('vw_company_pipeline_summary'),
+        ('vw_followup_queue'),
+        ('vw_job_shortlist'),
+        ('vw_live_work_queue'),
+        ('vw_outcomes_summary'),
+        ('vw_pipeline_summary'),
+        ('vw_recruiter_dashboard'),
+        ('vw_submissions_enriched'),
+        ('terrer_jobs_view')
+    ) as required(relname)
+    left join pg_class c
+      on c.relname = required.relname
+     and c.relkind = 'v'
+    left join pg_namespace n
+      on n.oid = c.relnamespace
+    where c.oid is null
+       or n.nspname <> 'public'
+       or c.reloptions is null
+       or array_to_string(c.reloptions, ',') not like '%security_invoker=true%'
   ) then
     raise exception 'one or more Advisor views are not security_invoker';
   end if;

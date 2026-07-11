@@ -1,10 +1,10 @@
 -- Reconcile missing app migration-history ownership for views hardened by
--- 20260709_0004_view_security_hardening.sql.
+-- 20260709000400_view_security_hardening.sql.
 --
 -- Source of truth: docs/schema-evidence/live_schema_catalog_ddl.sql.
 -- This migration only creates missing views using exact live definitions.
 -- It does not replace existing views, broaden grants, or change security
--- behavior; 20260709_0004 owns the hardening treatment.
+-- behavior; 20260709000400 owns the hardening treatment.
 
 alter table public.jobs add column if not exists external_job_url text;
 alter table public.jobs add column if not exists posted_date text;
@@ -21,6 +21,29 @@ alter table public.jobs add column if not exists job_description_html text;
 alter table public.jobs add column if not exists job_description_text text;
 alter table public.jobs add column if not exists responsibilities text;
 alter table public.jobs add column if not exists qualifications text;
+
+alter table public.candidate_skills add column if not exists skill_id uuid;
+alter table public.candidate_skills add column if not exists source_profile_id uuid;
+alter table public.candidate_skills add column if not exists evidence_id uuid;
+alter table public.candidate_skills add column if not exists proficiency_score numeric;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'candidate_skills'
+      and column_name = 'candidate_id'
+      and data_type <> 'uuid'
+  ) then
+    alter table public.candidate_skills
+      alter column candidate_id drop default;
+
+    alter table public.candidate_skills
+      alter column candidate_id type uuid using candidate_id::uuid;
+  end if;
+end $$;
 
 do $$
 begin

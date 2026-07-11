@@ -10,6 +10,13 @@ alter table public.candidate_web_jobs enable row level security;
 alter table public.employer_job_intake enable row level security;
 alter table public.employer_intake_actions enable row level security;
 
+drop policy if exists "Anon users can read jobs" on public.jobs;
+drop policy if exists "Anon users can insert jobs" on public.jobs;
+drop policy if exists "Anon users can update jobs" on public.jobs;
+drop policy if exists "Authenticated users can read jobs" on public.jobs;
+drop policy if exists "Authenticated users can insert jobs" on public.jobs;
+drop policy if exists "Authenticated users can update jobs" on public.jobs;
+
 drop policy if exists "candidates_select_own_verified_email" on public.candidates;
 create policy "candidates_select_own_verified_email"
   on public.candidates

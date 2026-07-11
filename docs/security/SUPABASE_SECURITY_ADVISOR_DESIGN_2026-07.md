@@ -277,35 +277,43 @@ This is the strongest candidate for schema relocation or retirement after depend
 
 `candidate_web_jobs` was missing from the app repo history because the public job-publication table was introduced in the web repository migration `20260609090000_add_candidate_web_job_publication.sql`. The app security migration started hardening that table, but the app migration history did not own the table creation contract.
 
-The app repo now owns the required compatibility contract through `supabase/migrations/20260708_0000_reconcile_web_publication_and_employer_contracts.sql`. This migration creates `public.candidate_web_jobs` idempotently, preserves the public `status = 'published'` read contract, and intentionally does not import the web migration's seed rows.
+The app repo now owns the required compatibility contract through `supabase/migrations/20260708000000_reconcile_web_publication_and_employer_contracts.sql`. This migration creates `public.candidate_web_jobs` idempotently, preserves the public `status = 'published'` read contract, and intentionally does not import the web migration's seed rows.
 
 No web-repo migration was copied unchanged. The candidate publication migration was reconciled as an idempotent app compatibility migration because the original web filename may already be present in production migration history if it was deployed from `terrer-web`. The web employer-intake migration was not copied unchanged because its `employer_intake_actions.intake_id` / `candidate_ref` shape differs from the captured live app evidence, which uses `employer_job_intake_id`, `employer_note`, and `status`.
 
 Remaining cross-repo DB ownership risk: `terrer-web` still consumes `candidate_web_jobs`, `web_job_interest`, `employer_job_intake`, and `employer_intake_actions`, while the app repo is becoming the canonical security owner. Before production deployment, verify the production migration ledger, confirm whether `20260609090000_add_candidate_web_job_publication.sql` is already recorded, confirm `candidate_web_jobs` rows exist or can be managed separately, and smoke test web branch `5006e1e` against the final RLS contract.
 
-This pass also reconciles the remaining Advisor RLS-disabled table contracts referenced by `supabase/migrations/20260709_0002_advisor_remaining_table_rls.sql`: `source_profiles`, `evidence_signals`, `skills`, `candidate_capabilities`, `candidate_scores`, `terrer_companies`, `terrer_company_contacts`, `terrer_jobs`, `terrer_candidates`, `terrer_skills`, `terrer_pipeline`, `job_candidate_matches`, and `outreach_log`.
+This pass also reconciles the remaining Advisor RLS-disabled table contracts referenced by `supabase/migrations/20260709000200_advisor_remaining_table_rls.sql`: `source_profiles`, `evidence_signals`, `skills`, `candidate_capabilities`, `candidate_scores`, `terrer_companies`, `terrer_company_contacts`, `terrer_jobs`, `terrer_candidates`, `terrer_skills`, `terrer_pipeline`, `job_candidate_matches`, and `outreach_log`.
 
-The app repo owner for those table contracts is now `supabase/migrations/20260708_0001_reconcile_advisor_remaining_table_contracts.sql`. It is based on `docs/schema-evidence/live_schema_catalog_ddl.sql`, uses guarded structural DDL, adds the live-confirmed indexes, and does not add permissive policies or broad anonymous access.
+The app repo owner for those table contracts is now `supabase/migrations/20260708000100_reconcile_advisor_remaining_table_contracts.sql`. It is based on `docs/schema-evidence/live_schema_catalog_ddl.sql`, uses guarded structural DDL, adds the live-confirmed indexes, and does not add permissive policies or broad anonymous access.
 
 The web repo did not define these 13 remaining Advisor tables. They appear to be app/internal schema, frozen legacy `terrer_*` schema, or reporting/matching support tables already present in live evidence. No stale web migration was imported for them.
 
-Remaining local-reset risk: the table dependency gap is reconciled, but view definitions hardened by `20260709_0004_view_security_hardening.sql` must still be owned by app migration history or otherwise proven before a clean local reset can be considered fully proven. Once Docker or an equivalent local Postgres proof environment is available, run a full reset/apply to validate the table contracts and view hardening together.
+The table dependency gap is reconciled and has now been proven by a clean local Supabase reset against the full app migration chain.
 
 ## View Definition Reconciliation
 
-`supabase/migrations/20260709_0004_view_security_hardening.sql` hardens 30 views: the 29 Advisor views plus `vw_candidate_search_clean`. `vw_candidate_search_clean` is included because it depends on `vw_candidate_search`, is the active candidate-search clean read model used by the app, and would otherwise remain an unhardened candidate-data view.
+`supabase/migrations/20260709000400_view_security_hardening.sql` hardens 30 views: the 29 Advisor views plus `vw_candidate_search_clean`. `vw_candidate_search_clean` is included because it depends on `vw_candidate_search`, is the active candidate-search clean read model used by the app, and would otherwise remain an unhardened candidate-data view.
 
 The exact live definitions are available in `docs/schema-evidence/live_schema_catalog_ddl.sql`. The app repo already owned 11 recruiter/pipeline view definitions through `supabase/migrations/20260416100404_add_ready_for_bd_review_stage.sql`: `vw_submissions_enriched`, `recruiter_active_submissions`, `vw_company_pipeline_summary`, `vw_candidate_pipeline_summary`, `vw_activity_log_enriched`, `vw_pipeline_summary`, `vw_outcomes_summary`, `vw_live_work_queue`, `vw_followup_queue`, `vw_job_shortlist`, and `vw_recruiter_dashboard`.
 
-The missing view contracts are now reconciled by `supabase/migrations/20260708_0002_reconcile_advisor_view_contracts.sql`: `jobs_latest`, `jobs_latest_practical`, `hiring_leaderboard_malaysia`, `jobs_reporting`, `terrer_hiring_now`, `terrer_jobs_view`, `v_match_shortlist`, `v_outreach_due`, `vw_candidate_search`, `vw_candidate_search_clean`, `vw_jobs_tier1_malaysia`, `vw_market_signals`, `vw_market_signals_active`, `vw_market_signals_realtime`, `vw_market_signals_recent`, `vw_tier1_source_health`, `vw_tier1_source_health_v2`, `vw_tier1_source_diagnostics`, and `vw_tier1_source_health_summary`.
+The missing view contracts are now reconciled by `supabase/migrations/20260708000200_reconcile_advisor_view_contracts.sql`: `jobs_latest`, `jobs_latest_practical`, `hiring_leaderboard_malaysia`, `jobs_reporting`, `terrer_hiring_now`, `terrer_jobs_view`, `v_match_shortlist`, `v_outreach_due`, `vw_candidate_search`, `vw_candidate_search_clean`, `vw_jobs_tier1_malaysia`, `vw_market_signals`, `vw_market_signals_active`, `vw_market_signals_realtime`, `vw_market_signals_recent`, `vw_tier1_source_health`, `vw_tier1_source_health_v2`, `vw_tier1_source_diagnostics`, and `vw_tier1_source_health_summary`.
 
 The same migration also reconciles the live `public.jobs` columns required by those exact view definitions, using guarded `add column if not exists` statements. This is dependency-only DDL from `live_schema_catalog_ddl.sql`, not a security or semantic redesign.
 
-Dependency order is now: base tables and compatibility table contracts, then `jobs_latest` / `jobs_latest_practical`, then dependent jobs views; `vw_candidate_search` before `vw_candidate_search_clean`; `vw_tier1_source_health` before `vw_tier1_source_health_v2`, then diagnostics and summary; and earlier recruiter/pipeline views before `20260709_0004`.
+Dependency order is now: base tables and compatibility table contracts, then `jobs_latest` / `jobs_latest_practical`, then dependent jobs views; `vw_candidate_search` before `vw_candidate_search_clean`; `vw_tier1_source_health` before `vw_tier1_source_health_v2`, then diagnostics and summary; and earlier recruiter/pipeline views before `20260709000400`.
 
-Security treatment remains in `20260709_0004`: all target views are set to `security_invoker`, anonymous access is revoked, authenticated read remains for reviewed internal/app contexts, and `service_role` retains read access. Candidate PII views such as candidate search, submission enrichment, job shortlist, follow-up queue, activity enrichment, and recruiter dashboard are not anonymously readable.
+Security treatment remains in `20260709000400`: all target views are set to `security_invoker`, anonymous access is revoked, authenticated read remains for reviewed internal/app contexts, and `service_role` retains read access. Candidate PII views such as candidate search, submission enrichment, job shortlist, follow-up queue, activity enrichment, and recruiter dashboard are not anonymously readable.
 
-No view remains unresolved in migration history based on the available live evidence. A clean local reset should now be structurally possible once Docker or an equivalent local Postgres proof environment is available, subject to local execution proving the SQL against the full migration chain.
+No view remains unresolved in migration history based on the available live evidence. A clean local reset has passed with Supabase CLI `2.90.0`, and the transaction-safe validation SQL passed when run explicitly after reset.
+
+## Local Proof Notes
+
+The July migrations use full timestamp filenames (`20260708000000` through `20260709000500`) because Supabase CLI `2.90.0` collapsed the earlier short `20260708_000x` / `20260709_000x` names into duplicate ledger versions during local reset.
+
+Local proof also required two reconstruction-only dependency contracts: `20260416100300_reconcile_pipeline_view_dependencies.sql` for early pipeline view dependencies and `20260604090000_reconcile_profiles_contract.sql` for the `profiles`/admin-helper contract used by staff policies. The Bullhorn staging migration had only a UTF-8 BOM removed so local SQL parsing can succeed; that repair is not a production schema delta.
+
+The local migration proof passed `npx --yes supabase@2.90.0 db reset --yes` and explicit execution of `20260709000500_validation_assertions.sql`. `npm run build` passed. `npm run typecheck` and `npm run lint` still fail on pre-existing app debt outside this migration work, and `npm test` is unavailable because no `test` script exists.
 
 ## Test Plan
 
