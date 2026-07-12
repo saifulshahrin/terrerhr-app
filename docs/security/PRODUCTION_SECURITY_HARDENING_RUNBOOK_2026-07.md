@@ -89,6 +89,18 @@ The recommended production strategy is: deploy the compatible web build first, b
 
 Local app checks after the migration proof: `npm run build` passed. `npm run typecheck` and `npm run lint` still fail on pre-existing app TypeScript/lint debt outside the migration work; these failures are not caused by the security migration patches. `npm test` is unavailable because the repository has no `test` script.
 
+## Staging Validation Findings
+
+Staging project `nulpvbirlhauukccunqg` was used for the first remote validation pass. The full app migration chain applied successfully to staging.
+
+Staging smoke SQL found one real issue before production: legacy policy `"allow read all for now"` on `public.web_job_interest` allowed authenticated users to see all interest rows. This was fixed by `20260711000100_drop_legacy_web_job_interest_public_read.sql`, and the guardrail was strengthened by `20260711000200_validation_public_select_assertions.sql`.
+
+After the fix, local `supabase db reset --yes` passed again. Staging validation assertions passed. Rollback-only staging smoke SQL passed and confirmed anonymous denial for `candidates` and `web_job_interest`, verified-email candidate self-access, denial of other candidate rows, self-only `web_job_interest`, published-only public `candidate_web_jobs`, and viable service-role employer intake/action paths.
+
+Staging dashboard Security Advisor rerun is still pending manually. Web branch `5006e1e` still needs Vercel/staging preview deployment and browser smoke testing.
+
+Production remains blocked. Do not run direct production `supabase db push`. Production still requires ledger review because production may already contain equivalent app, web, or manual SQL changes. The production strategy must be either approved migration repair or a reviewed current-timestamp wrapper/manual SQL plan. Also document the staging ledger quirks around older date-only `20260507` / `20260509` migrations before using staging evidence as a production readiness artifact.
+
 ## Smoke Tests
 
 - Public jobs load without sign-in.

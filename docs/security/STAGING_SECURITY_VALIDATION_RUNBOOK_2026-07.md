@@ -17,6 +17,36 @@ It must not be used against production.
 - App build: `npm run build` passed
 - Typecheck/lint: known pre-existing app debt, not caused by security migrations
 
+## Staging Validation Result
+
+Staging project used: `nulpvbirlhauukccunqg` (`terrer-security-staging-2026-07`).
+
+The full app migration chain applied successfully to staging through the July hardening sequence. Staging smoke SQL then found a real legacy policy issue: `public.web_job_interest` still had policy `"allow read all for now"` with broad public read behavior, which allowed authenticated users to see all interest rows instead of only their own verified-email rows.
+
+Two follow-up migrations were added and validated:
+
+- `20260711000100_drop_legacy_web_job_interest_public_read.sql`
+- `20260711000200_validation_public_select_assertions.sql`
+
+After the fix, local `supabase db reset --yes` passed again. Staging validation assertions passed, and rollback-only staging smoke SQL passed.
+
+The staging smoke SQL confirmed:
+
+- anon cannot read `public.candidates`
+- anon cannot read/write `public.web_job_interest`
+- authenticated verified-email candidate can read own candidate row
+- authenticated candidate cannot read another candidate row
+- authenticated candidate sees only own `web_job_interest`
+- authenticated candidate cannot insert interest for another candidate
+- `candidate_web_jobs` remains public only for published rows
+- service-role employer intake/action path remains viable
+
+Remaining staging tasks:
+
+- Rerun Supabase Security Advisor manually in the staging dashboard.
+- Deploy web branch `5006e1e` to a Vercel/staging preview and complete browser smoke tests.
+- Document or clean staging ledger quirks around older date-only `20260507` / `20260509` migrations before treating this staging project as long-lived.
+
 ## Staging Project Selection
 
 Choose one of these staging options before any remote command is run:

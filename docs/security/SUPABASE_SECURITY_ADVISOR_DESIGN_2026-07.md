@@ -315,6 +315,16 @@ Local proof also required two reconstruction-only dependency contracts: `2026041
 
 The local migration proof passed `npx --yes supabase@2.90.0 db reset --yes` and explicit execution of `20260709000500_validation_assertions.sql`. `npm run build` passed. `npm run typecheck` and `npm run lint` still fail on pre-existing app debt outside this migration work, and `npm test` is unavailable because no `test` script exists.
 
+## Staging Proof Notes
+
+Staging validation used Supabase project `nulpvbirlhauukccunqg`. The full migration chain applied successfully to staging.
+
+The staging smoke test found a real legacy policy issue: `public.web_job_interest` policy `"allow read all for now"` allowed authenticated users to see all interest rows. That violated the target self-only interest contract. The fix is `20260711000100_drop_legacy_web_job_interest_public_read.sql`; the added post-cleanup assertion is `20260711000200_validation_public_select_assertions.sql`.
+
+After those follow-up migrations, local reset passed again, staging validation assertions passed, and staging smoke SQL confirmed anonymous denial for candidate data, verified-email candidate self-access, denial of other candidate rows, self-only `web_job_interest`, published-only public `candidate_web_jobs`, and service-role employer intake/action viability.
+
+Remaining validation work is outside SQL migration proof: manually rerun staging Supabase Security Advisor, deploy web commit `5006e1e` to a preview/staging host, and complete browser smoke tests. Production remains blocked pending production ledger review and an approved migration repair or current-timestamp wrapper strategy. Staging ledger quirks around older date-only `20260507` / `20260509` migrations must be documented before using staging as a durable release environment.
+
 ## Test Plan
 
 Create transaction-safe tests for:
