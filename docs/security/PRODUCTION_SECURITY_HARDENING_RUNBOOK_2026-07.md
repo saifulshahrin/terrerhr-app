@@ -118,7 +118,7 @@ Production impact review before deployment:
 - The patch drops the legacy anonymous `activity_log` policies captured in live evidence and does not create public/anon policies.
 - The patch does not address the remaining Advisor warnings or info suggestions. Those require separate triage after critical errors are cleared.
 
-Before any production deployment, rerun staging Advisor to verify these three critical errors are cleared. Production remains blocked until the production ledger review decides whether this current-timestamp migration can be applied directly, repaired as already equivalent, or wrapped into reviewed production SQL with the rest of the hardening set.
+The follow-up staging Advisor rerun verified these three critical errors were cleared. Production remains blocked until the production ledger review decides whether this current-timestamp migration can be applied directly, repaired as already equivalent, or wrapped into reviewed production SQL with the rest of the hardening set.
 
 ## Staging Advisor Warning Follow-Up
 
@@ -137,7 +137,9 @@ Treatment:
 - Anonymous direct execution of `public.is_current_user_admin()` was revoked.
 - Authenticated direct execution of `public.is_current_user_admin()` is retained because existing RLS policies rely on this helper and the function returns only a boolean.
 
-Expected remaining Advisor result after staging rerun: the original broad mutation warnings should be cleared. The authenticated execution warning for `public.is_current_user_admin()` may remain and is accepted pending a deeper helper redesign. The `9` info suggestions and any unrelated warnings are deferred to a separate triage pass.
+Final staging Advisor result after warning triage: `0` errors, `1` warning, and `9` info suggestions. The original broad mutation warnings were cleared. The only remaining warning is authenticated execution of `public.is_current_user_admin()`, and it is accepted temporarily pending a deeper helper redesign. Anonymous/public execute was revoked. The `9` info suggestions are deferred and are not blocking this security release unless later review proves otherwise.
+
+Staging DB gate status: passed. The next required gate is the `terrer-web` Vercel/staging preview browser smoke test against staging using web branch `5006e1e`.
 
 Production implications:
 
@@ -145,7 +147,7 @@ Production implications:
 - Verify production ledger and live policy state first; production may already differ from staging because many warnings originated in older demo/app migrations.
 - Confirm internal staff profiles exist and are active before applying staff-only mutation policies.
 - Confirm web branch `5006e1e` does not need direct access to any tightened internal table.
-- Keep production blocked until the ledger strategy, web preview smoke tests, and manual staging Advisor rerun are complete.
+- Keep production blocked until the ledger strategy, approved deployment plan, and web preview smoke tests are complete.
 
 ## Smoke Tests
 

@@ -43,7 +43,6 @@ The staging smoke SQL confirmed:
 
 Remaining staging tasks:
 
-- Rerun Supabase Security Advisor manually in the staging dashboard.
 - Deploy web branch `5006e1e` to a Vercel/staging preview and complete browser smoke tests.
 - Document or clean staging ledger quirks around older date-only `20260507` / `20260509` migrations before treating this staging project as long-lived.
 
@@ -66,7 +65,7 @@ The migration includes assertions that:
 - no public/anon SELECT policy remains.
 - no broad SELECT policy remains for these tables.
 
-After applying this migration to staging, rerun Supabase Security Advisor manually again. The expected result is that the three remaining critical `RLS Disabled in Public` errors are cleared. The existing warnings and info suggestions should be triaged separately unless a new warning is directly caused by this migration.
+After applying this migration to staging, the three remaining critical `RLS Disabled in Public` errors were cleared.
 
 ## Staging Advisor Warning Triage
 
@@ -112,7 +111,13 @@ Warning treatment summary:
 - `is_current_user_admin()` anon execution: fixed by revoking anon/public execute.
 - `is_current_user_admin()` authenticated execution: accepted for now because existing RLS policies call this helper; it returns only a boolean and must remain executable for authenticated policy compatibility until a deeper helper redesign is planned.
 
-After applying these migrations to staging, manually rerun Security Advisor. Expected remaining warnings from this set: only the authenticated execution warning for `public.is_current_user_admin()` may remain and is documented as accepted pending deeper RLS-helper redesign. Any other remaining warning from the original 22 should be treated as a failed warning-cleanup gate.
+Final manual Security Advisor rerun on staging project `nulpvbirlhauukccunqg` reported `0` errors, `1` warning, and `9` info suggestions.
+
+The only remaining warning is `public.is_current_user_admin()` authenticated execution of a `SECURITY DEFINER` function. This is accepted temporarily for this release because anonymous/public execute was revoked, authenticated execute is currently required for RLS helper compatibility, and the function returns only a boolean. A deeper helper redesign is deferred to a later hardening sprint.
+
+The `9` info suggestions are deferred and are not blocking this security release unless later review proves one of them affects the approved candidate, employer, or internal staff access contracts.
+
+Staging DB gate status: passed. The next required gate is the `terrer-web` Vercel/staging preview browser smoke test against staging using web branch `5006e1e`.
 
 ## Staging Project Selection
 
