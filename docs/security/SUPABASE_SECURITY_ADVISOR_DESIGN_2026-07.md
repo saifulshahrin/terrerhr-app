@@ -171,6 +171,93 @@ Recommended policy shape:
 - hardening: `20260711000300_harden_remaining_staging_advisor_tables.sql` enables RLS, removes the legacy anon policies, revokes anon/public access, and adds staff-only policies
 - rollback: keep anonymous access denied; if an internal view breaks, repair staff profile authorization rather than reopening public access
 
+### `public.ai_assessments`
+
+- Sensitivity: internal candidate/job scoring and Terrer AI Review output
+- anon mutation: deny
+- authenticated staff: insert/update through active `profiles.role in ('admin', 'recruiter', 'bd')`
+- service-role: full
+- hardening: `20260711000400_triage_staging_advisor_warnings.sql` drops broad anon insert/update policies and replaces write access with staff-only policies
+- compatibility note: internal app AI review generation should run in authenticated staff or service-role contexts; public web branch `5006e1e` does not require direct access
+
+### `public.submissions`
+
+- Sensitivity: internal recruiter pipeline state, candidate/job linkage, BD workflow notes, and submission output
+- anon mutation: deny
+- authenticated staff: insert/update/delete through active `profiles.role in ('admin', 'recruiter', 'bd')`
+- service-role: full
+- hardening: `20260711000400_triage_staging_advisor_warnings.sql` removes legacy anon/demo mutation policies and replaces broad authenticated mutation with staff-only policies
+- compatibility note: candidate-facing web flows should stay on `candidate_web_jobs`, `candidates`, and `web_job_interest`, not base `submissions`
+
+### `public.bd_contacts`
+
+- Sensitivity: hiring-side contact PII and BD relationship state
+- anon mutation: deny
+- authenticated staff: insert/update through active `profiles.role in ('admin', 'recruiter', 'bd')`
+- service-role: full
+- hardening: `20260711000400_triage_staging_advisor_warnings.sql` removes anon update and broad authenticated write policies
+- compatibility note: internal BD workflows remain available to staff profiles; public web does not require direct mutation
+
+### `public.companies`
+
+- Sensitivity: BD/account intelligence and relationship context
+- anon mutation: deny
+- authenticated staff: insert/update through active `profiles.role in ('admin', 'recruiter', 'bd')`
+- service-role: full
+- hardening: `20260711000400_triage_staging_advisor_warnings.sql` replaces broad authenticated insert/update with staff-only policies
+- compatibility note: app screens may still read company rows, but mutation is now staff-only
+
+### `public.candidate_skills`
+
+- Sensitivity: candidate profile and matching attributes
+- anon mutation: deny
+- authenticated staff: insert/update/delete through active `profiles.role in ('admin', 'recruiter', 'bd')`
+- service-role: full
+- hardening: `20260711000400_triage_staging_advisor_warnings.sql` removes anonymous insert/update and adds staff mutation policies
+- compatibility note: candidate-owned browser flows do not require anonymous mutation of base skill rows in web commit `5006e1e`
+
+### `public.job_requirements`
+
+- Sensitivity: internal job matching requirements
+- anon mutation: deny
+- authenticated staff: insert/update through active `profiles.role in ('admin', 'recruiter', 'bd')`
+- service-role: full
+- hardening: `20260711000400_triage_staging_advisor_warnings.sql` removes anonymous insert/update and adds staff mutation policies
+
+### `public.candidate_intent_events`
+
+- Sensitivity: low-to-medium behavioral analytics tied to candidate/job identifiers
+- anon insert: preserved but constrained
+- anon read/update/delete: no broad mutation added by this patch
+- authenticated insert: preserved but constrained
+- service-role: full
+- hardening: `20260711000400_triage_staging_advisor_warnings.sql` replaces `WITH CHECK (true)` with checks for non-empty `candidate_id`, non-null `job_id`, and allowed `action_type`
+- compatibility note: browser candidate intent logging remains compatible while avoiding an unrestricted public insert policy
+
+### `public.autonomous_recruiter_runs`
+
+- Sensitivity: internal sourcing/demo run data and generated strategy context
+- anon mutation: deny
+- authenticated staff: insert through active `profiles.role in ('admin', 'recruiter', 'bd')`
+- service-role: full
+- hardening: `20260711000400_triage_staging_advisor_warnings.sql` replaces broad authenticated insert with staff-only insert
+
+### `public.autonomous_recruiter_memory`
+
+- Sensitivity: internal recruiter strategy memory and signal learning
+- anon mutation: deny
+- authenticated staff: insert through active `profiles.role in ('admin', 'recruiter', 'bd')`
+- service-role: full
+- hardening: `20260711000400_triage_staging_advisor_warnings.sql` replaces broad authenticated insert with staff-only insert
+
+### `public.is_current_user_admin()`
+
+- Sensitivity: security-definer RLS helper returning only whether the current authenticated user has active admin role
+- anon execute: revoked by `20260711000400_triage_staging_advisor_warnings.sql`
+- authenticated execute: retained intentionally because existing RLS policies rely on the helper
+- service-role execute: retained
+- accepted residual warning: authenticated execution may still appear in Advisor and is accepted pending deeper helper redesign because revoking it could break RLS policy evaluation
+
 ### `public.staging_bullhorn_companies`
 
 - Sensitivity: internal Bullhorn import and QA staging data
@@ -360,7 +447,9 @@ After those follow-up migrations, local reset passed again, staging validation a
 
 Manual staging Supabase Security Advisor rerun then reduced the critical errors to three remaining `RLS Disabled in Public` tables: `public.activity_log`, `public.staging_bullhorn_companies`, and `public.staging_bullhorn_contacts`. These were patched by `20260711000300_harden_remaining_staging_advisor_tables.sql`, which enables RLS, removes legacy anonymous `activity_log` policies, denies anon/public DML, preserves service-role operation, allows staff-role `activity_log` access, and limits Bullhorn staging table access to admin/service-role paths.
 
-Remaining validation work is outside SQL migration proof: manually rerun staging Supabase Security Advisor again to confirm the three critical errors are cleared, deploy web commit `5006e1e` to a preview/staging host, and complete browser smoke tests. Production remains blocked pending production ledger review and an approved migration repair or current-timestamp wrapper strategy. Staging ledger quirks around older date-only `20260507` / `20260509` migrations must be documented before using staging as a durable release environment.
+After critical errors were cleared, the staging Advisor export showed `0` errors, `22` warnings, and `9` info suggestions. `20260711000400_triage_staging_advisor_warnings.sql` and `20260711000500_validation_warning_lints.sql` triage those warnings by removing broad mutation policies from internal tables, constraining browser candidate intent logging, revoking anonymous execution of `is_current_user_admin()`, and keeping authenticated execution of that helper as an explicitly documented compatibility exception.
+
+Remaining validation work is outside SQL migration proof: manually rerun staging Supabase Security Advisor again to confirm the original warning set is reduced as expected, deploy web commit `5006e1e` to a preview/staging host, and complete browser smoke tests. Production remains blocked pending production ledger review and an approved migration repair or current-timestamp wrapper strategy. Staging ledger quirks around older date-only `20260507` / `20260509` migrations must be documented before using staging as a durable release environment.
 
 ## Test Plan
 

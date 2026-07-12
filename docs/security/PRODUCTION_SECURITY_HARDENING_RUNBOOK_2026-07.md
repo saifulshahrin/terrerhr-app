@@ -120,6 +120,33 @@ Production impact review before deployment:
 
 Before any production deployment, rerun staging Advisor to verify these three critical errors are cleared. Production remains blocked until the production ledger review decides whether this current-timestamp migration can be applied directly, repaired as already equivalent, or wrapped into reviewed production SQL with the rest of the hardening set.
 
+## Staging Advisor Warning Follow-Up
+
+After the critical errors were cleared, staging Advisor export for project `nulpvbirlhauukccunqg` showed `0` errors, `22` warnings, and `9` info suggestions.
+
+The warning cleanup is implemented by:
+
+- `20260711000400_triage_staging_advisor_warnings.sql`
+- `20260711000500_validation_warning_lints.sql`
+
+Treatment:
+
+- Broad anonymous mutation was removed from `ai_assessments`, `bd_contacts`, `candidate_skills`, `job_requirements`, and `submissions`.
+- Broad authenticated mutation was replaced with the existing staff profile contract on `ai_assessments`, `autonomous_recruiter_memory`, `autonomous_recruiter_runs`, `bd_contacts`, `candidate_skills`, `companies`, `job_requirements`, and `submissions`.
+- `candidate_intent_events` kept browser insert compatibility but no longer uses `WITH CHECK (true)`; inserts must include a non-empty candidate identifier, a non-null job id, and an allowed action type.
+- Anonymous direct execution of `public.is_current_user_admin()` was revoked.
+- Authenticated direct execution of `public.is_current_user_admin()` is retained because existing RLS policies rely on this helper and the function returns only a boolean.
+
+Expected remaining Advisor result after staging rerun: the original broad mutation warnings should be cleared. The authenticated execution warning for `public.is_current_user_admin()` may remain and is accepted pending a deeper helper redesign. The `9` info suggestions and any unrelated warnings are deferred to a separate triage pass.
+
+Production implications:
+
+- Do not apply these warning-cleanup migrations to production through direct `supabase db push`.
+- Verify production ledger and live policy state first; production may already differ from staging because many warnings originated in older demo/app migrations.
+- Confirm internal staff profiles exist and are active before applying staff-only mutation policies.
+- Confirm web branch `5006e1e` does not need direct access to any tightened internal table.
+- Keep production blocked until the ledger strategy, web preview smoke tests, and manual staging Advisor rerun are complete.
+
 ## Smoke Tests
 
 - Public jobs load without sign-in.

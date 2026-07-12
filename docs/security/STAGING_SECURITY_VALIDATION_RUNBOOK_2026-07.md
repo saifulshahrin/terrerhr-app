@@ -68,6 +68,52 @@ The migration includes assertions that:
 
 After applying this migration to staging, rerun Supabase Security Advisor manually again. The expected result is that the three remaining critical `RLS Disabled in Public` errors are cleared. The existing warnings and info suggestions should be triaged separately unless a new warning is directly caused by this migration.
 
+## Staging Advisor Warning Triage
+
+After the critical RLS-disabled errors were cleared, the exported staging Advisor result showed `0` errors, `22` warnings, and `9` info suggestions.
+
+The 22 warnings were broad mutating policies or exposed helper execution on:
+
+- `public.ai_assessments`
+- `public.autonomous_recruiter_memory`
+- `public.autonomous_recruiter_runs`
+- `public.bd_contacts`
+- `public.candidate_intent_events`
+- `public.candidate_skills`
+- `public.companies`
+- `public.job_requirements`
+- `public.submissions`
+- `public.is_current_user_admin()`
+
+Patch migration `20260711000400_triage_staging_advisor_warnings.sql` removes broad anonymous mutation from internal tables, replaces required authenticated internal writes with the existing active staff profile contract (`profiles.role in ('admin', 'recruiter', 'bd')`), preserves service-role operation, and revokes anonymous direct execution of `public.is_current_user_admin()`.
+
+Validation migration `20260711000500_validation_warning_lints.sql` asserts:
+
+- no public/anon mutating policy remains on the affected sensitive tables;
+- anon cannot insert/update/delete `submissions`, `bd_contacts`, `candidate_skills`, `job_requirements`, `companies`, `ai_assessments`, or autonomous recruiter tables;
+- replacement staff policies use the real `profiles` role contract;
+- candidate intent event logging remains available but no longer uses `WITH CHECK (true)`;
+- anon cannot directly execute `public.is_current_user_admin()`;
+- authenticated execution of `public.is_current_user_admin()` remains available for RLS helper compatibility.
+
+Warning treatment summary:
+
+- `ai_assessments` anon INSERT/UPDATE: fixed by dropping anon mutating policies and adding staff-only authenticated insert/update.
+- `autonomous_recruiter_memory` authenticated INSERT: fixed by replacing broad authenticated insert with staff-only insert.
+- `autonomous_recruiter_runs` authenticated INSERT: fixed by replacing broad authenticated insert with staff-only insert.
+- `bd_contacts` anon UPDATE: fixed by dropping anon update and revoking anon mutation.
+- `bd_contacts` authenticated INSERT/UPDATE: fixed by staff-only insert/update.
+- `candidate_intent_events` anon/authenticated INSERT: constrained rather than removed because the app logs browser candidate intent events; the new policy checks non-empty `candidate_id`, non-null `job_id`, and allowed `action_type`.
+- `candidate_skills` anon INSERT/UPDATE: fixed by dropping anon mutation and adding staff-only insert/update/delete.
+- `companies` authenticated INSERT/UPDATE: fixed by staff-only insert/update.
+- `job_requirements` anon INSERT/UPDATE: fixed by dropping anon mutation and adding staff-only insert/update.
+- `submissions` anon INSERT/UPDATE/DELETE: fixed by dropping anon mutation, including legacy demo policy names.
+- `submissions` authenticated INSERT/UPDATE/DELETE: fixed by staff-only insert/update/delete.
+- `is_current_user_admin()` anon execution: fixed by revoking anon/public execute.
+- `is_current_user_admin()` authenticated execution: accepted for now because existing RLS policies call this helper; it returns only a boolean and must remain executable for authenticated policy compatibility until a deeper helper redesign is planned.
+
+After applying these migrations to staging, manually rerun Security Advisor. Expected remaining warnings from this set: only the authenticated execution warning for `public.is_current_user_admin()` may remain and is documented as accepted pending deeper RLS-helper redesign. Any other remaining warning from the original 22 should be treated as a failed warning-cleanup gate.
+
 ## Staging Project Selection
 
 Choose one of these staging options before any remote command is run:
