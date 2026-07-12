@@ -47,6 +47,27 @@ Remaining staging tasks:
 - Deploy web branch `5006e1e` to a Vercel/staging preview and complete browser smoke tests.
 - Document or clean staging ledger quirks around older date-only `20260507` / `20260509` migrations before treating this staging project as long-lived.
 
+## Staging Advisor Rerun Follow-Up
+
+Manual Supabase Security Advisor rerun on staging project `nulpvbirlhauukccunqg` reported `3` remaining critical errors, all `RLS Disabled in Public`:
+
+- `public.activity_log`
+- `public.staging_bullhorn_companies`
+- `public.staging_bullhorn_contacts`
+
+These tables are present in production/live schema evidence. `activity_log` feeds internal recruiter and pipeline views; it does not require anonymous access. The Bullhorn staging tables are import/QA landing tables and include contact/company data, so they must not be exposed publicly.
+
+Patch migration `20260711000300_harden_remaining_staging_advisor_tables.sql` addresses those critical findings by enabling RLS, dropping the legacy anonymous `activity_log` policies captured in schema evidence, revoking public/anon access, preserving service-role operation, allowing staff-role access to `activity_log`, and limiting Bullhorn staging table access to admin/service-role paths.
+
+The migration includes assertions that:
+
+- RLS is enabled for all three tables.
+- `anon` has no direct select/insert/update/delete privilege.
+- no public/anon SELECT policy remains.
+- no broad SELECT policy remains for these tables.
+
+After applying this migration to staging, rerun Supabase Security Advisor manually again. The expected result is that the three remaining critical `RLS Disabled in Public` errors are cleared. The existing warnings and info suggestions should be triaged separately unless a new warning is directly caused by this migration.
+
 ## Staging Project Selection
 
 Choose one of these staging options before any remote command is run:

@@ -101,6 +101,25 @@ Staging dashboard Security Advisor rerun is still pending manually. Web branch `
 
 Production remains blocked. Do not run direct production `supabase db push`. Production still requires ledger review because production may already contain equivalent app, web, or manual SQL changes. The production strategy must be either approved migration repair or a reviewed current-timestamp wrapper/manual SQL plan. Also document the staging ledger quirks around older date-only `20260507` / `20260509` migrations before using staging evidence as a production readiness artifact.
 
+## Staging Advisor Critical Follow-Up
+
+Manual Supabase Security Advisor rerun on staging project `nulpvbirlhauukccunqg` reported `3` remaining critical errors and no new production action was taken. The remaining critical errors were all `RLS Disabled in Public`:
+
+- `public.activity_log`
+- `public.staging_bullhorn_companies`
+- `public.staging_bullhorn_contacts`
+
+These are now patched in app migration `20260711000300_harden_remaining_staging_advisor_tables.sql`.
+
+Production impact review before deployment:
+
+- `activity_log` exists in live schema evidence and feeds internal recruiter/pipeline views. It is now staff-only through the existing active `profiles.role in ('admin', 'recruiter', 'bd')` contract, with service-role preserved.
+- `staging_bullhorn_companies` and `staging_bullhorn_contacts` exist in live schema evidence and are import/QA landing tables. They are sensitive internal data surfaces and are now admin/service-role only.
+- The patch drops the legacy anonymous `activity_log` policies captured in live evidence and does not create public/anon policies.
+- The patch does not address the remaining Advisor warnings or info suggestions. Those require separate triage after critical errors are cleared.
+
+Before any production deployment, rerun staging Advisor to verify these three critical errors are cleared. Production remains blocked until the production ledger review decides whether this current-timestamp migration can be applied directly, repaired as already equivalent, or wrapped into reviewed production SQL with the rest of the hardening set.
+
 ## Smoke Tests
 
 - Public jobs load without sign-in.

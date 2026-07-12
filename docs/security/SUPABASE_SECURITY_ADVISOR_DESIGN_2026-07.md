@@ -160,6 +160,41 @@ Recommended policy shape:
 - compatibility note: keep the prototype behind authenticated access only
 - rollback: keep internal-only
 
+### `public.activity_log`
+
+- Sensitivity: internal recruiter activity, candidate/job workflow context, and follow-up state
+- anon: deny all
+- authenticated staff: read/write/delete through the existing active `profiles.role in ('admin', 'recruiter', 'bd')` contract
+- service-role: full
+- compatibility note: used by internal recruiter/pipeline views including `vw_activity_log_enriched`, `vw_followup_queue`, and `vw_recruiter_dashboard`
+- staging finding: manual Advisor rerun on project `nulpvbirlhauukccunqg` still reported this table as RLS-disabled/public because legacy anonymous policies existed in live evidence
+- hardening: `20260711000300_harden_remaining_staging_advisor_tables.sql` enables RLS, removes the legacy anon policies, revokes anon/public access, and adds staff-only policies
+- rollback: keep anonymous access denied; if an internal view breaks, repair staff profile authorization rather than reopening public access
+
+### `public.staging_bullhorn_companies`
+
+- Sensitivity: internal Bullhorn import and QA staging data
+- anon: deny all
+- authenticated non-admin: deny all
+- authenticated admin: manage only through `public.is_current_user_admin()`
+- service-role: full
+- compatibility note: import scripts and backend workflows should use trusted service-role/admin paths, not browser public access
+- staging finding: manual Advisor rerun on project `nulpvbirlhauukccunqg` still reported this table as RLS-disabled/public
+- hardening: `20260711000300_harden_remaining_staging_advisor_tables.sql` enables RLS, revokes anon/public access, and limits authenticated access to admin
+- rollback: keep public access denied because company staging rows may include private import context
+
+### `public.staging_bullhorn_contacts`
+
+- Sensitivity: high PII risk because staging rows include contact names, phones, emails, notes, evidence text, and raw extracted rows
+- anon: deny all
+- authenticated non-admin: deny all
+- authenticated admin: manage only through `public.is_current_user_admin()`
+- service-role: full
+- compatibility note: do not expose Bullhorn staging contacts to candidate, employer, or public web surfaces
+- staging finding: manual Advisor rerun on project `nulpvbirlhauukccunqg` still reported this table as RLS-disabled/public
+- hardening: `20260711000300_harden_remaining_staging_advisor_tables.sql` enables RLS, revokes anon/public access, and limits authenticated access to admin
+- rollback: keep public access denied because this table contains contact PII
+
 ### `public.terrer_candidates`
 
 - Sensitivity: legacy parallel data
@@ -323,7 +358,9 @@ The staging smoke test found a real legacy policy issue: `public.web_job_interes
 
 After those follow-up migrations, local reset passed again, staging validation assertions passed, and staging smoke SQL confirmed anonymous denial for candidate data, verified-email candidate self-access, denial of other candidate rows, self-only `web_job_interest`, published-only public `candidate_web_jobs`, and service-role employer intake/action viability.
 
-Remaining validation work is outside SQL migration proof: manually rerun staging Supabase Security Advisor, deploy web commit `5006e1e` to a preview/staging host, and complete browser smoke tests. Production remains blocked pending production ledger review and an approved migration repair or current-timestamp wrapper strategy. Staging ledger quirks around older date-only `20260507` / `20260509` migrations must be documented before using staging as a durable release environment.
+Manual staging Supabase Security Advisor rerun then reduced the critical errors to three remaining `RLS Disabled in Public` tables: `public.activity_log`, `public.staging_bullhorn_companies`, and `public.staging_bullhorn_contacts`. These were patched by `20260711000300_harden_remaining_staging_advisor_tables.sql`, which enables RLS, removes legacy anonymous `activity_log` policies, denies anon/public DML, preserves service-role operation, allows staff-role `activity_log` access, and limits Bullhorn staging table access to admin/service-role paths.
+
+Remaining validation work is outside SQL migration proof: manually rerun staging Supabase Security Advisor again to confirm the three critical errors are cleared, deploy web commit `5006e1e` to a preview/staging host, and complete browser smoke tests. Production remains blocked pending production ledger review and an approved migration repair or current-timestamp wrapper strategy. Staging ledger quirks around older date-only `20260507` / `20260509` migrations must be documented before using staging as a durable release environment.
 
 ## Test Plan
 
