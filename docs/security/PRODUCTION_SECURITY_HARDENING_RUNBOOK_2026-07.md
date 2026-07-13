@@ -149,6 +149,111 @@ Production implications:
 - Confirm web branch `5006e1e` does not need direct access to any tightened internal table.
 - Keep production blocked until the ledger strategy, approved deployment plan, and web preview smoke tests are complete.
 
+## Production Ledger Review Attempt 2026-07-13
+
+Production deployment strategy is currently `NO-GO`.
+
+Read-only production inspection was attempted for the supplied production project ref `tlufftnmwtjbuhjcrqmp`. Before the remote command, the local Supabase link was checked and confirmed to point to staging ref `nulpvbirlhauukccunqg`. The attempted production link failed with Supabase CLI authorization/project lookup result `Not Found`. The local link remained staging after the failed attempt.
+
+No production migration, SQL mutation, deployment, or merge was run.
+
+Because the supplied production ref could not be authenticated/resolved from this environment, the production migration ledger and live schema could not be verified. Do not try alternate project refs by guesswork. The operator must confirm the exact production project ref and provide an approved read-only inspection path before production planning can proceed.
+
+### Migration Groups For Future Ledger Review
+
+Reconstruction/local-reset compatibility migrations:
+
+- `20260416100300_reconcile_pipeline_view_dependencies.sql`
+- `20260425000000_create_candidate_marketplace_contracts.sql`
+- `20260604090000_reconcile_profiles_contract.sql`
+- `20260708000000_reconcile_web_publication_and_employer_contracts.sql`
+- `20260708000100_reconcile_advisor_remaining_table_contracts.sql`
+- `20260708000200_reconcile_advisor_view_contracts.sql`
+
+These are not approved for blind production `db push`. They were created to reconstruct missing app-history contracts for local and clean staging validation. In production, each one must be classified as either:
+
+- already-equivalent and suitable for migration repair after evidence review;
+- partially missing and requiring a current-timestamp production wrapper;
+- materially different and requiring manual reviewed SQL or a new design decision.
+
+Security hardening migrations:
+
+- `20260709000100_candidate_email_and_interest_rls.sql`
+- `20260709000200_advisor_remaining_table_rls.sql`
+- `20260709000300_acl_corrections.sql`
+- `20260709000400_view_security_hardening.sql`
+- `20260709000500_validation_assertions.sql`
+- `20260711000100_drop_legacy_web_job_interest_public_read.sql`
+- `20260711000200_validation_public_select_assertions.sql`
+- `20260711000300_harden_remaining_staging_advisor_tables.sql`
+- `20260711000400_triage_staging_advisor_warnings.sql`
+- `20260711000500_validation_warning_lints.sql`
+
+These are production-intended security deltas only after ledger/schema review proves the target objects and policy assumptions match production. Validation/assertion migrations are transaction-safe in local/staging proof, but they must still be reviewed against the production ledger strategy.
+
+### Required Read-Only Production Comparison
+
+Before any production deployment, inspect only read-only evidence for:
+
+- migration rows in `supabase_migrations.schema_migrations`;
+- table/view/function existence and shape for `candidates`, `web_job_interest`, `candidate_web_jobs`, `jobs`, `employer_job_intake`, `employer_intake_actions`, `activity_log`, `staging_bullhorn_companies`, and `staging_bullhorn_contacts`;
+- all Advisor-hardened tables and views;
+- policies on `candidates`, `web_job_interest`, `jobs`, `candidate_web_jobs`, and the warning-triage tables;
+- grants and execute privileges on `public.is_current_user_admin()`;
+- whether web-owned migration `20260609090000_add_candidate_web_job_publication.sql` or equivalent manual SQL already exists in production history.
+
+Do not reveal secrets in logs or documentation. Do not run production SQL mutations.
+
+### Strategy Decision
+
+Current recommendation: `D. NO-GO`.
+
+Reason: production project identity/access is unresolved from this environment, and the production ledger/schema comparison was not completed. Direct `supabase db push` is forbidden.
+
+After the correct production ref/access is confirmed and read-only evidence is captured, choose one of:
+
+1. Migration repair strategy, only for backfilled migrations proven equivalent in production.
+2. Current-timestamp production wrapper strategy, if reconstruction migrations are unsafe but the reviewed security deltas can be applied cleanly.
+3. Manual SQL deployment with documented ledger handling, only if Supabase CLI migration flow remains unsafe.
+
+### Backup, Deployment, Rollback, And Advisor Requirements
+
+Production backup requirements before any future deployment:
+
+- Supabase point-in-time recovery confirmed or full backup taken.
+- Migration ledger snapshot exported.
+- Public schema DDL/policy/function snapshot exported.
+- Web preview smoke-test evidence attached to the release record.
+
+Required deployment order after NO-GO is cleared:
+
+1. Confirm production project ref and ledger evidence.
+2. Confirm compatible `terrer-web` preview smoke test passed against staging.
+3. Select and approve migration repair/wrapper/manual SQL strategy.
+4. Back up production.
+5. Deploy compatible web build first or have rollback-ready web release staged.
+6. Apply only approved database deltas.
+7. Run validation assertions and smoke SQL.
+8. Run browser smoke tests against production.
+9. Rerun Supabase Security Advisor.
+10. Monitor Auth, API, and RLS error logs.
+
+Rollback and containment:
+
+- Do not restore anonymous candidate-table access as a rollback.
+- If candidate pages fail, disable or roll back the web candidate feature before widening RLS.
+- If employer preview fails, disable the server endpoint or roll back the endpoint release; do not expose candidate PII.
+- If a database migration fails, stop at the failed version, capture logs, and use the approved rollback SQL/restore plan.
+- If Security Advisor reintroduces critical findings, hold production release until fixed.
+
+Post-deployment Advisor checklist:
+
+- Confirm `0` critical errors.
+- Confirm any `public.is_current_user_admin()` authenticated execute warning is still explicitly accepted or redesigned.
+- Confirm no RLS-disabled public tables are reintroduced.
+- Confirm no broad anonymous candidate, interest, submission, BD contact, Bullhorn staging, or AI assessment mutations are present.
+- Confirm info suggestions are triaged separately and do not affect the release access contract.
+
 ## Smoke Tests
 
 - Public jobs load without sign-in.
