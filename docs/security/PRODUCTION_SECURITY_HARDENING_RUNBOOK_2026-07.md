@@ -258,6 +258,55 @@ Final review requirement before executable SQL:
 - confirm `vw_candidate_search_clean` dependency tree and consumer impact;
 - confirm exact policy text and ACL deltas;
 - confirm `security_invoker` changes on the selected views;
+
+## Production Execution Record
+
+Execution date: 2026-07-17
+
+The approved production hardening forward SQL was executed manually in the production Supabase SQL Editor for project `tlufttnmwtjbuhjcrqmp`. No `supabase db push` was used, no migration file was applied through the CLI, and rollback was not run.
+
+Backup evidence:
+
+- Manual backup completed before execution.
+- Backup folder: `D:\Terrer Backups\supabase-production-hardening-2026-07-17`
+- Confirmed backup files:
+  - `roles.sql`
+  - `schema.sql`
+  - `data.sql`
+  - `backup_checksums_sha256.txt`
+
+Execution result:
+
+- Forward SQL executed successfully in production.
+- The forward statement returned no rows.
+- Production was modified only by the approved forward SQL.
+
+Validation result:
+
+- The original validation SQL failed with `ERROR: 42702: column reference "relname" is ambiguous`.
+- The validation SQL was patched and rerun successfully.
+- Patched validation included `authenticated_select_check = true`.
+
+Post-execution checks:
+
+- Supabase Security Advisor rerun result: `0` errors, `33` warnings, `10` suggestions.
+- Web smoke test result:
+  - Homepage ok
+  - Opportunities/jobs ok
+  - Job detail ok
+  - Signed-out candidate private pages show sign-in gate
+  - Employer intake/hiring page ok
+
+Rollback and deployment control:
+
+- Rollback SQL was not used.
+- Direct `supabase db push` was not used.
+- Production remains under post-execution review for the remaining warnings and suggestions.
+
+Required security follow-up:
+
+- The production database password appeared in a screenshot during the manual backup process.
+- Rotate or reset the production database password as a required post-execution action after documenting the execution.
 - confirm rollback text for every change;
 - confirm the draft remains non-runnable until a separate executable migration is approved.
 
