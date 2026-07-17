@@ -2,7 +2,7 @@
 
 Date: 2026-07-17
 
-Status: planning / pre-executable review only
+Status: planning / executable draft assembled; pending human approval
 
 This review evaluates the non-runnable wrapper draft against:
 
@@ -13,9 +13,11 @@ This review evaluates the non-runnable wrapper draft against:
 
 ## Verdict
 
-**NOT READY**
+**CONDITIONAL READY**
 
-The draft is directionally correct and covers the major hardening themes, but it is not yet safe to convert into executable production SQL because multiple sections still rely on placeholders, minimum-policy intent, or review-only wording instead of exact SQL.
+The executable-form review package now exists at `docs/security/PRODUCTION_HARDENING_EXECUTABLE_WRAPPER_DRAFT_2026-07.sql`. The hardening logic has been assembled into exact SQL, but the draft remains a review artifact until it is approved line-by-line for production use.
+
+The coverage matrix below is retained as the baseline evidence record from the pre-draft review. The current implementation state is the executable draft linked above.
 
 ## Coverage Matrix
 
@@ -200,7 +202,6 @@ Must include at minimum:
 
 ## Final Verdict
 
-**NOT READY**
+**CONDITIONAL READY**
 
-The wrapper draft is a strong planning artifact, but it is not yet safe to convert into executable production SQL without a second approval pass that supplies exact SQL for the policy, grant, and rollback sections.
-
+The exact SQL is now assembled into the executable draft, but production remains NO-GO until the operator completes a separate line-by-line approval pass and explicitly authorizes a runnable migration.

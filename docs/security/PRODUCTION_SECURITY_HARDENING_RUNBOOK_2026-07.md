@@ -230,6 +230,17 @@ Approved planning decisions:
 - July validation/assertions: convert to post-change validation only
 - Rollback: reverse-policy SQL first, backup restore for structural failure
 
+## Executable Draft Review Package
+
+The executable-form review package now lives at `docs/security/PRODUCTION_HARDENING_EXECUTABLE_WRAPPER_DRAFT_2026-07.sql`.
+
+Operator rules:
+
+- Review it manually before any runnable migration is drafted.
+- Do not run it in production.
+- Do not use `supabase db push` for this branch.
+- Keep production in `NO-GO` until the draft is explicitly approved line-by-line.
+
 Final review requirement before executable SQL:
 
 - confirm `candidate_web_jobs` live shape;
