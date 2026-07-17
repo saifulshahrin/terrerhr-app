@@ -15,7 +15,7 @@ Use this checklist only after the review package is approved.
 - Web smoke tests passed.
 - Rollback was not used.
 - Direct `supabase db push` was not used.
-- Production now requires post-execution password rotation because the DB password appeared in a screenshot during backup.
+- Completed post-execution action: the production database password was rotated/reset after it appeared in a screenshot during backup setup.
 
 - Confirm production project ref is `tlufttnmwtjbuhjcrqmp`.
 - Confirm a fresh production backup exists.

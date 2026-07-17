@@ -305,8 +305,7 @@ Rollback and deployment control:
 
 Required security follow-up:
 
-- The production database password appeared in a screenshot during the manual backup process.
-- Rotate or reset the production database password as a required post-execution action after documenting the execution.
+- Completed post-execution action: the production database password was rotated/reset after it appeared in a screenshot during the manual backup process.
 - confirm rollback text for every change;
 - confirm the draft remains non-runnable until a separate executable migration is approved.
 

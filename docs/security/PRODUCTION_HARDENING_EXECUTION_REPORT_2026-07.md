@@ -84,11 +84,9 @@ These were not blocked by the execution summary, but they should be reviewed lat
 
 ## Required Post-Execution Security Action
 
-The production database password appeared in a screenshot during the manual backup process.
+Completed post-execution action:
 
-Required follow-up:
-
-- Rotate or reset the production database password after this execution has been documented.
+- The production database password was rotated/reset after it appeared in a screenshot during the manual backup process.
 
 ## Notes
 
