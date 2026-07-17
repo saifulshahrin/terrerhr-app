@@ -681,3 +681,7 @@ The stabilization sprint itself is complete only when:
 - Storage and function security are reproducible.
 - Production remediation has been applied and validated.
 - Migration drift checks run automatically.
+
+## Post-Hardening Handoff
+
+Security/RLS hardening production execution is complete. The cleanup handoff can move next to Candidate Engine Repair while schema stabilization continues under the existing plan.
