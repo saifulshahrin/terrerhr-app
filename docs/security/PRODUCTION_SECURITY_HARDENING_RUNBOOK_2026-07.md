@@ -241,6 +241,14 @@ Final review requirement before executable SQL:
 
 Reminder: production remains `NO-GO` until the executable SQL is explicitly approved.
 
+## Wrapper Readiness Review
+
+The readiness review file is `docs/security/PRODUCTION_HARDENING_WRAPPER_READINESS_REVIEW_2026-07.md`.
+
+Current verdict: `NOT READY`.
+
+The next step is not deployment. The next step is to convert the planning draft into exact executable SQL only after the remaining approvals are completed.
+
 ## Production Evidence Review 2026-07-17
 
 Production project analyzed: `tlufttnmwtjbuhjcrqmp`

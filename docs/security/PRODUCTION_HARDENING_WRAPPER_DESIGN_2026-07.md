@@ -239,3 +239,9 @@ This wrapper design supports the next production-safe hardening pass, but it is 
 Production remains `NO-GO` until explicit approval is given for an executable SQL migration derived from this draft.
 
 The safest future execution path remains a current-timestamp production wrapper, not direct `supabase db push`.
+
+## Readiness Review
+
+See `docs/security/PRODUCTION_HARDENING_WRAPPER_READINESS_REVIEW_2026-07.md` for the pre-executable review.
+
+Current readiness verdict: `NOT READY`.
