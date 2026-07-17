@@ -204,6 +204,20 @@ Before any production deployment, inspect only read-only evidence for:
 
 Do not reveal secrets in logs or documentation. Do not run production SQL mutations.
 
+## Production Read-Only Inspection Pack
+
+Use `docs/security/production_readonly_inspection_2026-07.sql` only for a manual run in the Supabase dashboard SQL Editor on the production project.
+
+Operator instructions:
+
+1. Confirm the dashboard project ref is `tlufttnmwtjbuhjcrqmp` before running anything.
+2. Paste the SQL exactly as written.
+3. Verify the script begins with `begin transaction read only;`.
+4. Verify the script ends with `rollback;`.
+5. Run the script only on production and do not modify it in place.
+6. Copy the result sets back into Codex for analysis.
+7. Keep production in `NO-GO` status until the results are reviewed against local migration files and the security plan is updated.
+
 ### Strategy Decision
 
 Current recommendation: `D. NO-GO`.
