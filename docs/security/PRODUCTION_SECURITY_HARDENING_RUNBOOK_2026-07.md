@@ -245,7 +245,7 @@ Reminder: production remains `NO-GO` until the executable SQL is explicitly appr
 
 The readiness review file is `docs/security/PRODUCTION_HARDENING_WRAPPER_READINESS_REVIEW_2026-07.md`.
 
-Current verdict: `NOT READY`.
+Current verdict: `CONDITIONAL READY`.
 
 The next step is not deployment. The next step is to convert the planning draft into exact executable SQL only after the remaining approvals are completed.
 
