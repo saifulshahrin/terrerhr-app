@@ -144,3 +144,14 @@ Review concern:
 **CONDITIONAL READY**
 
 The draft is ready for the next human approval step toward a runnable migration, but it is not itself a real migration and must not be executed against production yet.
+
+## Final Review Package
+
+The review-only package now consists of:
+
+- [docs/security/PRODUCTION_HARDENING_FORWARD_CANDIDATE_2026-07.sql](./PRODUCTION_HARDENING_FORWARD_CANDIDATE_2026-07.sql)
+- [docs/security/PRODUCTION_HARDENING_VALIDATION_2026-07.sql](./PRODUCTION_HARDENING_VALIDATION_2026-07.sql)
+- [docs/security/PRODUCTION_HARDENING_ROLLBACK_CANDIDATE_2026-07.sql](./PRODUCTION_HARDENING_ROLLBACK_CANDIDATE_2026-07.sql)
+- [docs/security/PRODUCTION_HARDENING_OPERATOR_CHECKLIST_2026-07.md](./PRODUCTION_HARDENING_OPERATOR_CHECKLIST_2026-07.md)
+
+The original executable draft remains the source artifact, but the split package is the preferred review surface for final human approval.

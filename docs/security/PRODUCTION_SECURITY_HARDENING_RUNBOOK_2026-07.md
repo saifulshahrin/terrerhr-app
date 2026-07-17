@@ -241,6 +241,17 @@ Operator rules:
 - Do not use `supabase db push` for this branch.
 - Keep production in `NO-GO` until the draft is explicitly approved line-by-line.
 
+## Final Review Split
+
+The final review-only package is split across:
+
+- `docs/security/PRODUCTION_HARDENING_FORWARD_CANDIDATE_2026-07.sql`
+- `docs/security/PRODUCTION_HARDENING_VALIDATION_2026-07.sql`
+- `docs/security/PRODUCTION_HARDENING_ROLLBACK_CANDIDATE_2026-07.sql`
+- `docs/security/PRODUCTION_HARDENING_OPERATOR_CHECKLIST_2026-07.md`
+
+The split package is for human review only and remains blocked from execution until explicit approval is recorded.
+
 Final review requirement before executable SQL:
 
 - confirm `candidate_web_jobs` live shape;
