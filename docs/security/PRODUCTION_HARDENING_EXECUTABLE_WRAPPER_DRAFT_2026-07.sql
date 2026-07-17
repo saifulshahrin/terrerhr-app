@@ -20,6 +20,8 @@
 -- - Confirm vw_candidate_search_clean is still used by app code and validation.
 -- - Confirm profiles admin-gated policies still depend on is_current_user_admin().
 
+BEGIN;
+
 -- ---------------------------------------------------------------------------
 -- 2. candidate_web_jobs creation / repair
 -- ---------------------------------------------------------------------------
@@ -890,6 +892,8 @@ GRANT SELECT ON
   public.vw_submissions_enriched,
   public.terrer_jobs_view
 TO service_role;
+
+COMMIT;
 
 -- ---------------------------------------------------------------------------
 -- 12. Proposed post-change validation queries
