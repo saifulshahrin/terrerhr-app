@@ -1,0 +1,177 @@
+-- DRAFT ONLY
+-- DO NOT RUN
+-- REVIEW PACKAGE ONLY
+-- PRODUCTION MUST NOT BE MODIFIED FROM THIS FILE
+
+-- Purpose:
+-- This file is a non-runnable review package for the proposed current-timestamp
+-- production wrapper. Every SQL fragment below is commented out on purpose.
+-- Nothing in this file should be executed directly in Supabase dashboard SQL
+-- Editor or via Supabase CLI.
+
+-- ---------------------------------------------------------------------------
+-- 1. Proposed preflight checks
+-- ---------------------------------------------------------------------------
+-- 1. Confirm dashboard project ref is tlufttnmwtjbuhjcrqmp.
+-- 2. Confirm production backup exists and ledger snapshot is archived.
+-- 3. Confirm current web deployment matches the hardened public contract.
+-- 4. Confirm the local workspace remains linked to staging only.
+-- 5. Confirm candidate_web_jobs shape in production before any create/repair.
+-- 6. Confirm whether vw_candidate_search_clean is already present and used by
+--    live code or validation dependencies.
+-- 7. Confirm profiles admin-gated policies are still required by the app.
+
+-- ---------------------------------------------------------------------------
+-- 2. candidate_web_jobs creation / repair draft
+-- ---------------------------------------------------------------------------
+-- Proposed wrapper intent:
+-- - create the compatibility table only if it is absent;
+-- - preserve the published-only public read contract;
+-- - keep admin/service-role management paths;
+-- - do not seed rows;
+-- - do not blind-drop an existing table.
+--
+-- Proposed structure only:
+-- CREATE TABLE IF NOT EXISTS public.candidate_web_jobs (...);
+-- ALTER TABLE public.candidate_web_jobs ENABLE ROW LEVEL SECURITY;
+-- DROP POLICY IF EXISTS "public_can_read_published_candidate_web_jobs" ON public.candidate_web_jobs;
+-- CREATE POLICY "public_can_read_published_candidate_web_jobs" ON public.candidate_web_jobs
+--   FOR SELECT TO anon, authenticated USING (status = 'published');
+-- CREATE POLICY "admins_can_manage_candidate_web_jobs" ON public.candidate_web_jobs
+--   FOR ALL TO authenticated USING (public.is_current_user_admin()) WITH CHECK (public.is_current_user_admin());
+
+-- ---------------------------------------------------------------------------
+-- 3. candidates RLS and policy hardening draft
+-- ---------------------------------------------------------------------------
+-- ALTER TABLE public.candidates ENABLE ROW LEVEL SECURITY;
+-- DROP POLICY IF EXISTS ... ON public.candidates;
+-- CREATE POLICY ... (candidate self access / staff access only);
+-- Note: final policy text must match the verified self-access contract and any
+-- staff read paths already in the app.
+
+-- ---------------------------------------------------------------------------
+-- 4. web_job_interest policy replacement draft
+-- ---------------------------------------------------------------------------
+-- DROP POLICY IF EXISTS "allow read all for now" ON public.web_job_interest;
+-- DROP POLICY IF EXISTS "allow anon update web_job_interest for now" ON public.web_job_interest;
+-- CREATE POLICY ... (self-only candidate reads);
+-- CREATE POLICY ... (self-only candidate writes);
+-- CREATE POLICY ... (staff/service-role review or reconciliation path only).
+
+-- ---------------------------------------------------------------------------
+-- 5. jobs policy tightening draft
+-- ---------------------------------------------------------------------------
+-- DROP POLICY IF EXISTS ... ON public.jobs;
+-- CREATE POLICY ... (public read only where intended);
+-- CREATE POLICY ... (authenticated/staff write only where intended);
+-- Prefer the minimum policy set that preserves live public job browsing.
+
+-- ---------------------------------------------------------------------------
+-- 6. employer intake policy tightening draft
+-- ---------------------------------------------------------------------------
+-- DROP POLICY IF EXISTS ... ON public.employer_job_intake;
+-- DROP POLICY IF EXISTS ... ON public.employer_intake_actions;
+-- CREATE POLICY ... (service-role only, or tightly scoped staff path);
+-- Keep the server-side employer preview/intake workflow operational.
+
+-- ---------------------------------------------------------------------------
+-- 7. activity_log policy tightening draft
+-- ---------------------------------------------------------------------------
+-- DROP POLICY IF EXISTS ... ON public.activity_log;
+-- CREATE POLICY ... (staff/admin read only, service-role write where needed);
+
+-- ---------------------------------------------------------------------------
+-- 8. Advisor/internal table RLS hardening draft
+-- ---------------------------------------------------------------------------
+-- ALTER TABLE public.source_profiles ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.evidence_signals ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.skills ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.candidate_capabilities ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.candidate_scores ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.terrer_companies ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.terrer_company_contacts ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.terrer_jobs ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.terrer_candidates ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.terrer_skills ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.terrer_pipeline ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.job_candidate_matches ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.outreach_log ENABLE ROW LEVEL SECURITY;
+-- DROP legacy public/anon policies where present.
+-- Create admin/recruiter/bd staff policies where required.
+-- Preserve service-role access where workflow automation depends on it.
+
+-- ---------------------------------------------------------------------------
+-- 9. profiles ACL tightening draft
+-- ---------------------------------------------------------------------------
+-- REVOKE unnecessary public/anon privileges from public.profiles;
+-- Keep authenticated privileges only to the extent RLS/admin policies require;
+-- preserve admin-gated profile access through public.is_current_user_admin().
+--
+-- Example direction only:
+-- REVOKE ALL ON public.profiles FROM public, anon;
+-- -- Keep or re-grant only the minimum authenticated rights required by policy.
+
+-- ---------------------------------------------------------------------------
+-- 10. is_current_user_admin EXECUTE tightening draft
+-- ---------------------------------------------------------------------------
+-- REVOKE EXECUTE ON FUNCTION public.is_current_user_admin() FROM public, anon;
+-- GRANT EXECUTE ON FUNCTION public.is_current_user_admin() TO authenticated;
+-- GRANT EXECUTE ON FUNCTION public.is_current_user_admin() TO service_role;
+-- GRANT EXECUTE ON FUNCTION public.is_current_user_admin() TO postgres;
+-- Keep authenticated EXECUTE only because RLS/admin policies use the helper.
+
+-- ---------------------------------------------------------------------------
+-- 11. View security_invoker changes draft
+-- ---------------------------------------------------------------------------
+-- Candidate rule:
+-- - include only views proven to be safe to flip to security_invoker in production;
+-- - defer any view whose dependency graph is unclear or whose consumer impact is
+--   not confirmed.
+--
+-- Example direction only:
+-- ALTER VIEW public.vw_candidate_search SET (security_invoker = true);
+-- ALTER VIEW public.vw_candidate_search_clean SET (security_invoker = true);
+-- ALTER VIEW public.jobs_reporting SET (security_invoker = true);
+-- ALTER VIEW public.terrer_hiring_now SET (security_invoker = true);
+-- ... only after dependency validation.
+
+-- Note:
+-- `vw_candidate_search_clean` is included in the draft review package because
+-- local code and docs reference it directly (for example `src/lib/candidates.ts`
+-- and multiple schema/workflow documents). It is therefore not safe to defer
+-- blindly in the final wrapper.
+
+-- ---------------------------------------------------------------------------
+-- 12. Proposed post-change validation queries
+-- ---------------------------------------------------------------------------
+-- SELECT ... FROM supabase_migrations.schema_migrations ORDER BY version;
+-- SELECT ... FROM pg_class / information_schema.columns for target tables;
+-- SELECT ... FROM pg_policies WHERE tablename IN (...);
+-- SELECT ... FROM pg_proc WHERE proname = 'is_current_user_admin';
+-- SELECT ... FROM pg_roles / aclexplode for profiles and helper grants;
+-- SELECT ... FROM information_schema.views for view existence and security_invoker;
+-- SELECT ... FROM pg_get_viewdef(...) for the hardened views.
+--
+-- Validation must be transaction-safe and read-only.
+
+-- ---------------------------------------------------------------------------
+-- 13. Proposed rollback SQL sections
+-- ---------------------------------------------------------------------------
+-- Reverse-policy SQL rollback:
+-- - DROP newly added policies;
+-- - recreate the previous policy set only when the exact prior policy text is
+--   approved and captured;
+-- - revert view security_invoker settings only for the views included in the
+--   wrapper.
+--
+-- Structural rollback:
+-- - restore from production backup if the wrapper introduces a structural
+--   failure (for example a bad compatibility table change or a broken view tree).
+--
+-- Example direction only:
+-- DROP POLICY IF EXISTS ... ON public.web_job_interest;
+-- DROP POLICY IF EXISTS ... ON public.jobs;
+-- DROP POLICY IF EXISTS ... ON public.activity_log;
+-- ALTER VIEW ... SET (security_invoker = false);
+-- -- Structural restore is backup-driven, not inline SQL.
+

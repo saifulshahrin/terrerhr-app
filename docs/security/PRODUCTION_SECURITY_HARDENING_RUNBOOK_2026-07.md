@@ -218,6 +218,29 @@ Operator instructions:
 6. Copy the result sets back into Codex for analysis.
 7. Keep production in `NO-GO` status until the results are reviewed against local migration files and the security plan is updated.
 
+## Wrapper Draft Approval
+
+Approved planning decisions:
+
+- Strategy: `B. current-timestamp production wrapper strategy`
+- `candidate_web_jobs`: include in the wrapper draft
+- `vw_candidate_search_clean`: include in the wrapper draft because local code and docs reference it directly
+- `profiles` ACL: tighten carefully and preserve admin-gated access through `is_current_user_admin()`
+- `is_current_user_admin()`: revoke `EXECUTE` from `public` and `anon` where safe; keep `authenticated`, `service_role`, and `postgres` as needed
+- July validation/assertions: convert to post-change validation only
+- Rollback: reverse-policy SQL first, backup restore for structural failure
+
+Final review requirement before executable SQL:
+
+- confirm `candidate_web_jobs` live shape;
+- confirm `vw_candidate_search_clean` dependency tree and consumer impact;
+- confirm exact policy text and ACL deltas;
+- confirm `security_invoker` changes on the selected views;
+- confirm rollback text for every change;
+- confirm the draft remains non-runnable until a separate executable migration is approved.
+
+Reminder: production remains `NO-GO` until the executable SQL is explicitly approved.
+
 ## Production Evidence Review 2026-07-17
 
 Production project analyzed: `tlufttnmwtjbuhjcrqmp`

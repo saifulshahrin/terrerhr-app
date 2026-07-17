@@ -24,6 +24,16 @@ Read-only inspection findings:
 - Advisor views exist, but they remain non-invoker views.
 - `vw_candidate_search_clean` was not confirmed in the supplied view export.
 
+## Approved Planning Decisions
+
+- Strategy: `B. current-timestamp production wrapper strategy`
+- `candidate_web_jobs`: include in the wrapper draft
+- `vw_candidate_search_clean`: `INCLUDE IN WRAPPER` because local code and docs reference it directly
+- `profiles` ACL: tighten carefully, preserve authenticated access only where RLS/admin policies require it, and keep admin-gated access through `is_current_user_admin()`
+- `is_current_user_admin()`: revoke `EXECUTE` from `public` and `anon` where safe; keep `authenticated`, `service_role`, and `postgres` as needed
+- July validation/assertion logic: translate into post-change validation checks only
+- Rollback: reverse-policy SQL for policy/grant/view rollback; production backup restore for structural failure
+
 ## Gap Classification
 
 Legend:
@@ -59,7 +69,7 @@ Legend:
 | broad `profiles` ACL matrix | FIX IN WRAPPER | Table-level ACLs should be tightened to match the admin-only contract. |
 | `is_current_user_admin` broad EXECUTE | ACCEPT TEMPORARILY | Helper can remain callable while policy checks depend on it, but the broad grant is not final-state hardened. |
 | non-invoker Advisor views | ACCEPT TEMPORARILY | Read-only views can be left in place until the next wrapper proves that invoker switching will not break dependent reads. |
-| missing or unconfirmed `vw_candidate_search_clean` | NEEDS MORE EVIDENCE | Confirm existence and consumer impact before including it. |
+| missing or unconfirmed `vw_candidate_search_clean` | INCLUDE IN WRAPPER | `src/lib/candidates.ts` calls `vw_candidate_search_clean` directly, and multiple docs/runtime references depend on the contract. |
 | missing July validation/assertion migrations | FIX IN WRAPPER | Their logic should be translated into the wrapper as read-only validation checks. |
 
 ## Source Migrations To Translate
@@ -77,6 +87,18 @@ The production wrapper should draw from these staging-hardened or local-target m
 - `20260711000100_drop_legacy_web_job_interest_public_read.sql`
 - `20260711000200_validation_public_select_assertions.sql`
 - `20260711000300_harden_remaining_staging_advisor_tables.sql`
+
+## `vw_candidate_search_clean` Evidence
+
+Local repository evidence indicates the view is live and consumed:
+
+- `src/lib/candidates.ts:279`
+- `src/lib/candidates.ts:297`
+- `docs/S1_CANONICAL_CONTRACTS.md:387`
+- `docs/AUDIT_D_AUTHORITATIVE_SCHEMA_AUDIT.md:101`
+- `docs/SCHEMA_AUTHORITATIVE_CAPTURE.md:270`
+
+That makes `vw_candidate_search_clean` part of the wrapper draft rather than a deferral.
 
 ## Safe To Translate Into A Current-Timestamp Wrapper
 
@@ -101,6 +123,8 @@ Safe wrapper contents:
 - refresh or replace the Advisor views only if the view dependency tree validates cleanly in production;
 - translate validation/assertion queries into read-only post-change checks.
 
+Draft wrapper contents should be limited to the minimum delta needed to harden the live production shape. Anything that depends on local reset history, historical filenames, or unknown live dependencies must stay out of the executable migration until it is separately approved.
+
 ## Reconstruction-Only Parts That Must Not Be Applied Directly
 
 Do not include these reconstruction patterns in a production wrapper:
@@ -114,16 +138,15 @@ Do not include these reconstruction patterns in a production wrapper:
 
 ## Candidate Web Jobs Decision
 
-`candidate_web_jobs` should be created in production by the wrapper only if the live production shape can be verified from the dashboard and the wrapper can preserve the same public publication contract that staging validated.
+`candidate_web_jobs` is included in the wrapper draft because the hardened web/candidate flow needs a safe public jobs surface.
 
-If that shape cannot be matched confidently, defer creation and require more evidence.
+The executable version still needs live-shape verification before it is allowed to run.
 
 ## `vw_candidate_search_clean` Decision
 
-`vw_candidate_search_clean` should be deferred until its production existence and consumer impact are confirmed.
+`vw_candidate_search_clean` is included in the wrapper draft because current code and docs reference it directly.
 
-If it is present already, it can be hardened in the wrapper later.
-If it is absent, do not guess.
+The executable version still needs dependency validation and security invoker confirmation.
 
 ## Proposed Order Of Operations
 
@@ -138,6 +161,18 @@ If it is absent, do not guess.
 9. Run validation/assertion SQL.
 10. Run smoke checks in the dashboard and browser.
 11. Rerun Supabase Advisor.
+
+## Final Review Checklist Before Executable SQL
+
+- Confirm the wrapper scope matches the approved decisions in this document.
+- Confirm `candidate_web_jobs` live shape.
+- Confirm `vw_candidate_search_clean` dependency tree and consumer impact.
+- Confirm exact policy text for `candidates`, `web_job_interest`, `jobs`, `employer_job_intake`, `employer_intake_actions`, and `activity_log`.
+- Confirm `profiles` ACL reductions do not break admin-gated access.
+- Confirm `is_current_user_admin()` still evaluates correctly with narrowed EXECUTE grants.
+- Confirm the chosen views can safely switch to `security_invoker = true` where planned.
+- Confirm rollback text exists for every policy/grant/view change.
+- Confirm the draft remains non-runnable until an executable migration is intentionally produced.
 
 ## SQL Operations Included
 
@@ -199,7 +234,8 @@ If the wrapper breaks:
 
 ## Final Recommendation
 
-This wrapper design supports a future production-safe hardening pass, but production remains `NO-GO` until the wrapper scope is approved and the exact SQL is drafted from this design.
+This wrapper design supports the next production-safe hardening pass, but it is still only a planning artifact.
 
-The safest next execution path is a current-timestamp production wrapper, not direct `supabase db push`.
+Production remains `NO-GO` until explicit approval is given for an executable SQL migration derived from this draft.
 
+The safest future execution path remains a current-timestamp production wrapper, not direct `supabase db push`.
