@@ -218,11 +218,119 @@ Operator instructions:
 6. Copy the result sets back into Codex for analysis.
 7. Keep production in `NO-GO` status until the results are reviewed against local migration files and the security plan is updated.
 
+## Production Evidence Review 2026-07-17
+
+Production project analyzed: `tlufttnmwtjbuhjcrqmp`
+
+Local workspace link remained on staging throughout the read-only review:
+
+- Staging ref: `nulpvbirlhauukccunqg`
+- Production ref: `tlufttnmwtjbuhjcrqmp`
+
+### Ledger Findings
+
+Production migration history shows the older app chain plus legacy date-only entries for `20260507`, `20260508`, and `20260509`.
+
+From the supplied ledger export, production clearly records the early app migrations through the June baseline and does not yet record any of the July hardening migrations.
+
+Local migrations that are already represented in production include the early baseline and reconciliation chain up through the June evidence set. The production ledger still needs repair/strategy review for the local reconstruction-only entries that were introduced to make the repository reset clean.
+
+Local migrations missing from production include the July security set:
+
+- `20260708000000_reconcile_web_publication_and_employer_contracts.sql`
+- `20260708000100_reconcile_advisor_remaining_table_contracts.sql`
+- `20260708000200_reconcile_advisor_view_contracts.sql`
+- `20260709000100_candidate_email_and_interest_rls.sql`
+- `20260709000200_advisor_remaining_table_rls.sql`
+- `20260709000300_acl_corrections.sql`
+- `20260709000400_view_security_hardening.sql`
+- `20260709000500_validation_assertions.sql`
+- `20260711000100_drop_legacy_web_job_interest_public_read.sql`
+- `20260711000200_validation_public_select_assertions.sql`
+- `20260711000300_harden_remaining_staging_advisor_tables.sql`
+- `20260711000400_triage_staging_advisor_warnings.sql`
+- `20260711000500_validation_warning_lints.sql`
+
+### Schema, RLS, And Policy Findings
+
+- `public.candidates` exists, but RLS is disabled and no policies were returned in the supplied policy batch.
+- `public.web_job_interest` exists with RLS enabled, but the policies are still broad: anon insert and update, plus a public read policy.
+- `public.candidate_web_jobs` is missing from production.
+- `public.jobs` exists with RLS enabled, but read and write policies are still broad for anon and authenticated users.
+- `public.employer_job_intake` and `public.employer_intake_actions` exist with RLS enabled, but both still have anon-select/insert exposure in the policy batch.
+- `public.activity_log` exists with RLS enabled, but anon select/insert policies are still present.
+- `public.staging_bullhorn_companies` and `public.staging_bullhorn_contacts` exist with RLS enabled and no policies were returned in the supplied policy batch.
+- The Advisor-hardened internal tables exist, but RLS is still disabled on:
+  - `source_profiles`
+  - `evidence_signals`
+  - `skills`
+  - `candidate_capabilities`
+  - `candidate_scores`
+  - `terrer_companies`
+  - `terrer_company_contacts`
+  - `terrer_jobs`
+  - `terrer_candidates`
+  - `terrer_skills`
+  - `terrer_pipeline`
+  - `job_candidate_matches`
+  - `outreach_log`
+- `public.profiles` has admin-gated policies for `SELECT` and `UPDATE`, but the privilege matrix is very broad at the table ACL layer.
+
+### View Findings
+
+- All requested Advisor-hardened views in the supplied export exist in `public`.
+- All returned views are owned by `postgres`.
+- `reloptions` is `null` across the returned views.
+- `security_invoker_true` is `false` for every returned view, so the views remain in the default non-invoker posture and are still likely to participate in `security_definer_view` warnings.
+- `vw_candidate_search_clean` was not present in the supplied view export, so that dependent hardening view still needs separate confirmation.
+
+### Function And Helper Findings
+
+- `public.is_current_user_admin()` exists as `SECURITY DEFINER`, `STABLE`, `LANGUAGE sql`.
+- The function checks `public.profiles` for `auth.uid()` with `role = 'admin'` and `is_active = true`.
+- Execute privilege is granted to `anon`, `authenticated`, `service_role`, `public`, and `postgres`.
+- The broad `EXECUTE` grant is tolerable only as a temporary policy helper if the surrounding profile contract is intentionally locked down. It is not a final hardened state because the `profiles` privilege matrix is broad.
+
+### Remaining Production Gaps
+
+- Missing `candidate_web_jobs` table.
+- Broad `web_job_interest` public read and anon update exposure.
+- Broad `jobs` read/write policy surface.
+- Broad anon access on `activity_log`, `employer_job_intake`, and `employer_intake_actions`.
+- RLS-disabled internal advisor tables.
+- Broad `profiles` ACL matrix.
+- All returned views remain non-invoker views.
+- `vw_candidate_search_clean` still needs confirmation.
+- Production does not yet show the July validation/assertion migrations.
+
+### Final Strategy And Deployment Decision
+
+Current recommendation: `D. NO-GO`
+
+Direct `supabase db push`: forbidden.
+
+Reason:
+
+- Production still differs materially from the hardening target.
+- The repository has backfilled reconstruction migrations that should not be pushed blindly.
+- The production ledger does not yet include the July hardening chain.
+- There are unresolved structural gaps, especially `candidate_web_jobs`, plus broad public/anon policies and RLS-disabled internal tables.
+- The helper/profile contract is not yet in a comfortably hardened state because the `profiles` ACL matrix is broad.
+
+Required evidence or fixes to move out of NO-GO:
+
+1. Decide whether `candidate_web_jobs` is a production compatibility table that must be repaired into history or recreated as a wrapper migration.
+2. Decide whether the July hardening chain should be applied through migration repair, a current-timestamp wrapper, or reviewed manual SQL.
+3. Tighten or explicitly accept the `web_job_interest`, `jobs`, and `activity_log` policy surfaces.
+4. Harden the RLS-disabled internal advisor tables.
+5. Resolve the `profiles` ACL posture and confirm the helper contract is safe enough for the intended deployment shape.
+6. Confirm whether `vw_candidate_search_clean` needs to be present in production before any deployment.
+
 ### Strategy Decision
 
 Current recommendation: `D. NO-GO`.
 
-Reason: production project identity/access is unresolved from this environment, and the production ledger/schema comparison was not completed. Direct `supabase db push` is forbidden.
+Reason: the production evidence now confirms a real ledger/schema mismatch and multiple unresolved security gaps, so the release is not ready for a direct deployment path.
 
 After the correct production ref/access is confirmed and read-only evidence is captured, choose one of:
 
