@@ -326,6 +326,14 @@ Required evidence or fixes to move out of NO-GO:
 5. Resolve the `profiles` ACL posture and confirm the helper contract is safe enough for the intended deployment shape.
 6. Confirm whether `vw_candidate_search_clean` needs to be present in production before any deployment.
 
+### Wrapper Design Follow-Up
+
+The next planning artifact is `docs/security/PRODUCTION_HARDENING_WRAPPER_DESIGN_2026-07.md`.
+
+It defines the production-safe wrapper scope, the gap classification, the SQL operations that are allowed in principle, and the operations that must stay out of production until a draft wrapper is explicitly approved.
+
+Do not execute any wrapper SQL until the design is reviewed and the operator confirms the final scope.
+
 ### Strategy Decision
 
 Current recommendation: `D. NO-GO`.
