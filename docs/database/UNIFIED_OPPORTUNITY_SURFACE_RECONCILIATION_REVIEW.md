@@ -52,16 +52,23 @@ migration. The earlier repository-ledger blocker is therefore resolved.
 - The review table enforces one row per
   `(candidate_id, external_opportunity_id)`.
 - Candidates have safe-column SELECT only and no INSERT or DELETE path.
-- Candidate UPDATE attempts have column privilege only for the staff workflow
-  columns, but the admin/recruiter-only RLS policy denies candidate and BD
-  mutation.
+- Direct authenticated review UPDATE is limited to `review_status`; the
+  admin/recruiter-only RLS policy and
+  `private.guard_external_review_transition()` protect that lifecycle path.
 - `review_notes` and `reviewed_by` are absent from ordinary authenticated
   SELECT grants.
 - The trusted creation RPC is executable by `service_role` among API roles.
   PostgreSQL function owners and superusers necessarily retain owner/superuser
   authority.
-- The staff internal-note RPC is narrowly guarded by the existing active-staff
-  helper plus an explicit admin/recruiter role check.
+- `public.update_external_opportunity_review_note(uuid, text)` is the sole
+  ordinary authenticated write path for `review_notes`. It is `SECURITY
+  DEFINER`, has a fixed `pg_catalog, pg_temp` search path, requires a non-null
+  `auth.uid()`, requires the existing active-staff helper, and requires an
+  active `admin` or `recruiter` profile.
+- The internal-note RPC updates only `review_notes`; the existing review
+  transition trigger remains the sole writer for `updated_at` and lifecycle
+  audit fields. Candidate and BD callers cannot pass the RPC authorization
+  gates.
 - No generated trigger or function references `web_job_interest`,
   `applications`, `submissions`, Confirm Interest, or representation objects.
 - The reference generation used a pinned third-party static parser for its
@@ -86,6 +93,10 @@ migration. The earlier repository-ledger blocker is therefore resolved.
 - Static source checks confirmed URL uniqueness remains enforced,
   source-reference identity is non-unique, no pilot fixture/backfill is
   present, and no canonical recruitment-table write is introduced.
+- Static RPC checks confirmed the internal-note function signature,
+  `SECURITY DEFINER` mode, fixed safe search path, authenticated-only API ACL,
+  admin/recruiter runtime authorization, review-notes-only mutation scope, and
+  removal of direct authenticated `review_notes` UPDATE privilege.
 
 ## Trigger and timestamp review
 
@@ -121,6 +132,26 @@ The reconciled architecture is:
 - collision behavior: normalized URL collisions fail closed;
 - metadata behavior: source-reference collisions remain inspectable and do not
   merge or reject distinct companies by themselves.
+
+## Required internal-note amendment
+
+The earlier generated migration granted authenticated users direct column
+UPDATE privilege on both `review_status` and `review_notes`, with RLS providing
+the staff-role restriction. This reconciliation amendment narrows that
+surface:
+
+- direct authenticated UPDATE now covers `review_status` only;
+- `review_notes` is writable only through
+  `public.update_external_opportunity_review_note(uuid, text)`;
+- the RPC is executable by `authenticated` only among API roles, with
+  `PUBLIC`, `anon`, and `service_role` explicitly revoked before the narrow
+  authenticated grant;
+- the RPC independently enforces non-null authentication, active-staff
+  membership, and an active `admin` or `recruiter` profile;
+- the RPC cannot update status, match snapshot, identity, request, lifecycle,
+  reviewer, creation, or timestamp fields;
+- unauthorized callers receive SQLSTATE `42501`, and a missing review ID
+  raises SQLSTATE `P0002` with a clear message.
 
 ## Deviations and unresolved risks
 

@@ -193,8 +193,8 @@ where table_schema = 'public'
   and column_name in ('review_notes', 'reviewed_by');
 
 -- Must return zero direct candidate INSERT/DELETE grants and no broad table
--- UPDATE grant. The intentional authenticated column UPDATE grant is limited
--- to review_status/review_notes and remains staff-gated by RLS.
+-- UPDATE grant. The only authenticated direct column UPDATE grant is
+-- review_status, and it remains staff-gated by RLS and the transition trigger.
 select
   grantee,
   privilege_type
@@ -215,7 +215,34 @@ where table_schema = 'public'
   and privilege_type = 'UPDATE'
 order by column_name;
 
--- 7. Trusted RPC execution ACL.
+-- Expected: exactly one row, for review_status.
+
+select
+  coalesce(
+    array_agg(column_name::text order by column_name)
+      filter (where column_name is not null),
+    '{}'::text[]
+  ) = array['review_status']::text[]
+    as authenticated_update_is_review_status_only
+from information_schema.column_privileges
+where table_schema = 'public'
+  and table_name = 'external_opportunity_reviews'
+  and grantee = 'authenticated'
+  and privilege_type = 'UPDATE';
+
+-- Must return zero rows: review_notes is mutable only through the guarded RPC.
+select
+  grantee,
+  privilege_type,
+  column_name
+from information_schema.column_privileges
+where table_schema = 'public'
+  and table_name = 'external_opportunity_reviews'
+  and grantee = 'authenticated'
+  and privilege_type = 'UPDATE'
+  and column_name = 'review_notes';
+
+-- 7. Trusted review-creation RPC execution ACL.
 select
   p.oid::regprocedure as routine,
   pg_get_userbyid(p.proowner) as owner_name,
@@ -239,7 +266,121 @@ group by p.oid, p.proowner, p.prosecdef;
 -- Expected API-role result: service_role only. The function owner and database
 -- superusers retain PostgreSQL owner/superuser authority by design.
 
--- 8. BD mutation denial and approved staff mutation policies.
+-- 8. Guarded internal-note RPC contract and execution ACL.
+select
+  to_regprocedure(
+    'public.update_external_opportunity_review_note(uuid,text)'
+  ) is not null as internal_note_rpc_exists;
+
+select
+  p.oid::regprocedure as routine,
+  p.prosecdef as security_definer,
+  p.proconfig as fixed_configuration,
+  pg_get_function_identity_arguments(p.oid) as identity_arguments,
+  pg_get_function_result(p.oid) as result_type,
+  coalesce(
+    array_agg(
+      distinct case
+        when acl.grantee = 0 then 'PUBLIC'
+        else pg_get_userbyid(acl.grantee)
+      end
+    ) filter (
+      where acl.privilege_type = 'EXECUTE'
+        and (
+          acl.grantee = 0
+          or pg_get_userbyid(acl.grantee) in (
+            'anon',
+            'authenticated',
+            'service_role'
+          )
+        )
+    ),
+    '{}'::text[]
+  ) as api_execute_grantees
+from pg_proc p
+cross join lateral aclexplode(
+  coalesce(p.proacl, acldefault('f', p.proowner))
+) acl
+where p.oid =
+  'public.update_external_opportunity_review_note(uuid,text)'::regprocedure
+group by p.oid, p.prosecdef, p.proconfig;
+
+-- Expected:
+-- - routine exists with identity arguments p_review_id uuid, p_review_notes text
+-- - security_definer is true
+-- - fixed_configuration contains search_path=pg_catalog, pg_temp
+-- - authenticated is the only API execution grantee
+
+select
+  has_function_privilege(
+    'authenticated',
+    'public.update_external_opportunity_review_note(uuid,text)',
+    'EXECUTE'
+  ) as authenticated_can_execute,
+  has_function_privilege(
+    'anon',
+    'public.update_external_opportunity_review_note(uuid,text)',
+    'EXECUTE'
+  ) is false as anon_cannot_execute,
+  has_function_privilege(
+    'service_role',
+    'public.update_external_opportunity_review_note(uuid,text)',
+    'EXECUTE'
+  ) is false as service_role_cannot_execute,
+  not exists (
+    select 1
+    from pg_proc p
+    cross join lateral aclexplode(
+      coalesce(p.proacl, acldefault('f', p.proowner))
+    ) acl
+    where p.oid =
+      'public.update_external_opportunity_review_note(uuid,text)'::regprocedure
+      and acl.grantee = 0
+      and acl.privilege_type = 'EXECUTE'
+  ) as public_cannot_execute;
+
+-- Static definition proof for identity authorization and mutation scope.
+-- The first five columns must be true and forbidden_fields_referenced must be
+-- false. Candidate and BD callers share authenticated EXECUTE at the API ACL
+-- layer but cannot pass both runtime authorization gates; only an active
+-- admin/recruiter profile can reach the UPDATE statement.
+with note_rpc as (
+  select lower(pg_get_functiondef(
+    'public.update_external_opportunity_review_note(uuid,text)'::regprocedure
+  )) as definition
+)
+select
+  definition ~ 'v_actor_id[[:space:]]+uuid[[:space:]]*:=[[:space:]]*auth\.uid\(\)'
+    and definition ~
+      'if[[:space:]]+v_actor_id[[:space:]]+is[[:space:]]+null'
+    as requires_non_null_auth_identity,
+  definition ~ 'private\.is_current_user_active_staff\(\)'
+    as requires_active_staff,
+  definition ~
+    'role[[:space:]]+in[[:space:]]*\(''admin'',[[:space:]]*''recruiter''\)'
+    as requires_admin_or_recruiter,
+  definition ~
+    'role[[:space:]]+in[[:space:]]*\(''admin'',[[:space:]]*''recruiter''\)'
+    and definition !~
+      'role[[:space:]]+in[[:space:]]*\([^)]*''(candidate|bd)'''
+    as candidate_and_bd_cannot_pass_role_gate,
+  regexp_count(definition, 'errcode[[:space:]]*=[[:space:]]*''42501''') >= 3
+    as unauthorized_paths_raise_42501,
+  definition ~ 'external opportunity review not found'
+    and definition ~ 'errcode[[:space:]]*=[[:space:]]*''p0002'''
+    as clear_not_found_error,
+  definition ~
+    'update[[:space:]]+public\.external_opportunity_reviews'
+    as updates_review_table,
+  definition ~
+    'set[[:space:]]+review_notes[[:space:]]*='
+    as updates_review_notes,
+  definition ~
+    '\m(review_status|match_score|match_reasons|candidate_id|external_opportunity_id|requested_at|created_at|under_review_at|completed_at|closed_at|reviewed_at|reviewed_by|updated_at)\M'
+    as forbidden_fields_referenced
+from note_rpc;
+
+-- 9. BD mutation denial and approved staff mutation policies.
 select
   policyname,
   cmd,
@@ -257,7 +398,7 @@ order by tablename, policyname;
 -- Inspect policy text above: every INSERT/UPDATE path must require an active
 -- profile role in ('admin','recruiter'); no DELETE policy may exist.
 
--- 9. Canonical lifecycle isolation: generated routines/triggers must not
+-- 10. Canonical lifecycle isolation: generated routines/triggers must not
 -- reference or write canonical recruitment objects.
 -- Must return zero rows.
 with generated_routines as (
@@ -272,6 +413,7 @@ with generated_routines as (
     ('private', 'guard_external_opportunity_immutable_fields'),
     ('private', 'guard_external_review_transition'),
     ('public', 'create_external_opportunity_review_trusted'),
+    ('public', 'update_external_opportunity_review_note'),
     ('public', 'list_external_reviews_for_staff')
   )
 )
@@ -280,7 +422,7 @@ from generated_routines
 where definition ~
   '\m(web_job_interest|applications|submissions|representation)\M';
 
--- 10. Review identity, idempotency, and FK contract.
+-- 11. Review identity, idempotency, and FK contract.
 select
   conname,
   contype,
@@ -295,7 +437,7 @@ order by conname;
 -- - external opportunity FK with ON UPDATE NO ACTION / ON DELETE RESTRICT
 -- - no candidate UPDATE/DELETE path
 
--- 11. Source-reference reconciliation diagnostics.
+-- 12. Source-reference reconciliation diagnostics.
 -- Rows returned here share internal source metadata across more than one
 -- company. The metadata is intentionally non-unique and must never override
 -- normalized_source_url as the enforced external-opportunity identity.
@@ -312,12 +454,12 @@ group by source_type, lower(source_name), source_reference_id
 having count(distinct lower(company_name)) > 1
 order by source_type, normalized_source_name, source_reference_id;
 
--- 12. Production-facing data hygiene. Must return zero rows.
+-- 13. Production-facing data hygiene. Must return zero rows.
 select id, source_url
 from public.external_opportunities
 where lower(id) ~ '(fixture|validation|test)'
    or lower(source_url) ~ '^https?://([^/]+\.)?example\.com([/:]|$)';
 
--- 13. Confirm schema migration contains no data/backfill by reviewing the
+-- 14. Confirm schema migration contains no data/backfill by reviewing the
 -- migration source itself. The approved four-record backfill remains a
 -- separately gated design artifact and is not part of this migration.

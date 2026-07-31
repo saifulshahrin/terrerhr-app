@@ -781,11 +781,68 @@ with check (
 );
 
 grant update (
-  review_status,
-  review_notes
+  review_status
 ) on public.external_opportunity_reviews to authenticated;
 
 revoke delete on public.external_opportunity_reviews from anon, authenticated;
+
+create or replace function public.update_external_opportunity_review_note(
+  p_review_id uuid,
+  p_review_notes text
+)
+returns public.external_opportunity_reviews
+language plpgsql
+security definer
+set search_path = pg_catalog, pg_temp
+as $$
+declare
+  v_actor_id uuid := auth.uid();
+  v_review public.external_opportunity_reviews;
+begin
+  if v_actor_id is null then
+    raise exception 'Authenticated staff identity is required'
+      using errcode = '42501';
+  end if;
+
+  if not coalesce(
+    (select private.is_current_user_active_staff()),
+    false
+  ) then
+    raise exception 'Active staff authorization required'
+      using errcode = '42501';
+  end if;
+
+  if not exists (
+    select 1
+    from public.profiles p
+    where p.id = v_actor_id
+      and p.is_active = true
+      and p.role in ('admin', 'recruiter')
+  ) then
+    raise exception 'Admin or recruiter authorization required'
+      using errcode = '42501';
+  end if;
+
+  update public.external_opportunity_reviews r
+  set review_notes = p_review_notes
+  where r.id = p_review_id
+  returning r.* into v_review;
+
+  if not found then
+    raise exception 'External opportunity review not found'
+      using errcode = 'P0002';
+  end if;
+
+  return v_review;
+end;
+$$;
+
+revoke all
+  on function public.update_external_opportunity_review_note(uuid, text)
+  from public, anon, authenticated, service_role;
+grant execute
+  on function public.update_external_opportunity_review_note(uuid, text)
+  to authenticated;
 
 create or replace function public.list_external_reviews_for_staff()
 returns setof public.external_opportunity_reviews
