@@ -1,0 +1,239 @@
+{
+  "schema_version": 1,
+  "repository": "saifulshahrin/terrerhr-app",
+  "base_branch": "main",
+  "base_commit": "7e086a1db266fb09f59027bd4f542ab85994242c",
+  "restoration_branch": "ledger/repository-restoration-2026-07",
+  "staging_environment": "staging",
+  "production_environment": "production",
+  "normalization": "Remove all SQL whitespace from the migration file. For ledger evidence, join statement-array elements with semicolons, append a final semicolon, then remove all whitespace. Compare MD5.",
+  "shared_migrations": [
+    {
+      "version": "20260416100300",
+      "name": "reconcile_pipeline_view_dependencies",
+      "normalized_sql_md5": "ad276935abf4b515a7a8a52fca1e0134",
+      "file_sha256": "ef4b4afb495b3e125015de1f879191ed5723d5a5377fe9eda4d5807fee8422e4",
+      "statement_count": 5,
+      "source_branch": "security/supabase-advisor-hardening-2026-07",
+      "source_commit": "ba359a3e9550de3c74b920d44d5f461a273a0e48",
+      "source_evidence": "Byte-identical historical file plus identical staging and production ledger normalized SQL hashes."
+    },
+    {
+      "version": "20260425000000",
+      "name": "create_candidate_marketplace_contracts",
+      "normalized_sql_md5": "8284f4c13d8dd51c59c10f14c1723619",
+      "file_sha256": "0328ae7a300939530af6a9e14791b2ee0c6409036c49e65e997f311c97bbf231",
+      "statement_count": 4,
+      "source_branch": "security/supabase-advisor-hardening-2026-07",
+      "source_commit": "4ebc7662d1de158f85c6d2a32fd8afc618570b86",
+      "source_evidence": "Byte-identical historical file plus identical staging and production ledger normalized SQL hashes."
+    },
+    {
+      "version": "20260604090000",
+      "name": "reconcile_profiles_contract",
+      "normalized_sql_md5": "af7c39bacf442931a877c185757b16b4",
+      "file_sha256": "c5930498604249ac9c92a593ed451702c4b747e11da0485b8014ab0c024de9b6",
+      "statement_count": 3,
+      "source_branch": "security/supabase-advisor-hardening-2026-07",
+      "source_commit": "ba359a3e9550de3c74b920d44d5f461a273a0e48",
+      "source_evidence": "Byte-identical historical file plus identical staging and production ledger normalized SQL hashes."
+    },
+    {
+      "version": "20260708000000",
+      "name": "reconcile_web_publication_and_employer_contracts",
+      "normalized_sql_md5": "4699f060a127cf15071385126544c819",
+      "file_sha256": "bbf535480158caca4f2f7ec16716f2fa66c9de55c1e83dd2f034dfd6c2e6f2a4",
+      "statement_count": 14,
+      "source_branch": "security/supabase-advisor-hardening-2026-07",
+      "source_commit": "ba359a3e9550de3c74b920d44d5f461a273a0e48",
+      "source_evidence": "Byte-identical historical file plus identical staging and production ledger normalized SQL hashes."
+    },
+    {
+      "version": "20260708000100",
+      "name": "reconcile_advisor_remaining_table_contracts",
+      "normalized_sql_md5": "5257fb4e717505eb0a28c23493f9e938",
+      "file_sha256": "6f5364f4b8fd0d282d92cefb6ce9ca4d92a7bfe71648b3baae5418732c3e347b",
+      "statement_count": 192,
+      "source_branch": "security/supabase-advisor-hardening-2026-07",
+      "source_commit": "ba359a3e9550de3c74b920d44d5f461a273a0e48",
+      "source_evidence": "Byte-identical historical file plus identical staging and production ledger normalized SQL hashes."
+    },
+    {
+      "version": "20260708000200",
+      "name": "reconcile_advisor_view_contracts",
+      "normalized_sql_md5": "2a8d3edb5f690ed5dc139b21984c5184",
+      "file_sha256": "fd42d48c55cea3ec43c4b61c08e511b8f98bbde1a6a11f1a9a2f36500c661118",
+      "statement_count": 39,
+      "source_branch": "security/supabase-advisor-hardening-2026-07",
+      "source_commit": "ba359a3e9550de3c74b920d44d5f461a273a0e48",
+      "source_evidence": "Byte-identical historical file plus identical staging and production ledger normalized SQL hashes."
+    },
+    {
+      "version": "20260709000100",
+      "name": "candidate_email_and_interest_rls",
+      "normalized_sql_md5": "18217a043d87f5301f9f1f6cf5f6cabe",
+      "file_sha256": "416d0f6bc40c56dbad743ca6f8067e62c3559bb1f41a377c9b65d618a7029c70",
+      "statement_count": 44,
+      "source_branch": "security/supabase-advisor-hardening-2026-07",
+      "source_commit": "ba359a3e9550de3c74b920d44d5f461a273a0e48",
+      "source_evidence": "Byte-identical historical file plus identical staging and production ledger normalized SQL hashes."
+    },
+    {
+      "version": "20260709000200",
+      "name": "advisor_remaining_table_rls",
+      "normalized_sql_md5": "28e3accee9c323e07f2672214df9489f",
+      "file_sha256": "ff973aa65afbe468da0cb74095872adefcc94a580431fe78e8f055b968693f75",
+      "statement_count": 41,
+      "source_branch": "security/supabase-advisor-hardening-2026-07",
+      "source_commit": "ba359a3e9550de3c74b920d44d5f461a273a0e48",
+      "source_evidence": "Byte-identical historical file plus identical staging and production ledger normalized SQL hashes."
+    },
+    {
+      "version": "20260709000300",
+      "name": "acl_corrections",
+      "normalized_sql_md5": "8bfa723d02bafd3581d4dabb81b877f0",
+      "file_sha256": "abcd42ae8665775f197e8ea7f742ff9abef875c49def266bf94a9efc31c3b698",
+      "statement_count": 52,
+      "source_branch": "security/supabase-advisor-hardening-2026-07",
+      "source_commit": "ba359a3e9550de3c74b920d44d5f461a273a0e48",
+      "source_evidence": "Byte-identical historical file plus identical staging and production ledger normalized SQL hashes."
+    },
+    {
+      "version": "20260709000400",
+      "name": "view_security_hardening",
+      "normalized_sql_md5": "d544cc0b9c89ce3b40172e580981bdb6",
+      "file_sha256": "2bc7970418e0f2892dc6dd87e76b48e8b049f84af351d5a825ce819dcb23ad63",
+      "statement_count": 92,
+      "source_branch": "security/supabase-advisor-hardening-2026-07",
+      "source_commit": "ba359a3e9550de3c74b920d44d5f461a273a0e48",
+      "source_evidence": "Byte-identical historical file plus identical staging and production ledger normalized SQL hashes."
+    },
+    {
+      "version": "20260709000500",
+      "name": "validation_assertions",
+      "normalized_sql_md5": "5f1d4614a8fb226076504244449c93f7",
+      "file_sha256": "914abab947f75de932e0f4a53927f1b9483e9249005dc4369c3f9129680ce072",
+      "statement_count": 8,
+      "source_branch": "security/supabase-advisor-hardening-2026-07",
+      "source_commit": "ba359a3e9550de3c74b920d44d5f461a273a0e48",
+      "source_evidence": "Byte-identical historical file plus identical staging and production ledger normalized SQL hashes."
+    },
+    {
+      "version": "20260711000100",
+      "name": "drop_legacy_web_job_interest_public_read",
+      "normalized_sql_md5": "aea0d08ec7cda85f8beeae5c21d0e0ac",
+      "file_sha256": "e766ace442b06ea9ef48c8b56010bbccbc6af650a59234c435907ece644642e3",
+      "statement_count": 3,
+      "source_branch": "security/supabase-advisor-hardening-2026-07",
+      "source_commit": "af9f2b8a18255d34f945fd0771f4cf02af28e7a0",
+      "source_evidence": "Byte-identical historical file plus identical staging and production ledger normalized SQL hashes."
+    },
+    {
+      "version": "20260711000200",
+      "name": "validation_public_select_assertions",
+      "normalized_sql_md5": "926f0b27ee23f110ffcda1bd1965edd1",
+      "file_sha256": "8fd0a61f9c59ba42a79c350a91cee0f0a19bcf4167c0be1a98cc5340509fb467",
+      "statement_count": 3,
+      "source_branch": "security/supabase-advisor-hardening-2026-07",
+      "source_commit": "af9f2b8a18255d34f945fd0771f4cf02af28e7a0",
+      "source_evidence": "Byte-identical historical file plus identical staging and production ledger normalized SQL hashes."
+    },
+    {
+      "version": "20260711000300",
+      "name": "harden_remaining_staging_advisor_tables",
+      "normalized_sql_md5": "6fd98ee6c1b62ea2e0d837e5074cae96",
+      "file_sha256": "37f1ae73ea63452a2b06f721454f967ccc31568b2b809c6c74836514e8b42f3b",
+      "statement_count": 29,
+      "source_branch": "security/supabase-advisor-hardening-2026-07",
+      "source_commit": "e0958f46f82d37ac561ddda12c3458debb29c146",
+      "source_evidence": "Byte-identical historical file plus identical staging and production ledger normalized SQL hashes."
+    },
+    {
+      "version": "20260711000400",
+      "name": "triage_staging_advisor_warnings",
+      "normalized_sql_md5": "6591fe857e04e419344fbc586f5cd192",
+      "file_sha256": "c21dcb9836ebb2c8d41d5742f28a2e9cd79f45e5eadb2ae61b4acc40bf75bd8b",
+      "statement_count": 85,
+      "source_branch": "security/supabase-advisor-hardening-2026-07",
+      "source_commit": "1dc703c1b3c100be2619fa7f38e43360a7759706",
+      "source_evidence": "Byte-identical historical file plus identical staging and production ledger normalized SQL hashes."
+    },
+    {
+      "version": "20260711000500",
+      "name": "validation_warning_lints",
+      "normalized_sql_md5": "29d605c0855cdb46cef3e521509c91f3",
+      "file_sha256": "5e13fdeef475a6af2fb1c704884413c0491c65c26d774cab059235c35efe7a8d",
+      "statement_count": 6,
+      "source_branch": "security/supabase-advisor-hardening-2026-07",
+      "source_commit": "1dc703c1b3c100be2619fa7f38e43360a7759706",
+      "source_evidence": "Byte-identical historical file plus identical staging and production ledger normalized SQL hashes."
+    },
+    {
+      "version": "20260723110000",
+      "name": "reconstruct_applications_from_canonical_evidence",
+      "normalized_sql_md5": "0cd63ca821eef75023b643705c359ab6",
+      "file_sha256": "9e9ad3d6f12314610e71426d343e7b0d362d2b53aa0e3a57fb81d2a2502910e0",
+      "statement_count": 11,
+      "source_branch": null,
+      "source_commit": null,
+      "source_evidence": "Exact SQL reconstructed from the identical staging and production ledger statement arrays."
+    },
+    {
+      "version": "20260723110554",
+      "name": "candidate_engine_applications_staff_access",
+      "normalized_sql_md5": "e9b541e4afff1f47f8098a2d826df74d",
+      "file_sha256": "d3d2ec911e8dea2217547f78aff3eb213e894922b2e9e4b7910a98b9b60df66b",
+      "statement_count": 9,
+      "source_branch": null,
+      "source_commit": null,
+      "source_evidence": "Exact SQL reconstructed from the identical staging and production ledger statement arrays."
+    },
+    {
+      "version": "20260723133303",
+      "name": "active_staff_authorization_helper",
+      "normalized_sql_md5": "4fb11326568c18968cd45d85011481ff",
+      "file_sha256": "958b29895e045cf23b5b11ac7a2a1c1d85bd302e32ec2f01abcca771ee527861",
+      "statement_count": 15,
+      "source_branch": null,
+      "source_commit": null,
+      "source_evidence": "Exact SQL reconstructed from the identical staging and production ledger statement arrays."
+    },
+    {
+      "version": "20260723134205",
+      "name": "restore_active_staff_authorization_effects",
+      "normalized_sql_md5": "ebb379a9f87d237862f0675f05563d40",
+      "file_sha256": "30742a8fc0b3cba537cbac780b488a00bc6f88c8e4c158650191f4da2c1b2f8c",
+      "statement_count": 18,
+      "source_branch": null,
+      "source_commit": null,
+      "source_evidence": "Exact SQL reconstructed from the identical staging and production ledger statement arrays."
+    },
+    {
+      "version": "20260723135237",
+      "name": "repair_submissions_active_staff_authorization",
+      "normalized_sql_md5": "f3c7b793564b5f2e75ec69018743790a",
+      "file_sha256": "b85504d8206ece620320db8e1f15f5533a35056edd455ee85dd53475b7cd542f",
+      "statement_count": 13,
+      "source_branch": null,
+      "source_commit": null,
+      "source_evidence": "Exact SQL reconstructed from the identical staging and production ledger statement arrays."
+    },
+    {
+      "version": "20260723140703",
+      "name": "repair_activity_log_active_staff_authorization",
+      "normalized_sql_md5": "d3c45bf4062db1c6a0c3091f15b77657",
+      "file_sha256": "8cac20dbf8e1fed4350450ff39128bae2d94b3a23a4bfd971453236d5a3c02b8",
+      "statement_count": 11,
+      "source_branch": null,
+      "source_commit": null,
+      "source_evidence": "Exact SQL reconstructed from the identical staging and production ledger statement arrays."
+    }
+  ],
+  "production_only_event": {
+    "version": "20260723143425",
+    "name": "reconcile_candidate_engine_production_authorization",
+    "normalized_sql_md5": "f07c7ee2e1eaf811f0337b108bdc6e12",
+    "statement_count": 37,
+    "replay_migration_generated": false
+  }
+}
