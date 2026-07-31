@@ -166,7 +166,12 @@
       "statement_count": 6,
       "source_branch": "security/supabase-advisor-hardening-2026-07",
       "source_commit": "1dc703c1b3c100be2619fa7f38e43360a7759706",
-      "source_evidence": "Byte-identical historical file plus identical staging and production ledger normalized SQL hashes."
+      "source_evidence": "The canonical staging and production ledger normalized SQL hash remains preserved. The repository file has a validation-only local replay override because the original pg_policies presentation-layer assertion failed during PostgreSQL 17 local replay before later migrations could run.",
+      "local_replay_override": {
+        "normalized_sql_md5": "0aa831cbcb47e0494a9152c2aac101e3",
+        "file_sha256": "7ac8474d30040fa6cb9a810793320ff57f952b8810abe288c9da8fb833d95e50",
+        "scope": "Replace only the candidate_intent_events pg_policies presentation checks with direct pg_catalog policy, relation, namespace, and role-OID checks; policy DDL is unchanged."
+      }
     },
     {
       "version": "20260723110000",

@@ -54,7 +54,7 @@ Every row exists under the same version and name in staging and production. Both
 | `20260711000200` | `validation_public_select_assertions` | `926f0b27ee23f110ffcda1bd1965edd1` | `af9f2b8a18255d34f945fd0771f4cf02af28e7a0` | byte-identical file restored |
 | `20260711000300` | `harden_remaining_staging_advisor_tables` | `6fd98ee6c1b62ea2e0d837e5074cae96` | `e0958f46f82d37ac561ddda12c3458debb29c146` | byte-identical file restored |
 | `20260711000400` | `triage_staging_advisor_warnings` | `6591fe857e04e419344fbc586f5cd192` | `1dc703c1b3c100be2619fa7f38e43360a7759706` | byte-identical file restored |
-| `20260711000500` | `validation_warning_lints` | `29d605c0855cdb46cef3e521509c91f3` | `1dc703c1b3c100be2619fa7f38e43360a7759706` | byte-identical file restored |
+| `20260711000500` | `validation_warning_lints` | `29d605c0855cdb46cef3e521509c91f3` | `1dc703c1b3c100be2619fa7f38e43360a7759706` | canonical ledger hash preserved; validation-only local replay override documented below |
 
 Historical source branch for all rows: `security/supabase-advisor-hardening-2026-07`.
 
@@ -102,6 +102,48 @@ The evidence manifest records, for every file:
 
 Manifest: `docs/database/ledger-restoration/ledger-evidence.json`
 
+## PostgreSQL 17 local replay override
+
+Local replay on Supabase CLI `2.110.0` with PostgreSQL `17.6.1.143` was
+reported to stop in `20260711000500_validation_warning_lints.sql` with
+`candidate_intent_events constrained insert policy is missing`.
+
+Static reconstruction established that:
+
+- `20260507113000` creates `public.candidate_intent_events` and its original
+  anonymous insert contract;
+- `20260711000400` immediately precedes the failing lint and creates
+  `allow constrained write candidate intent events` for `INSERT` to `anon`
+  and `authenticated` with a non-trivial `WITH CHECK`;
+- no intervening migration drops or replaces that constrained policy;
+- migration versions are unique and lexically ordered;
+- PostgreSQL 17 documents `pg_policies.roles` as `name[]`, `cmd` as display
+  text, and `with_check` as deparsed text, so the original lint depended on a
+  presentation view rather than the authoritative policy catalog.
+
+A later forward migration cannot repair a chain that stops inside the earlier
+validation migration. An out-of-order backdated migration would add deployment
+ordering risk without fixing the assertion. The repository copy of
+`20260711000500` therefore has a narrowly scoped, validation-only replay
+override:
+
+- policy DDL in `20260711000400` is unchanged;
+- anonymous insert remains constrained;
+- the lint now resolves the policy through `pg_catalog.pg_policy`,
+  `pg_class`, `pg_namespace`, and role OIDs;
+- it asserts an `INSERT` command, permissive policy, no `USING` expression,
+  a non-null `WITH CHECK`, the `anon` role OID, all three guarded columns, and
+  all three allowed action values;
+- the broad-policy rejection uses the same authoritative catalog path.
+  It checks both the `anon` role OID and PostgreSQL's OID-zero `PUBLIC` role
+  sentinel.
+
+The manifest preserves the original staging/production normalized SQL hash and
+file SHA-256 as canonical evidence. It records the repository replay override
+under `local_replay_override`; it does not rewrite the historical remote-ledger
+identity. `supabase/validation/repository_ledger_restoration_read_only.sql`
+continues to compare remote ledgers with the original canonical hash.
+
 ## Ordering and dependency review
 
 The restored chain is ordered as follows:
@@ -126,7 +168,9 @@ The restored chain is ordered as follows:
 - `20260723110000` intentionally fails closed if `public.applications` already exists. This prevents a silent duplicate-object collision on an untracked database.
 - On staging and production, all shared versions are already ledger-recorded and therefore should not replay.
 - The production-only wrapper is absent from `supabase/migrations`.
-- Exact hashes prevent rewritten SQL from being attached to an existing deployed version.
+- Exact canonical hashes remain preserved for deployed-version comparison.
+- The single approved validation-only replay override is explicit, separately
+  hashed, and statically restricted to `20260711000500`.
 - Runtime replay behavior has not been tested because execution is outside authorization.
 
 ## Production-only event
@@ -145,6 +189,8 @@ No `.sql` replay migration was generated for this version.
 - duplicate versions;
 - file SHA-256;
 - normalized SQL hashes;
+- the single approved validation-only local replay override and its direct
+  catalog assertions;
 - helper-before-policy dependency ordering;
 - absence of a `20260723143425` replay file;
 - absence of Unified Opportunity objects from the Candidate Engine restoration files.
