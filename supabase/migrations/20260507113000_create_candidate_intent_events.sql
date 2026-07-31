@@ -20,6 +20,10 @@ CREATE INDEX IF NOT EXISTS idx_candidate_intent_events_created_at
 
 ALTER TABLE public.candidate_intent_events ENABLE ROW LEVEL SECURITY;
 
+-- RLS policies constrain these inserts; table-level access is also required
+-- for the intended anonymous and authenticated candidate intent contract.
+GRANT INSERT ON public.candidate_intent_events TO anon, authenticated;
+
 DROP POLICY IF EXISTS "allow read candidate intent events" ON public.candidate_intent_events;
 CREATE POLICY "allow read candidate intent events"
 ON public.candidate_intent_events

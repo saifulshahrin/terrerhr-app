@@ -71,7 +71,10 @@ for (const migration of evidence.shared_migrations) {
   const expectedNormalizedSqlMd5 =
     localReplayOverride?.normalized_sql_md5 ?? migration.normalized_sql_md5;
 
-  const sha256 = createHash("sha256").update(sql).digest("hex");
+  // Git may materialize text files with CRLF on Windows. Ledger file hashes
+  // describe the canonical LF repository blob, not the checkout convention.
+  const canonicalSql = sql.replace(/\r\n/g, "\n");
+  const sha256 = createHash("sha256").update(canonicalSql).digest("hex");
   if (sha256 !== expectedFileSha256) {
     failures.push(
       `${filename}: SHA-256 mismatch ${sha256} != ${expectedFileSha256}`,

@@ -1,4 +1,4 @@
-﻿/*
+/*
   # Bullhorn Staging Import Tables (safe, additive)
 
   Purpose:
