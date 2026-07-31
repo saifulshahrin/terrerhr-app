@@ -2,7 +2,7 @@
 
 ## Classification
 
-`20260723143425_reconcile_candidate_engine_production_authorization` is an audited production-only migration-ledger event. It exists in production project `tlufttnmwtjbuhjcrqmp` and is absent from staging project `nulpvbirlhauukccunqg`.
+`20260723143425_reconcile_candidate_engine_production_authorization` is an audited production-only migration-ledger event. It exists in the production environment and is absent from the staging environment.
 
 It is not represented by a replay migration file in this repository-ledger restoration package.
 

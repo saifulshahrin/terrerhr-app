@@ -4,8 +4,8 @@
   "base_branch": "main",
   "base_commit": "7e086a1db266fb09f59027bd4f542ab85994242c",
   "restoration_branch": "ledger/repository-restoration-2026-07",
-  "staging_project": "nulpvbirlhauukccunqg",
-  "production_project": "tlufttnmwtjbuhjcrqmp",
+  "staging_environment": "staging",
+  "production_environment": "production",
   "normalization": "Remove all SQL whitespace from the migration file. For ledger evidence, join statement-array elements with semicolons, append a final semicolon, then remove all whitespace. Compare MD5.",
   "shared_migrations": [
     {

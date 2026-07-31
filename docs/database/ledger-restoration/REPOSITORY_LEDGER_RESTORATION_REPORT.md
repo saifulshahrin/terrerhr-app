@@ -12,8 +12,8 @@ Branch: `ledger/repository-restoration-2026-07`
 
 Authoritative database evidence:
 
-- staging: `nulpvbirlhauukccunqg`
-- production: `tlufttnmwtjbuhjcrqmp`
+- staging: `staging`
+- production: `production`
 - source table: `supabase_migrations.schema_migrations`
 - compared fields: `version`, `name`, `statements`
 
