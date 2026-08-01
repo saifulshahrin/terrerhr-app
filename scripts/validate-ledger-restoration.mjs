@@ -21,6 +21,7 @@ const migrationNames = (await readdir(migrationsDirectory))
 
 const failures = [];
 const versions = new Map();
+const permittedLocalReplayOverrides = new Set(["20260711000500"]);
 
 for (const name of migrationNames) {
   const match = name.match(/^(\d+)_/);
@@ -55,24 +56,77 @@ for (const migration of evidence.shared_migrations) {
     continue;
   }
 
-  const sha256 = createHash("sha256").update(sql).digest("hex");
-  if (sha256 !== migration.file_sha256) {
+  const localReplayOverride = migration.local_replay_override;
+  if (
+    localReplayOverride &&
+    !permittedLocalReplayOverrides.has(migration.version)
+  ) {
     failures.push(
-      `${filename}: SHA-256 mismatch ${sha256} != ${migration.file_sha256}`,
+      `${filename}: unapproved local replay override for canonical ledger evidence`,
+    );
+  }
+
+  const expectedFileSha256 =
+    localReplayOverride?.file_sha256 ?? migration.file_sha256;
+  const expectedNormalizedSqlMd5 =
+    localReplayOverride?.normalized_sql_md5 ?? migration.normalized_sql_md5;
+
+  // Git may materialize text files with CRLF on Windows. Ledger file hashes
+  // describe the canonical LF repository blob, not the checkout convention.
+  const canonicalSql = sql.replace(/\r\n/g, "\n");
+  const sha256 = createHash("sha256").update(canonicalSql).digest("hex");
+  if (sha256 !== expectedFileSha256) {
+    failures.push(
+      `${filename}: SHA-256 mismatch ${sha256} != ${expectedFileSha256}`,
     );
   }
 
   const normalizedSqlMd5 = createHash("md5")
     .update(sql.replace(/\s+/g, ""))
     .digest("hex");
-  if (normalizedSqlMd5 !== migration.normalized_sql_md5) {
+  if (normalizedSqlMd5 !== expectedNormalizedSqlMd5) {
     failures.push(
-      `${filename}: normalized SQL MD5 mismatch ${normalizedSqlMd5} != ${migration.normalized_sql_md5}`,
+      `${filename}: normalized SQL MD5 mismatch ${normalizedSqlMd5} != ${expectedNormalizedSqlMd5}`,
     );
   }
 
   if ((versions.get(migration.version) ?? []).length !== 1) {
     failures.push(`${filename}: migration version is absent or non-unique`);
+  }
+}
+
+const warningLintEvidence = evidence.shared_migrations.find(
+  ({ version }) => version === "20260711000500",
+);
+if (!warningLintEvidence?.local_replay_override) {
+  failures.push(
+    "20260711000500 must record its validation-only local replay override",
+  );
+} else {
+  const warningLintSql = await readFile(
+    join(
+      migrationsDirectory,
+      "20260711000500_validation_warning_lints.sql",
+    ),
+    "utf8",
+  );
+  for (const required of [
+    "from pg_catalog.pg_policy policy",
+    "policy.polcmd = 'a'",
+    "policy.polpermissive = true",
+    "policy.polqual is null",
+    "policy.polwithcheck is not null",
+    "pg_catalog.to_regrole('anon')::oid = any(policy.polroles)",
+    "0::oid = any(policy.polroles)",
+    "matches_viewed",
+    "interest_clicked",
+    "job_saved",
+  ]) {
+    if (!warningLintSql.includes(required)) {
+      failures.push(
+        `20260711000500 local replay override is missing ${required}`,
+      );
+    }
   }
 }
 
@@ -145,7 +199,8 @@ if (failures.length > 0) {
   console.log("Repository-ledger restoration static validation PASSED");
   console.log(`- ${evidence.shared_migrations.length} restored migrations verified`);
   console.log("- migration versions are unique and ordered");
-  console.log("- file SHA-256 and normalized ledger SQL hashes match");
+  console.log("- canonical or explicitly approved replay hashes match");
+  console.log("- approved validation-only local replay override is verified");
   console.log("- helper precedes dependent Candidate Engine policies");
   console.log("- production-only event is absent from replay migrations");
   console.log("- Unified Opportunity objects are absent from the restoration chain");

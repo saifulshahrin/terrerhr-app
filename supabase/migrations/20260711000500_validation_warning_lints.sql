@@ -60,28 +60,49 @@ begin
 
   if exists (
     select 1
-    from pg_policies
-    where schemaname = 'public'
-      and tablename = 'candidate_intent_events'
-      and cmd in ('INSERT', 'ALL')
-      and ('anon' = any(roles) or 'public' = any(roles))
-      and regexp_replace(coalesce(with_check, ''), '\s+', '', 'g') in ('true', '(true)')
+    from pg_catalog.pg_policy policy
+    join pg_catalog.pg_class relation
+      on relation.oid = policy.polrelid
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'public'
+      and relation.relname = 'candidate_intent_events'
+      and policy.polcmd in ('a', '*')
+      and (
+        pg_catalog.to_regrole('anon')::oid = any(policy.polroles)
+        or 0::oid = any(policy.polroles)
+      )
+      and regexp_replace(
+        coalesce(pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid), ''),
+        '\s+',
+        '',
+        'g'
+      ) in ('true', '(true)')
   ) then
     raise exception 'candidate_intent_events still has broad anonymous insert check';
   end if;
 
   if not exists (
     select 1
-    from pg_policies
-    where schemaname = 'public'
-      and tablename = 'candidate_intent_events'
-      and policyname = 'allow constrained write candidate intent events'
-      and cmd = 'INSERT'
-      and 'anon' = any(roles)
-      and with_check is not null
-      and with_check ilike '%action_type%'
-      and with_check ilike '%candidate_id%'
-      and with_check ilike '%job_id%'
+    from pg_catalog.pg_policy policy
+    join pg_catalog.pg_class relation
+      on relation.oid = policy.polrelid
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'public'
+      and relation.relname = 'candidate_intent_events'
+      and policy.polname = 'allow constrained write candidate intent events'
+      and policy.polcmd = 'a'
+      and policy.polpermissive = true
+      and policy.polqual is null
+      and policy.polwithcheck is not null
+      and pg_catalog.to_regrole('anon')::oid = any(policy.polroles)
+      and pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid) ilike '%action_type%'
+      and pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid) ilike '%candidate_id%'
+      and pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid) ilike '%job_id%'
+      and pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid) ilike '%matches_viewed%'
+      and pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid) ilike '%interest_clicked%'
+      and pg_catalog.pg_get_expr(policy.polwithcheck, policy.polrelid) ilike '%job_saved%'
   ) then
     raise exception 'candidate_intent_events constrained insert policy is missing';
   end if;
