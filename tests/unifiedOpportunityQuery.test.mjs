@@ -63,3 +63,31 @@ test('keeps canonical and external action capabilities isolated', async () => {
 test('returns an empty array for an empty repository', async () => {
   assert.deepEqual(await loadUnifiedOpportunities(source([], [])), []);
 });
+
+test('exact source duplicate keeps canonical while uncertain identity stays visible', async () => {
+  const canonicalWithSource = {
+    ...canonical,
+    external_job_url: 'https://employer.example/jobs/123?utm_source=terrer',
+  };
+  const exactExternal = {
+    ...external,
+    id: 'external-exact',
+    source_url: 'https://employer.example/jobs/123',
+  };
+  const uncertainExternal = {
+    ...external,
+    id: 'external-uncertain',
+    job_title: canonical.job_title,
+    company_name: canonical.company_name,
+    location: canonical.location,
+    source_url: 'https://employer.example/jobs/another-record',
+  };
+  const results = await loadUnifiedOpportunities(source([canonicalWithSource], [exactExternal, uncertainExternal]));
+  assert.deepEqual(results.map((item) => item.id).sort(), ['canonical:canonical-id', 'external:external-uncertain']);
+});
+
+test('trusted relevance outranks origin and freshness', async () => {
+  const results = await loadUnifiedOpportunities(source(), { candidateId: 'candidate-id' });
+  assert.equal(results[0].origin, 'canonical_terrer');
+  assert.equal(results[0].matchScore, 91);
+});
