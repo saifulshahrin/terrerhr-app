@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test:unified-opportunities": "node --experimental-strip-types --test --test-isolation=none tests/unifiedOpportunityQuery.test.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.app.json"
   },
   "dependencies": {
