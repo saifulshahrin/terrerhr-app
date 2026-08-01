@@ -32,10 +32,28 @@ pilot execution/verification time, not an invented source-page date.
 ## Insertion and schema repair
 
 `supabase/pilot/20260801_unified_opportunity_staging_pilot.sql` is deliberately
-outside `supabase/migrations`. It names the approved staging project, checks the
-required migration ledger entry, inserts only `public.external_opportunities`,
-uses stable IDs, reconciles on generated `normalized_source_url`, and asserts the
-four exact identities before commit. A second run inserts zero rows.
+outside `supabase/migrations`. Its supported execution path is the fail-closed
+`scripts/applyUnifiedOpportunityStagingPilot.mjs` wrapper. The wrapper requires an
+explicit `--project-ref`, accepts only `nulpvbirlhauukccunqg`, and verifies that
+the supplied database URL hostname is exactly
+`db.nulpvbirlhauukccunqg.supabase.co` before starting `psql`. It cannot silently
+pair the approved label with a different project's URL.
+
+The SQL independently requires the wrapper-supplied `target_project_ref` psql
+variable and checks it again before the transaction reaches the INSERT. Missing
+or different values abort. A ledger precondition remains defense in depth but is
+not treated as project identity. The script inserts only
+`public.external_opportunities`, uses stable IDs, reconciles on generated
+`normalized_source_url`, and asserts every approved identity field before commit.
+A second run inserts zero rows.
+
+Exact PowerShell invocation (credentials remain outside Git):
+
+```powershell
+$env:TERRER_STAGING_DATABASE_URL = '<staging direct Postgres connection URI>'
+node scripts/applyUnifiedOpportunityStagingPilot.mjs `
+  --project-ref nulpvbirlhauukccunqg
+```
 
 Runtime proof showed that the approved Dassault `employer_job_detail` source type
 was rejected by the original constraint. The forward migration
@@ -88,6 +106,8 @@ Local:
 - Supabase CLI 2.110.0 full `db reset --local --no-seed`: passed, including
   migration `20260801085404`.
 - Pilot first run: 4 inserted; second run: 0 inserted.
+- Pilot target guard: missing reference rejected; production/different reference
+  rejected; mismatched database host rejected; exact staging reference accepted.
 - Pilot acceptance: passed; collision probe produced 2 rows/2 companies and rolled
   back; pilot count remained 4.
 - Unified Opportunity read-only acceptance: passed with no SQL error.

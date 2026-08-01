@@ -1,12 +1,29 @@
 -- Controlled staging-only pilot for project nulpvbirlhauukccunqg.
--- DO NOT add this file to the migration chain or execute it in production.
+-- Execute only through scripts/applyUnifiedOpportunityStagingPilot.mjs.
 -- Re-running is safe: normalized source URLs reconcile to the existing row, and
 -- the assertions fail closed if an existing row does not exactly match approval.
 
+\set ON_ERROR_STOP on
+\if :{?target_project_ref}
+\else
+  \set target_project_ref '__MISSING__'
+\endif
+
 begin;
+
+select set_config(
+  'terrer.target_project_ref',
+  :'target_project_ref',
+  false
+);
 
 do $$
 begin
+  if current_setting('terrer.target_project_ref', true)
+     is distinct from 'nulpvbirlhauukccunqg' then
+    raise exception 'Pilot target project is not the approved staging project';
+  end if;
+
   if not exists (
     select 1
     from supabase_migrations.schema_migrations
