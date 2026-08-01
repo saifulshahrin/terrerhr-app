@@ -129,3 +129,51 @@ Staging deployment only:
 
 Rollback deletes only the Edge Function deployment. This change has no migration
 or production deployment.
+
+## Final staging integration validation
+
+Validated on 2026-08-01 against the approved staging Supabase project only:
+
+- Supabase project: `nulpvbirlhauukccunqg` (`terrer-security-staging-2026-07`)
+- Edge Function: `unified-opportunities`, active version 1, JWT verification enabled
+- Vercel preview origin:
+  `https://terrer-9vbizi5bp-saifulshahrin-8466s-projects.vercel.app`
+- `TERRER_WEB_ALLOWED_ORIGINS` contains that exact preview origin only; no
+  production origin was added.
+
+An isolated confirmed staging Auth user was mapped by verified email to one
+staging candidate. The endpoint received no candidate ID from the test client.
+A clearly labeled staging-only canonical job publication was added because the
+staging project previously contained zero published canonical web jobs. This
+allowed the live catalogue to prove both lifecycle types alongside the four
+approved pilot opportunities.
+
+Live browser-style validation results:
+
+| Check | Result |
+| --- | --- |
+| `OPTIONS` from exact Vercel origin | `204`; exact `Access-Control-Allow-Origin` |
+| Authenticated `GET` | `200`; JWT and confirmed candidate mapping accepted |
+| Unified catalogue | 5 rows: 1 canonical + 4 external pilots |
+| Sensitive response scan | no candidate ID, internal review notes, reviewer identity, source reference ID, password or auth metadata |
+| First review `POST` | review returned with `requested` status |
+| Second identical `POST` | same review ID returned |
+| Database review cardinality | exactly 1 row and 1 distinct review ID for candidate/opportunity |
+| Review ownership | candidate ID and external opportunity ID matched the server-resolved fixture |
+| Canonical interest / Confirm Interest | 0 rows |
+| Applications | 0 rows |
+| Submissions | 0 rows |
+| Representation requests | 0 rows |
+| Candidate-facing confirmation | `not_an_application`, `not_submitted` |
+
+The external review created by this validation targets
+`pilot:software:dassault-systemes:548642`. Staging fixture IDs are deliberately
+stable for audit and optional cleanup:
+
+- Auth user: `10000000-0000-4000-8000-000000000001`
+- Candidate: `20000000-0000-4000-8000-000000000001`
+- Canonical job: `30000000-0000-4000-8000-000000000001`
+- Canonical publication: `40000000-0000-4000-8000-000000000001`
+
+No production project, production origin, production deployment or production
+record was read or changed during this validation.
