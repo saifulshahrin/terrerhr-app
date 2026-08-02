@@ -234,7 +234,7 @@ publicJobs mapping
 | Legal entity disclosure | The public website may already name Agensi Pekerjaan TerrerHR Sdn Bhd. The withdrawn strict non-inference rule no longer conflicts with the bundle or metadata. Formal terms must identify the verified legal employer. | **READY WITH INCORPORATION CONDITION** |
 | `jobs` content | Existing fields support title, public company, location, description, responsibilities, qualifications, seniority and operational metadata. Approved hours, pay, duration, schedule, equipment, expenses and conditions can be stated verbatim in `job_description_text`. | **SUPPORTED, UNSTRUCTURED** |
 | `candidate_web_jobs` | Existing status and publication timestamp can gate initial publication. It has no expiry field, so the approved 30-day review must initially be an operational control. | **READY WITH MANUAL CONTROL** |
-| Edge Function / DTO | Canonical output supplies company, location and description summary but no salary or structured employment terms. | **BLOCKED FOR COMPENSATION TRUTHFULNESS** |
+| Edge Function / DTO | Draft backend PR #7 adds nullable authoritative `compensation_text` and exposes it unchanged as `salaryText`. It is not merged or deployed. | **REPAIR IN DRAFT; BLOCKED UNTIL MERGED AND VALIDATED** |
 | Candidate detail | When `salary` is absent, `buildCompensationFields` generates and labels an `Estimated Market Range`. The canonical DTO does not supply salary, so this role would show an invented range instead of the approved RM1,000/month. | **BLOCKED** |
 | Responsibilities/qualifications | The unified mapping currently reduces canonical content to a summary and sets these fields to null. The approved description can still carry the copy, but detail quality is degraded. | **ENHANCEMENT, NOT A SAFETY BLOCKER** |
 | Canonical action | Candidate interest remains candidate-owned and does not automatically create an application or submission. | **READY** |
@@ -248,6 +248,12 @@ The current schema can store the approved role safely in supported fields, but t
 3. Add a regression test proving this role displays the approved pay and never displays `Estimated Market Range`.
 
 A structured salary schema is preferable but is **not mandatory solely to publish this first role** if the explicit compensation reaches every candidate detail surface truthfully and is covered by tests.
+
+### Repair implementation status
+
+Draft backend PR [#7](https://github.com/saifulshahrin/terrerhr-app/pull/7) implements the smallest contract repair using nullable `public.jobs.compensation_text` and `CandidateOpportunity.salaryText`. Its local migration replay, focused contract/auth tests, build and static ledger validation passed. It does not insert the role or change an environment.
+
+Publication remains blocked because PR #7 is unmerged and undeployed, and the separate `terrer-web` repair must still consume `salaryText`, remove candidate-facing estimated ranges, provide EN/BM undisclosed states and pass cross-surface tests.
 
 ### Later enhancements, not launch blockers
 
@@ -368,7 +374,7 @@ No insert SQL is supplied. The role must remain absent until incorporation, cont
 3. Obtain qualified Malaysian payroll/employment review of the actual contract-of-service agreement, RM1,000 monthly pay basis, 10-hour target/12-hour ceiling and working-time controls.
 4. Confirm payroll, payslip, tax/PCB, timekeeping and required employer registrations are ready or scheduled before the employee starts.
 5. Confirm EPF/KWSP, SOCSO, EIS, leave, public-holiday, rest-day, overtime and recordkeeping treatment for the selected employee and arrangement.
-6. Approve and implement the smallest salary-truthfulness repair, including the no-estimate regression test, before insertion or publication.
+6. Review and merge backend PR #7, then implement and approve the separate web no-estimate repair before any deployment, insertion or publication.
 7. Select the actual publication date; schedule review 30 days later before any renewal.
 8. Give final publication approval only after every mandatory gate is READY.
 
