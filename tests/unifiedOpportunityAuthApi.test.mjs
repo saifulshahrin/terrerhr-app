@@ -10,6 +10,7 @@ const canonical = {
   company_name: 'Terrer client',
   location: 'Kuala Lumpur',
   job_description_text: 'Canonical summary',
+  compensation_text: 'RM1,000 per month',
   external_job_url: null,
   posted_date: '2026-07-31T00:00:00Z',
   created_at: '2026-07-30T00:00:00Z',
@@ -156,6 +157,8 @@ test('catalogue uses only the authenticated candidate match context and redacts 
   const payload = await response.json();
   assert.deepEqual(new Set(calls.matchCandidateIds), new Set(['candidate-a']));
   assert.deepEqual(new Set(payload.opportunities.map((item) => item.origin)), new Set(['canonical_terrer', 'external']));
+  assert.equal(payload.opportunities.find((item) => item.origin === 'canonical_terrer').salaryText, 'RM1,000 per month');
+  assert.equal(payload.opportunities.find((item) => item.origin === 'external').salaryText, null);
   assert.equal(JSON.stringify(payload).includes('review_notes'), false);
   assert.equal(JSON.stringify(payload).includes('reviewed_by'), false);
   assert.equal(JSON.stringify(payload).includes('source_reference_id'), false);
@@ -209,6 +212,7 @@ test('edge adapter preserves protected RPC and canonical isolation boundaries', 
   const edgeSource = readFileSync(new URL('../supabase/functions/unified-opportunities/index.ts', import.meta.url), 'utf8');
   const schemaSource = readFileSync(new URL('../supabase/migrations/20260731035000_unified_opportunity_surface_schema.sql', import.meta.url), 'utf8');
   assert.match(edgeSource, /create_external_opportunity_review_trusted/);
+  assert.match(edgeSource, /CANONICAL_SELECT[\s\S]*compensation_text/);
   assert.doesNotMatch(edgeSource, /web_job_interest|applications|submissions|representation/);
   assert.match(schemaSource, /grant execute[\s\S]*create_external_opportunity_review_trusted[\s\S]*to service_role/);
   assert.match(schemaSource, /revoke all[\s\S]*create_external_opportunity_review_trusted[\s\S]*from public, anon, authenticated/);

@@ -85,6 +85,7 @@ function candidateSafeOpportunity(opportunity: CandidateOpportunity): CandidateO
     company: opportunity.company,
     location: opportunity.location,
     summary: opportunity.summary,
+    salaryText: opportunity.salaryText,
     sourceUrl: opportunity.sourceUrl,
     publishedAt: opportunity.publishedAt,
     discoveredAt: opportunity.discoveredAt,
