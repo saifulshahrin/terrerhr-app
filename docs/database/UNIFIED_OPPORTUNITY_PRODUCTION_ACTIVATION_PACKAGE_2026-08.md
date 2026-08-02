@@ -6,6 +6,26 @@
 
 No migration, deployment, secret/configuration change, Auth mutation, inventory insert, test login, or production/staging write was performed while preparing this package. Do not execute any gate until its named approver has approved the production change window.
 
+### Gate 0 decision record — completed 2026-08-02
+
+| Decision | Recorded approval |
+|---|---|
+| Production change window | Approved for **3 August 2026, 10:00 AM–12:00 PM MYT (UTC+8)** |
+| Production Edge Function deployment | Approved, subject to all later gates passing |
+| Production origins | Both `https://terrerhr.com` and `https://www.terrerhr.com` approved |
+| Controlled production test identity | Approved |
+| Single candidate mapping and temporary retention | Approved |
+| Canonical launch opportunity | `Part-Time Marketing & Growth Coordinator`; internal employer `Agensi Pekerjaan TerrerHR Sdn Bhd`; candidate-facing employer `Confidential Employer` |
+| External opportunities | All four proposed records approved, subject to execution-day source reverification |
+| External-review owner | `Terrer Recruiter` |
+| Review SLA | Approved: acknowledge within 1 business day; complete/close within 3 business days or communicate delay |
+| Candidate support owner | `Terrer Admin / Recruiter` |
+| Candidate data steward | `S Shahrin` |
+| Technical monitoring owner | `S Shahrin` |
+| Final GO and rollback authority | `S Shahrin` |
+
+Gate 0 is complete. These approvals authorize progression to Gate 1 during the approved window; they do not authorize skipping any gate or treating a failed check as passed.
+
 ## 1. Read-only recheck — 2026-08-02 (Asia/Kuala_Lumpur)
 
 The audit facts are unchanged:
@@ -256,7 +276,30 @@ Inventory requires separate user approval and insertion design review. Nothing b
 
 ### Canonical minimum
 
-Select **one real, actively recruited Terrer client job** already approved by its internal owner. Publish it through the existing canonical `candidate_web_jobs` workflow only after verifying `jobs.operational_status`, employer visibility, title/company/location, owner, and publication status. No suitable record can be named from aggregate-only production evidence without exposing or guessing business data; **USER SELECTION REQUIRED**.
+The approved canonical launch opportunity is:
+
+| Field | Approved value |
+|---|---|
+| Internal employer | `Agensi Pekerjaan TerrerHR Sdn Bhd` |
+| Candidate-facing employer | `Confidential Employer` |
+| Candidate-facing company description | `Malaysia-based recruitment and hiring technology company` |
+| Job title | `Part-Time Marketing & Growth Coordinator` |
+| Vacancy status | Genuine internal TerrerHR vacancy |
+| Location | Remote within Malaysia |
+| Time | Approximately 10–12 hours per week; flexible schedule |
+| Proposed pay | RM1,000 per month |
+| Scope boundary | Not a CMO or Marketing Manager role |
+
+**Validation:** this is sufficiently specified as the selected canonical opportunity for controlled activation and internal record preparation. It is **conditionally publication-ready**, not unconditionally publishable. Before insertion or publication, the responsible owner must:
+
+1. confirm `Agensi Pekerjaan TerrerHR Sdn Bhd` is legally incorporated and ready to enter the employment arrangement;
+2. approve a complete candidate-facing role description, responsibilities, qualifications, engagement/contract duration, reporting arrangement, expected start timing, and application/contact process;
+3. validate the final pay, hours, worker classification, written terms, statutory contributions and all other obligations against applicable Malaysian employment and wage requirements; and
+4. confirm the canonical `jobs` record is operationally active and owned, then publish only through `candidate_web_jobs`.
+
+Failure of the incorporation or employment-compliance prerequisite is a hard stop: the vacancy must not be inserted as eligible or published.
+
+Employer confidentiality is mandatory. The current canonical API selects and exposes `jobs.company_name`, while its candidate DTO exposes that value as `company`; it does not expose `jobs.company_id`. The safe existing-contract implementation is therefore to store `Confidential Employer` in the candidate-facing `jobs.company_name`, associate the true incorporated employer through an access-controlled internal `company_id`/company record and internal ownership evidence, and use only the approved generic company description in candidate-facing description content. This pattern is technically sufficient without changing the approved Unified Opportunity schema, provided catalog/RLS checks prove the internal company relation is not candidate-readable. Candidate-facing API/DTO, cards, search, detail pages, metadata and logs must not expose or permit inference of the internal employer name. Disclosure requires separate explicit Terrer approval. Before publication, test ordinary candidate reads, direct Data API access, browser network payloads, search/detail rendering and logs for this separation.
 
 ### Proposed external set
 
@@ -273,11 +316,11 @@ Before authorized insertion, re-fetch every page, confirm the title/location/ref
 
 | Responsibility | Minimum requirement | Owner |
 |---|---|---|
-| External review queue | Review during business hours; acknowledge within 1 business day; complete/close within 3 business days or communicate delay | Recruitment Operations Lead — **USER ASSIGNMENT REQUIRED** |
-| Candidate support | Own login, confirmation, recovery, and mapping tickets; respond within 1 business day | Candidate Support Owner — **USER ASSIGNMENT REQUIRED** |
-| Mapping exceptions | Verify normalized email aggregate, never disclose another candidate, escalate duplicates to data steward, record resolution | Candidate Data Steward — **USER ASSIGNMENT REQUIRED** |
-| Technical monitoring | Own alerts, dashboards, incident triage and PII-safe evidence | Production Engineering On-call — **USER ASSIGNMENT REQUIRED** |
-| Rollback decision | Sole authority to stop exposure/withdraw function after a failed gate or incident | Production Change Owner — **USER ASSIGNMENT REQUIRED** |
+| External review queue | Review during business hours; acknowledge within 1 business day; complete/close within 3 business days or communicate delay | Terrer Recruiter |
+| Candidate support | Own login, confirmation, recovery, and mapping tickets; respond within 1 business day | Terrer Admin / Recruiter |
+| Mapping exceptions | Verify normalized email aggregate, never disclose another candidate, escalate duplicates to data steward, record resolution | S Shahrin |
+| Technical monitoring | Own alerts, dashboards, incident triage and PII-safe evidence | S Shahrin |
+| Rollback decision | Sole authority to stop exposure/withdraw function after a failed gate or incident | S Shahrin |
 
 Minimum monitoring:
 
@@ -335,31 +378,22 @@ No failed step may be waived during the run. Record request IDs and aggregate ev
 
 | Gate | Exact action | Evidence required | Stop condition | Rollback/disable | Responsible role |
 |---|---|---|---|---|---|
-| 0 — User approval | Approve window, both domains, backend deployment, test identity/mapping, inventory, SLA, owners and rollback authority | Written approval naming scope and roles | Any choice missing | Do not start | Product Owner / Production Change Owner — **USER ASSIGNMENT REQUIRED** |
-| 1 — Backup and baseline | Verify current backup/PITR availability; run preflight and baseline SQL; pin commits | Backup status, project ref, clean checkout, ledger and counts | Wrong project/ledger, missing dependency/backup, drift | Do not mutate; investigate | DBA / Production Engineer — **USER ASSIGNMENT REQUIRED** |
+| 0 — User approval | Completed: window, both domains, backend deployment, test identity/mapping, inventory, SLA, owners and rollback authority recorded above | This committed decision record | Decision record changed or withdrawn | Do not start; return to Gate 0 | S Shahrin |
+| 1 — Backup and baseline | Verify current backup/PITR availability; run preflight and baseline SQL; pin commits | Backup status, project ref, clean checkout, ledger and counts | Wrong project/ledger, missing dependency/backup, drift | Do not mutate; investigate | Designated DBA / Production Engineer |
 | 2 — Migrations | Dry-run confirms exactly two; apply in order; run full acceptance and compact validation | Ledger rows, all expected catalog/ACL results, zero forbidden rows | Any extra migration, SQL error, failed boolean/ACL | Stop exposure; preserve schema; forward-fix under review | DBA / Production Engineer |
 | 3 — Function and secrets | Confirm secret names/origins; deploy pinned function with JWT; run preflight/negative/auth rejection tests | ACTIVE metadata, version/time/hash, JWT true, exact CORS results | Missing/unsafe secret, wildcard, wrong ref, any negative test failure | Withdraw function/origins; retain DB | Production Engineer |
 | 4 — Auth/test identity | Verify provider/email/redirect/SMTP/reset/rates/session; authorize and establish exactly one test mapping | Checklist evidence; delivery results; aggregate mapping `=1` for test | Email failure, unsafe redirect, zero/multiple mapping | Revoke test sessions; stop test; no real-candidate action | Auth Admin + Data Steward |
 | 5 — Inventory | User selects canonical record and approves external set; reverify direct URLs; insert through separately reviewed idempotent mechanism | Approval, live URLs, timestamps, collision checks, eligible counts | Any stale/unapproved/colliding record | Suppress exposure; preserve records for audit | Recruitment Operations + Data Steward |
-| 6 — Smoke test | Execute all 16 steps with controlled account and before/after counts | Complete pass sheet, request IDs, zero canonical deltas | Any failed step or unexpected write | Stop web exposure and withdraw function access | QA Lead + Production Engineer — **USER ASSIGNMENT REQUIRED** |
+| 6 — Smoke test | Execute all 16 steps with controlled account and before/after counts | Complete pass sheet, request IDs, zero canonical deltas | Any failed step or unexpected write | Stop web exposure and withdraw function access | Designated QA Lead + Production Engineer |
 | 7 — GO/rollback | Review every gate and choose controlled release or rollback | Signed gate record and blocker-free evidence | Missing evidence, security/isolation defect, unresolved blocker | Execute non-destructive rollback plan | Production Change Owner |
 | 8 — Monitoring | Restrict release audience; perform launch-week daily checks and SLA handling | Dashboard/alerts, daily log, staffed queue | Sustained errors/latency, PII, SLA breach, integrity anomaly | Change Owner stops exposure; incident workflow | On-call + Operations + Support |
 
-## 9. Exact user decisions required
+## 9. User decisions status
 
-1. Approve the production migration/deployment window and its duration.
-2. Approve deployment of `unified-opportunities` to `tlufttnmwtjbuhjcrqmp` after the two migrations pass.
-3. Confirm both exact production origins remain supported: `https://terrerhr.com` and `https://www.terrerhr.com`.
-4. Approve the dedicated controlled production test identity and controlled mailbox.
-5. Approve creating exactly one clearly labelled matching candidate record and its post-test retention/removal treatment.
-6. Select and approve one real canonical Terrer opportunity for the launch inventory.
-7. Approve, reject, or amend the four proposed external opportunities above after execution-day reverification.
-8. Assign the Recruitment Operations review owner and approve the proposed 1-business-day acknowledgement / 3-business-day completion SLA.
-9. Assign Candidate Support, Candidate Data Steward, and Production Monitoring owners.
-10. Assign the Production Change Owner with final GO/rollback authority.
+All Gate 0 user decisions are recorded in the decision table above. Routine technical execution may begin only during the approved window and must still stop on any failed later gate.
 
-Everything else in the runbook is routine technical execution once these decisions and the change window are approved.
+The remaining prerequisites are evidence gates, not open Gate 0 choices: incorporation and legal-employer readiness; compliant final employment terms; complete candidate-facing role content; production backup/baseline; Auth/email readiness; unique test mapping; execution-day source checks; all migration/function/catalog/security tests; confidentiality verification; and the complete controlled smoke test. Any failed prerequisite requires S Shahrin's explicit GO/rollback decision and does not silently consume the prior approval.
 
 ## Package decision
 
-The package is executable and reviewable, but production remains **NO-GO** until Gate 0 decisions and all subsequent gates pass. A staging pass or this documentation package does not authorize production activation.
+Gate 0 decisions are complete. Production remains **NO-GO pending Gates 1–7**, including the incorporation/employment and confidentiality prerequisites for the canonical vacancy. A staging pass, Gate 0 completion, or this documentation package does not by itself authorize production activation.
