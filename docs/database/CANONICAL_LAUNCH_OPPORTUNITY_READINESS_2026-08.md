@@ -2,13 +2,14 @@
 
 ## Decision
 
-**BLOCKED — NOT PUBLICATION-READY.** The proposed role is credible and its content can be scoped honestly to approximately 10 hours per week, but mandatory gates remain unresolved:
+**BLOCKED — NOT PUBLICATION-READY.** The role, public employer identity and operating terms are now approved for planning, but mandatory gates remain unresolved:
 
 1. incorporation and employer/payroll readiness are unverified;
-2. worker classification and written terms require user confirmation and qualified Malaysian employment advice;
-3. the three-month proposed duration is not approved;
-4. the current canonical schema/API/web path cannot represent the agreed pay and employment terms faithfully; and
-5. the requested absolute employer-confidentiality rule cannot be met by the current data model and web bundle.
+2. the actual contract-of-service terms, payroll treatment and statutory obligations require qualified Malaysian professional confirmation;
+3. written employment terms are not yet ready; and
+4. the current candidate detail UI fabricates an estimated market salary because the canonical API/DTO supplies no salary field, contradicting the approved RM1,000 monthly pay.
+
+The former strict employer-confidentiality requirement is withdrawn for this Terrer-owned vacancy and is no longer a launch blocker. Future confidential-client opportunities remain a separate architecture feature.
 
 This is a preparation and static-validation artifact, not legal advice or publication authorization. No production or staging data, schema, Auth, functions, secrets, CORS, Vercel configuration, or inventory was changed.
 
@@ -17,15 +18,22 @@ This is a preparation and static-validation artifact, not legal advice or public
 | Item | Decision |
 |---|---|
 | Internal employer | Agensi Pekerjaan TerrerHR Sdn Bhd, subject to incorporation/readiness proof |
-| Public employer | Confidential Employer |
-| Public company description | Malaysia-based recruitment and hiring technology company |
+| Public employer | TerrerHR |
+| Public company description | Malaysia-first recruitment and hiring technology company |
 | Title | Part-Time Marketing & Growth Coordinator |
 | Location | Remote within Malaysia |
 | Expected commitment | Target approximately 10 hours/week; planned ceiling 12 hours/week unless compensation and terms are reviewed again |
 | Pattern | Flexible schedule around agreed responsibilities, deliverables and approval points |
 | Proposed pay | RM1,000/month, subject to classification and compliance validation |
+| Initial duration | Three months |
 | Seniority | Coordinator-level, part-time; not CMO, Head of Marketing, Marketing Manager, or executive leadership |
 | Start | Mutually agreed only after employer, contract and payroll readiness |
+| Publication period | 30 days initially, with review before renewal |
+| Reporting owner | Founder / S Shahrin |
+| Language | Working proficiency in English and Bahasa Melayu required |
+| Equipment | Candidate supplies a suitable laptop, internet connection and ordinary work tools |
+| Expenses | Pre-approved business expenses reimbursed by TerrerHR against receipts |
+| Other work/clients | Permitted if there is no conflict of interest, confidentiality breach or failure to meet agreed commitments |
 
 ## 1. Employer and legal-readiness gate
 
@@ -49,14 +57,14 @@ The source review does not verify the specific company, payroll account, insuran
 | Legal incorporation | **USER CONFIRMATION REQUIRED** | No company number, SSM profile, certificate or incorporation date was supplied. Obtain and verify the SSM certificate/profile and legal name before creating the internal employer record. |
 | Capacity to employ/sign | **USER CONFIRMATION REQUIRED** | Confirm directors/authorized signatory, registered employer details, bank/payroll ability, address and written-offer authority. |
 | First-worker registrations | **USER CONFIRMATION REQUIRED** | Confirm required KWSP/EPF and PERKESO registrations, employee enrolment, payroll cycle, tax/PCB handling where applicable, and any sector/recruitment-licence implications before start. |
-| Intended relationship | **BLOCKED** | The facts currently lean employee-like; classification must be approved from the actual agreement and working reality. Do not label contractor merely to avoid obligations. |
+| Intended relationship | **READY FOR PLANNING; PROFESSIONAL CONFIRMATION REQUIRED** | Plan as employee-like / contract of service. The final agreement and working reality require qualified Malaysian payroll/employment review. Do not relabel as contractor to avoid obligations. |
 | Minimum wage — hourly screen | **READY WITH CONDITION** | At 12 hours/week, average monthly hours are `12 × 52 ÷ 12 = 52`; RM1,000/52 ≈ **RM19.23/hour**. At 10 hours/week it is ≈ **RM23.08/hour**. Both exceed the Order's RM8.72 hourly schedule, provided all working time stays within the documented ceiling and no unpaid time is required. |
 | Minimum wage — monthly/application basis | **USER CONFIRMATION REQUIRED** | RM1,000 is below the RM1,700 full monthly minimum. Whether and how the hourly/daily schedule or lawful part-time calculation applies depends on classification, normal hours and written terms. Obtain payroll/legal confirmation; do not rely only on the arithmetic above. |
 | EPF/KWSP | **USER CONFIRMATION REQUIRED** | If a contract of service/employee relationship applies and the worker is within coverage, registration and contributions may be mandatory. Confirm worker category and current rates with KWSP/payroll adviser. |
 | SOCSO and EIS | **USER CONFIRMATION REQUIRED** | Confirm coverage, registration and contribution treatment with PERKESO for the selected worker and arrangement. Do not infer exemption from part-time hours. |
 | Payroll/payslip/written terms | **BLOCKED** | No approved written contract, payroll process, itemized pay statement process, time record, deduction treatment or payment date exists in evidence. Prepare before publication. |
 | Leave/public holiday/rest-day/part-time rights | **USER CONFIRMATION REQUIRED** | If under a contract of service, confirm applicable Employment Act and part-time/casual employee treatment, including holidays, leave, rest days, overtime and records. At 10–12 hours/week the relationship may fall below the statutory part-time percentage threshold relative to a comparable full-time employee, so obtain qualified classification advice rather than assuming the Part-Time Employees Regulations apply. |
-| Start-date condition | **READY** | Candidate copy and offer must keep start mutually agreed and conditional on incorporation, registrations, classification, signed terms and payroll readiness. |
+| Start-date condition | **READY** | Candidate copy and offer must keep start mutually agreed and conditional on incorporation, registrations, qualified review, signed terms and payroll readiness. |
 
 ### Worker-classification assessment
 
@@ -70,12 +78,12 @@ Current intended facts point more strongly toward a **contract of service / empl
 | Payment | Fixed recurring monthly RM1,000, not a price for a discrete project. |
 | Integration | Marketing execution, content calendar, launch support and reporting are integrated into Terrer's ordinary operations. |
 | Deliverables vs duties | Mix of deliverables and continuing duties; continuing duties dominate the proposed scope. |
-| Exclusivity/other clients | Not specified. Must be expressly decided. |
-| Equipment/expenses | Not specified. Must be expressly decided. |
+| Exclusivity/other clients | Other work is permitted subject to conflicts, confidentiality and agreed commitments. |
+| Equipment/expenses | Candidate supplies ordinary equipment; TerrerHR reimburses pre-approved business expenses against receipts. |
 | Substitution/business risk | No right of substitution or independent profit/loss model is specified. |
 | Remote/flexible work | Supports autonomy but is not decisive by itself. |
 
-**Classification: BLOCKED pending confirmation.** A qualified Malaysian employment adviser/payroll professional should review the final facts and agreement. If contract-of-service treatment is selected, apply employment, payroll and statutory-contribution obligations. If genuine contractor treatment is selected, the real operating model—not merely the document label—must support independence, control over methods, business risk and non-integration.
+**Planning classification: employee-like / contract of service.** This user decision closes the planning-choice ambiguity but does not complete legal/payroll readiness. A qualified Malaysian employment or payroll professional must review the final agreement, wage basis, working-time controls, payroll treatment and statutory obligations before publication. The role must not be relabelled as an independent contractor merely to avoid those obligations.
 
 ## 2. Proposed publication-ready job specification
 
@@ -83,9 +91,9 @@ Current intended facts point more strongly toward a **contract of service / empl
 
 #### Part-Time Marketing & Growth Coordinator
 
-**Employer:** Confidential Employer
+**Employer:** TerrerHR
 
-**Company:** Malaysia-based recruitment and hiring technology company
+**Company:** Malaysia-first recruitment and hiring technology company
 
 **Location:** Remote within Malaysia
 
@@ -95,7 +103,8 @@ Current intended facts point more strongly toward a **contract of service / empl
 
 **Proposed compensation:** RM1,000 per month, subject to final classification, written terms and compliance validation
 
-**Initial term:** Proposed three-month part-time engagement, subject to user approval, performance and business requirements; extension only by mutual written agreement
+**Initial term:** Three-month part-time engagement; any renewal requires review and mutual written agreement
+
 **Start:** To be mutually agreed after employer, contractual and payroll readiness
 
 **Role purpose**
@@ -117,8 +126,8 @@ The role does not own company-wide strategy, executive marketing leadership, pai
 
 **Qualifications**
 
-- Clear written communication in English.
-- Bahasa Melayu capability preferred; required level to be confirmed against the agreed channel plan.
+- Required working proficiency in English.
+- Working proficiency in Bahasa Melayu for Malaysia-facing content.
 - Comfortable with social media and simple design/content tools.
 - Organized, dependable and able to complete agreed work independently.
 - Basic familiarity with spreadsheets or simple reporting.
@@ -129,7 +138,11 @@ Senior-management or executive-marketing experience is not required.
 
 **Reporting**
 
-Reports to the Founder or a designated Terrer management representative. The named representative and approval cadence must be stated in the written terms.
+Reports to the Founder / S Shahrin. The approval cadence must be stated in the written terms.
+
+**Equipment, expenses and other work**
+
+The employee supplies a suitable laptop, internet connection and ordinary work tools. TerrerHR reimburses pre-approved business expenses against receipts. Other work or clients are permitted provided there is no conflict of interest, confidentiality breach or failure to meet agreed commitments.
 
 **Application and selection**
 
@@ -142,17 +155,17 @@ Reports to the Founder or a designated Terrer management representative. The nam
 
 There is no applicant fee and no automatic submission to another employer.
 
-**Confidentiality copy**
+**Employer identity copy**
 
-> This is an internally owned Terrer opportunity. The employing entity's legal name is confidential during initial review. Terrer will disclose it to suitable candidates before any formal employment discussion or request for acceptance. No candidate will be asked to accept employment terms without knowing the legal employer.
+> This is a TerrerHR-owned vacancy, not a confidential third-party client opportunity. The intended legal employer is Agensi Pekerjaan TerrerHR Sdn Bhd, subject to incorporation and employer-readiness confirmation. The full legal entity details will be included in formal employment discussions and written terms.
 
 ### Bahasa Melayu candidate copy
 
 #### Penyelaras Pemasaran & Pertumbuhan Sambilan
 
-**Majikan:** Majikan Sulit
+**Majikan:** TerrerHR
 
-**Syarikat:** Syarikat teknologi pengambilan dan penggajian yang berpangkalan di Malaysia
+**Syarikat:** Syarikat teknologi pengambilan dan penggajian berfokus Malaysia
 
 **Lokasi:** Jarak jauh dalam Malaysia
 
@@ -162,7 +175,8 @@ There is no applicant fee and no automatic submission to another employer.
 
 **Cadangan bayaran:** RM1,000 sebulan, tertakluk kepada pengelasan, terma bertulis dan pengesahan pematuhan
 
-**Tempoh awal:** Cadangan tiga bulan, tertakluk kepada kelulusan pengguna, prestasi dan keperluan perniagaan; lanjutan melalui persetujuan bertulis bersama sahaja
+**Tempoh awal:** Tiga bulan; sebarang pembaharuan memerlukan semakan dan persetujuan bertulis bersama
+
 **Mula:** Dipersetujui bersama selepas majikan, kontrak dan penggajian bersedia
 
 **Tujuan peranan**
@@ -184,26 +198,24 @@ Peranan ini tidak memiliki strategi seluruh syarikat, kepimpinan pemasaran eksek
 
 **Kelayakan**
 
-- Komunikasi bertulis bahasa Inggeris yang jelas.
-- Keupayaan Bahasa Melayu diutamakan; tahap wajib perlu disahkan mengikut pelan saluran.
+- Kemahiran kerja dalam bahasa Inggeris diperlukan.
+- Kemahiran kerja dalam Bahasa Melayu diperlukan untuk kandungan yang ditujukan kepada pasaran Malaysia.
 - Selesa menggunakan media sosial dan alat reka bentuk/kandungan mudah.
 - Teratur, boleh dipercayai dan mampu menyiapkan kerja yang dipersetujui secara berdikari.
 - Pengetahuan asas hamparan atau pelaporan mudah.
 - Minat dalam pengambilan, teknologi HR atau syarikat peringkat awal.
 - Pelajar, graduan baharu dan pemohon awal kerjaya boleh dipertimbangkan jika sesuai dari segi undang-undang dan operasi.
 
-**Kerahsiaan**
+**Identiti majikan**
 
-> Ini ialah peluang dalaman milik Terrer. Nama sah entiti yang menggaji dirahsiakan semasa semakan awal. Terrer akan mendedahkannya kepada calon yang sesuai sebelum sebarang perbincangan pekerjaan rasmi atau permintaan penerimaan. Tiada calon akan diminta menerima terma pekerjaan tanpa mengetahui majikan yang sah.
+> Ini ialah kekosongan milik TerrerHR, bukan peluang pelanggan pihak ketiga yang dirahsiakan. Majikan sah yang dimaksudkan ialah Agensi Pekerjaan TerrerHR Sdn Bhd, tertakluk kepada pengesahan pemerbadanan dan kesediaan majikan. Butiran entiti sah penuh akan disertakan dalam perbincangan pekerjaan rasmi dan terma bertulis.
 
-## 3. Employer-confidentiality data-flow audit
+## 3. Publication data-path reassessment
 
 ### Static path
 
 ```text
-public.companies / internal employer evidence
-        ↓ company_id (currently not FK-enforced on jobs)
-public.jobs
+public.jobs (`company_name = TerrerHR`, approved terms in description)
         ↓ job_id
 public.candidate_web_jobs (published marker)
         ↓ service-role read in Edge Function
@@ -214,42 +226,37 @@ publicJobs mapping
         └─ canonical action → web_job_interest snapshot → My Activity
 ```
 
-### Findings
+### Launch-specific findings
 
 | Surface | Finding | Result |
 |---|---|---|
-| Underlying `companies` | `company_name` stores true identity, but repository policies grant anonymous and authenticated SELECT. It is not a suitable confidential ownership store. | **BLOCKED** |
-| `jobs` | Supports `company_id` and `company_name`, but `company_id` has no captured FK to `companies`; no confidentiality flag or separate public employer fields. | **BLOCKED** |
-| `candidate_web_jobs` | Public marker exposes `job_id`; has no public company display/description, confidentiality flag, effective/expiry/review fields. | **BLOCKED** |
-| Edge Function | Canonical SELECT includes `company_name`, `job_description_text`, `external_job_url`, dates and role family. It excludes `company_id`, source and job-source metadata, which is positive. It nevertheless treats `jobs.company_name` as public and cannot enforce a separate display contract. | **BLOCKED** |
-| Candidate DTO | Exposes `company`, summary and source URL. It lacks explicit public company description, compensation, hours, work arrangement, employment type, responsibilities, qualifications, seniority, expiry and confidentiality. | **BLOCKED** |
-| Cards/search/filters | Render and search DTO `company`; safe only if upstream value is exactly `Confidential Employer`. No separate enforcement. | **READY WITH CONDITION** |
-| Detail page | Renders `companyName`; metadata is generic. However missing salary causes a generated estimated market range that would misstate this RM1,000/month role, and responsibilities/qualifications are lost in unified mapping. | **BLOCKED** |
-| Structured data | No job-specific JSON-LD path was found. | **READY** |
-| URLs/slugs/IDs | Opportunity URL uses opaque opportunity/job ID, not company/title. Must generate an opaque UUID and keep `job_id`, source IDs and URLs free of employer names. | **READY WITH CONDITION** |
-| Source URL | Canonical DTO exposes `external_job_url`. It must be null for this role; an internal/corporate URL could reveal identity. | **READY WITH CONDITION** |
-| My Matches | Consumes the same public DTO and company display. Match evidence must not contain the internal name. | **READY WITH CONDITION** |
-| Canonical action | Writes public `job.companyName` into `web_job_interest`, so setting the public display upstream is essential. Lifecycle remains candidate-owned and does not automatically create an application/submission. | **READY WITH CONDITION** |
-| My Activity | Prefers the stored `web_job_interest.company_name`; the fallback jobs query is normally denied to candidate RLS. Safe only if snapshot is `Confidential Employer`. | **READY WITH CONDITION** |
-| Saved records | `web_job_interest` snapshots public title/company; no internal employer should be copied. | **READY WITH CONDITION** |
-| Analytics/logs | No dedicated opportunity analytics payload was found. Browser `console.error` receives error objects; server logs are deliberately structured. Add explicit regression assertions against names in telemetry/errors. | **READY WITH CONDITION** |
-| Browser bundle/HTML | The web repository's global `companyDetails.legalName` contains `Agensi Pekerjaan TerrerHR Sdn Bhd` and is rendered on About/Contact/employer pages. The strict rule that the name be absent from the browser bundle and HTML is therefore false even before this opportunity exists. | **BLOCKED** |
+| Employer identity | `jobs.company_name` flows consistently through the Edge Function, DTO, cards, search, details and interest snapshots. Using `TerrerHR` is truthful and approved. | **READY** |
+| Legal entity disclosure | The public website may already name Agensi Pekerjaan TerrerHR Sdn Bhd. The withdrawn strict non-inference rule no longer conflicts with the bundle or metadata. Formal terms must identify the verified legal employer. | **READY WITH INCORPORATION CONDITION** |
+| `jobs` content | Existing fields support title, public company, location, description, responsibilities, qualifications, seniority and operational metadata. Approved hours, pay, duration, schedule, equipment, expenses and conditions can be stated verbatim in `job_description_text`. | **SUPPORTED, UNSTRUCTURED** |
+| `candidate_web_jobs` | Existing status and publication timestamp can gate initial publication. It has no expiry field, so the approved 30-day review must initially be an operational control. | **READY WITH MANUAL CONTROL** |
+| Edge Function / DTO | Canonical output supplies company, location and description summary but no salary or structured employment terms. | **BLOCKED FOR COMPENSATION TRUTHFULNESS** |
+| Candidate detail | When `salary` is absent, `buildCompensationFields` generates and labels an `Estimated Market Range`. The canonical DTO does not supply salary, so this role would show an invented range instead of the approved RM1,000/month. | **BLOCKED** |
+| Responsibilities/qualifications | The unified mapping currently reduces canonical content to a summary and sets these fields to null. The approved description can still carry the copy, but detail quality is degraded. | **ENHANCEMENT, NOT A SAFETY BLOCKER** |
+| Canonical action | Candidate interest remains candidate-owned and does not automatically create an application or submission. | **READY** |
 
-### Technical conclusion
+### Mandatory repair before publication
 
-The current path can avoid **directly linking** the opportunity to the true employer by storing `Confidential Employer` in `jobs.company_name`, leaving `external_job_url`, `source_company_id` and semantic IDs null, and using only the public snapshot in interest records. It cannot prove the stricter approved rule that the true legal name is absent from candidate-facing database access, bundles and HTML.
+The current schema can store the approved role safely in supported fields, but the current end-to-end UI cannot publish it truthfully because it invents salary information. The smallest mandatory repair is web/API-contract scoped:
 
-The strict rule also conflicts with the current public website's corporate-disclosure content. The user must not be asked to weaken it implicitly. Publication remains blocked until one of these explicit designs is approved and implemented.
+1. For canonical opportunities, never generate an estimated salary when the employer has supplied compensation terms.
+2. Carry the approved compensation value (`RM1,000 per month`) explicitly through the canonical response/DTO into the detail model, or implement an equally explicit canonical no-estimate rule while rendering the approved compensation from the canonical description.
+3. Add a regression test proving this role displays the approved pay and never displays `Estimated Market Range`.
 
-### Smallest safe repair (not implemented)
+A structured salary schema is preferable but is **not mandatory solely to publish this first role** if the explicit compensation reaches every candidate detail surface truthfully and is covered by tests.
 
-1. Add publication-owned fields to `candidate_web_jobs`: `public_company_name`, `public_company_description`, `employer_confidential`, `publication_starts_at`, `publication_expires_at`, and `review_due_at`, with constraints requiring the public name/description and forbidding a source URL when confidential.
-2. Add structured canonical terms in a publication-safe table or columns: employment type, work arrangement, hours text/min/max, compensation text, currency, salary visibility, duration and start-condition text. Keep internal owner/audit fields staff-only.
-3. Create an access-controlled internal employer-ownership relation outside public candidate access, with an FK from job/publication to the true company. Do not rely on the anonymously readable `public.companies` row as the confidentiality boundary.
-4. Change the Edge Function to select public employer/terms from the publication contract and never select internal company identity for candidate responses. Extend `CandidateOpportunity` with public description, explicit pay, hours, work type, responsibilities, qualifications, seniority, expiry and confidentiality copy.
-5. Change web detail rendering to display explicit canonical compensation and terms verbatim; prohibit estimated salary when a canonical role has explicit or confidential terms. Preserve the values through `publicJobs`, My Matches, saved-interest snapshots and My Activity.
-6. Add static and runtime leak tests covering API JSON, direct Data API roles, HTML, metadata, JSON-LD, URLs, source links, search index, saved records, analytics, console and server logs.
-7. Resolve the absolute-bundle conflict by either separating the candidate opportunity application from corporate pages/build output or explicitly revising the rule to prohibit **association/linkage** rather than all occurrence of Terrer's public legal name. This is an architectural/user decision; no silent relaxation is allowed.
+### Later enhancements, not launch blockers
+
+- Add structured compensation, currency, pay period, employment type, target/maximum hours, duration and start-condition fields.
+- Add `publication_expires_at` / `review_due_at` and automated 30-day unpublishing or review controls.
+- Return full responsibilities, qualifications and seniority through the unified DTO.
+- Add localized English/Bahasa Melayu publication fields rather than embedding both copies in one description.
+- Add internal recruitment-owner and employer-ownership audit fields with appropriate access controls.
+- Build separate confidential-employer publication fields and leak tests for genuine client vacancies. Do not impose that future architecture on this Terrer-owned launch role.
 
 ## 4. Exact proposed record mapping (no insert)
 
@@ -260,16 +267,16 @@ Only captured real columns are listed. `RUNTIME` means generated at an approved 
 | Column | Proposed value | Classification |
 |---|---|---|
 | `id` | RUNTIME opaque UUID | Supported |
-| `external_job_url` | `null` | Supported; prevents source leakage |
+| `external_job_url` | `null` | Supported; this is not an external vacancy |
 | `job_title` | `Part-Time Marketing & Growth Coordinator` | Supported |
-| `company_name` | `Confidential Employer` | Supported public convention, not enforced |
+| `company_name` | `TerrerHR` | Supported and approved public employer display |
 | `location` | `Remote — Malaysia` | Supported |
 | `posted_date` | WITHHELD; approved publication date in unambiguous ISO text | Supported but weakly typed |
 | `source` | `terrer_internal` | Supported |
-| `source_company_id` | `null` | Supported; avoid semantic leak |
+| `source_company_id` | `null` | Supported; no external source company |
 | `extracted_at` | `null` | Supported; not scraped |
-| `job_id` | `null` | Supported; avoid semantic/identity leak |
-| `company_id` | WITHHELD pending private ownership repair and incorporated employer record | Internal operational metadata/schema repair required |
+| `job_id` | `null` | Supported; no external source job |
+| `company_id` | WITHHELD until incorporation is confirmed and the correct existing company record is verified | Optional internal linkage; not a public confidentiality gate |
 | `updated_at` | RUNTIME | Supported |
 | `operational_status` | `active` only after employer/readiness gates pass; otherwise `not_started` | Supported |
 | `last_seen_at` | RUNTIME publication verification time | Supported |
@@ -282,7 +289,7 @@ Only captured real columns are listed. `RUNTIME` means generated at an approved 
 | `role_family` | `Marketing / Growth` | Supported |
 | `seniority` | `Coordinator / Early career` | Supported |
 | `job_description_html` | `null` unless safely generated from approved copy | Supported |
-| `job_description_text` | Approved English public specification, including pay/hours/start/confidentiality | Supported, but API truncates it to summary |
+| `job_description_text` | Approved public specification, including employer, pay, hours, duration, schedule, equipment, expenses and conditional start | Supported, but API truncates it to summary |
 | `responsibilities` | Approved responsibility bullets as newline-separated text | Supported, but current Edge DTO does not return it |
 | `qualifications` | Approved qualification bullets as newline-separated text | Supported, but current Edge DTO does not return it |
 
@@ -302,18 +309,18 @@ Only captured real columns are listed. `RUNTIME` means generated at an approved 
 
 | Required concept | Current treatment | Required action |
 |---|---|---|
-| Public employer description | Can only be embedded in description | Application-layer projection + schema repair |
-| Work arrangement/employment type | Can only be embedded in description | Structured schema/API repair |
-| Compensation/currency/visibility | Can only be embedded; web estimates salary incorrectly | Structured schema/API/web repair — mandatory |
-| Hours min/target/max | Can only be embedded | Structured schema/API repair |
-| Duration/start condition | Can only be embedded | Structured schema/API repair |
-| Publication expiry/review date | Absent | Schema repair required |
-| Internal owner | Absent on job/publication | Internal operational metadata required |
-| Confidentiality flag | Absent | Schema/API repair required |
-| Internal employer ownership | Weak `jobs.company_id`, no captured FK; target company table publicly readable | Private ownership relation and access repair required |
-| BM copy | No canonical localized content fields | Localization/application-layer projection required |
+| Public employer description | Can be embedded in description | Later structured projection enhancement |
+| Work arrangement/employment type | Can be embedded in description | Later structured schema/API enhancement |
+| Compensation/currency/visibility | Can be embedded, but current detail UI invents a market estimate | Explicit API/DTO/web compensation or canonical no-estimate repair — **mandatory** |
+| Hours min/target/max | Can be embedded in description | Later structured schema/API enhancement |
+| Duration/start condition | Can be embedded in description | Later structured schema/API enhancement |
+| Publication expiry/review date | Absent | Manual 30-day review initially; later schema/automation enhancement |
+| Internal owner | Absent on job/publication | Operationally record Founder / S Shahrin; later metadata enhancement |
+| Confidentiality flag | Not required for this Terrer-owned role | Later feature for genuine confidential-client vacancies |
+| Internal employer ownership | `jobs.company_id` exists but lacks a captured FK | Later data-integrity enhancement; verify any linkage only after incorporation |
+| BM copy | No canonical localized content fields | Can be included in description initially; later localization enhancement |
 
-No exact insert SQL is supplied because the mandatory fields cannot yet be represented truthfully and safely. Producing an executable insert would invite bypass of the blockers.
+No insert SQL is supplied. The role must remain absent until incorporation, contract/payroll/statutory readiness and the salary-truthfulness repair all pass.
 
 ## 5. Candidate trust review
 
@@ -323,7 +330,7 @@ No exact insert SQL is supplied because the mandatory fields cannot yet be repre
 | Workload is genuinely part-time | Pass with condition: duties are scoped to 10 hours target/12-hour ceiling; channel and campaign priorities must be limited. |
 | Outcomes are realistic | Pass: no leadership or career promise. |
 | Compensation is visible | Content passes, current product fails because DTO lacks pay and detail estimates a market range. |
-| Employer wording is honest | Proposed copy states internally owned Terrer opportunity and does not imply a separate client. |
+| Employer wording is honest | Pass: public employer is TerrerHR and the copy explicitly says this is not a confidential third-party client vacancy. |
 | Readiness is not overstated | Pass: start and offer remain conditional. |
 | Work sample is fair | Pass with condition: brief/non-productive only. |
 | Data collection is proportionate | Pass: use existing Terrer profile; no extra sensitive data requested. |
@@ -334,40 +341,37 @@ No exact insert SQL is supplied because the mandatory fields cannot yet be repre
 | # | Mandatory gate | Status | Closure evidence |
 |---:|---|---|---|
 | 1 | Employer legally ready | **USER CONFIRMATION REQUIRED** | SSM and signatory evidence |
-| 2 | Worker classification approved | **BLOCKED** | Approved facts, agreement and qualified review |
+| 2 | Worker classification approved | **READY FOR PLANNING; BLOCKED FOR PUBLICATION** | Employee-like / contract-of-service planning decision recorded; final agreement and qualified review required |
 | 3 | Pay and maximum hours compliant | **READY WITH CONDITION** | Payroll/legal validation and enforceable time ceiling |
 | 4 | Written terms ready | **BLOCKED** | Signed-off contract template |
 | 5 | EPF/SOCSO/EIS treatment confirmed | **USER CONFIRMATION REQUIRED** | Registration/contribution determination |
 | 6 | Responsibilities proportionate | **READY** | Specification above |
 | 7 | Qualifications proportionate | **READY** | Specification above |
-| 8 | Duration approved | **USER CONFIRMATION REQUIRED** | Approve/reject proposed three months |
-| 9 | Reporting line approved | **READY WITH CONDITION** | Name designated representative before offer |
+| 8 | Duration approved | **READY** | Three-month initial duration approved |
+| 9 | Reporting line approved | **READY** | Founder / S Shahrin |
 | 10 | Start process approved | **READY** | Mutually agreed after all readiness gates |
 | 11 | Application process approved | **READY** | Canonical candidate-owned flow above |
-| 12 | True employer stored internally | **BLOCKED** | Private, FK-enforced staff-only ownership relation |
-| 13 | Public employer is Confidential Employer | **READY WITH CONDITION** | Publication-field constraint and API assertion |
-| 14 | No API identity leakage | **BLOCKED** | Repaired public projection + negative tests |
-| 15 | No metadata/URL/analytics/log leakage | **BLOCKED** | Full leak suite; resolve existing legal-name bundle conflict |
+| 12 | Employer identity truthful | **READY WITH INCORPORATION CONDITION** | Public TerrerHR display; verified legal entity in formal terms |
+| 13 | Public employer is TerrerHR | **READY** | User decision recorded |
+| 14 | Confidentiality architecture | **NOT APPLICABLE TO THIS ROLE** | Preserve as a later feature for genuine confidential-client vacancies |
+| 15 | Salary display is employer-supplied | **BLOCKED** | Remove canonical estimate fallback and display approved RM1,000/month; regression test required |
 | 16 | Canonical action lifecycle truthful | **READY** | Static API/action audit; runtime acceptance still required |
-| 17 | EN/BM candidate copy available | **READY WITH CONDITION** | Copy prepared; localized storage/rendering not implemented |
-| 18 | Publication and expiry dates approved | **BLOCKED** | User dates + schema support |
-| 19 | Internal recruitment owner assigned | **USER CONFIRMATION REQUIRED** | Name/role for this vacancy |
+| 17 | EN/BM candidate copy available | **READY WITH CONDITION** | Both copies prepared; structured localization remains an enhancement |
+| 18 | Publication period approved | **READY WITH MANUAL CONTROL** | 30 days initially; record publication date and review before renewal |
+| 19 | Internal recruitment owner assigned | **READY** | Founder / S Shahrin |
 | 20 | Final publication approval recorded | **BLOCKED** | Approval after all gates pass |
 
 ## 7. Unresolved user decisions
 
-1. Confirm incorporation, SSM details, authorized signatory and employer readiness.
-2. Approve the actual worker classification after qualified review.
-3. Confirm EPF, SOCSO, EIS, payroll, payslip, tax/PCB, leave/holiday/rest-day and recordkeeping treatment.
-4. Approve or amend the proposed initial three-month term.
-5. Decide Bahasa Melayu proficiency level: preferred or required.
-6. Name the Founder/designated manager and internal recruitment owner.
-7. Decide equipment, reimbursable expenses, exclusivity/other-client rights and work-time recording.
-8. Approve publication start, review-due and expiry dates.
-9. Approve the confidentiality architecture: strict absence via candidate/corporate bundle separation, or an explicit rule change to no association/linkage.
-10. Approve implementation of the schema/API/web repair before any record insertion.
-11. Give final publication approval only after all mandatory checklist rows are READY.
+1. Confirm Agensi Pekerjaan TerrerHR Sdn Bhd is legally incorporated and provide/verify the SSM details.
+2. Confirm an authorized signatory exists and the company can issue written employment terms.
+3. Obtain qualified Malaysian payroll/employment review of the actual contract-of-service agreement, RM1,000 monthly pay basis, 10-hour target/12-hour ceiling and working-time controls.
+4. Confirm payroll, payslip, tax/PCB, timekeeping and required employer registrations are ready or scheduled before the employee starts.
+5. Confirm EPF/KWSP, SOCSO, EIS, leave, public-holiday, rest-day, overtime and recordkeeping treatment for the selected employee and arrangement.
+6. Approve and implement the smallest salary-truthfulness repair, including the no-estimate regression test, before insertion or publication.
+7. Select the actual publication date; schedule review 30 days later before any renewal.
+8. Give final publication approval only after every mandatory gate is READY.
 
 ## Final classification
 
-**BLOCKED — NOT PUBLICATION-READY.** The title, scope, target hours, proposed pay and candidate copy are suitable as a draft. Publication must wait for employer/legal decisions and a narrowly scoped confidentiality-and-terms projection repair. Production activation remains blocked.
+**BLOCKED — NOT PUBLICATION-READY.** The title, three-month duration, hours, pay, location, schedule, reporting line, language requirements, equipment, expenses, outside-work rule and public TerrerHR identity are approved. Strict employer confidentiality is not a blocker for this vacancy. Publication must still wait for explicit incorporation/signatory readiness, qualified contract/payroll/statutory confirmation, written employment terms, and the narrow salary-truthfulness repair that prevents an invented market estimate. Production activation remains blocked.
