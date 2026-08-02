@@ -34,7 +34,7 @@ const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
 });
 
 const CANONICAL_SELECT =
-  'id, job_title, company_name, location, job_description_text, external_job_url, posted_date, created_at, updated_at, role_family';
+  'id, job_title, company_name, location, job_description_text, compensation_text, external_job_url, posted_date, created_at, updated_at, role_family';
 const EXTERNAL_SELECT =
   'id, job_title, company_name, location, opportunity_summary, source_url, posted_at, discovered_at, last_verified_at, role_family, seniority, skills';
 

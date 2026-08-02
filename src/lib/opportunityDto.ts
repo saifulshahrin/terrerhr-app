@@ -14,6 +14,7 @@ export interface CandidateOpportunity {
   company: string;
   location: string;
   summary: string | null;
+  salaryText: string | null;
   sourceUrl: string | null;
   publishedAt: string | null;
   discoveredAt: string | null;
@@ -34,6 +35,7 @@ export interface CanonicalOpportunityRow {
   company_name: string;
   location: string | null;
   job_description_text: string | null;
+  compensation_text: string | null;
   external_job_url: string | null;
   posted_date: string | null;
   created_at: string | null;
@@ -60,6 +62,14 @@ export interface TrustedMatch {
   reasons: string[];
 }
 
+function authoritativeSalaryText(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value !== 'string') {
+    throw new TypeError('Canonical compensation text must be a string or null.');
+  }
+  return value;
+}
+
 export function canonicalOpportunityToDto(
   row: CanonicalOpportunityRow,
   match?: TrustedMatch
@@ -72,6 +82,7 @@ export function canonicalOpportunityToDto(
     company: row.company_name,
     location: row.location ?? '',
     summary: row.job_description_text,
+    salaryText: authoritativeSalaryText(row.compensation_text),
     sourceUrl: row.external_job_url,
     publishedAt: row.posted_date,
     discoveredAt: row.created_at,
@@ -105,6 +116,7 @@ export function externalOpportunityToDto(
     company: row.company_name,
     location: row.location,
     summary: row.opportunity_summary,
+    salaryText: null,
     sourceUrl: row.source_url,
     publishedAt: row.posted_at,
     discoveredAt: row.discovered_at,
