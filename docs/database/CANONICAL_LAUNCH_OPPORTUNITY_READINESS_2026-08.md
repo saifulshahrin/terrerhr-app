@@ -2,12 +2,13 @@
 
 ## Decision
 
-**BLOCKED — NOT PUBLICATION-READY.** The role, public employer identity and operating terms are now approved for planning, but mandatory gates remain unresolved:
+**BLOCKED — NOT PUBLICATION-READY.** Platform technical readiness for truthful canonical salary display is **COMPLETE**. The role, public employer identity and operating terms are approved for planning, but publication of this specific vacancy remains blocked because mandatory employer, legal and payroll gates are unresolved:
 
 1. incorporation and employer/payroll readiness are unverified;
 2. the actual contract-of-service terms, payroll treatment and statutory obligations require qualified Malaysian professional confirmation;
-3. written employment terms are not yet ready; and
-4. the current candidate detail UI fabricates an estimated market salary because the canonical API/DTO supplies no salary field, contradicting the approved RM1,000 monthly pay.
+3. written employment terms are not yet ready.
+
+The salary-truthfulness defect is closed. The merged backend contract exposes authoritative `CandidateOpportunity.salaryText: string | null`, and the merged web consumes it without estimation. Unified Opportunity production backend activation remains a separate operational gate and is not authorized by this document.
 
 The former strict employer-confidentiality requirement is withdrawn for this Terrer-owned vacancy and is no longer a launch blocker. Future confidential-client opportunities remain a separate architecture feature.
 
@@ -234,26 +235,26 @@ publicJobs mapping
 | Legal entity disclosure | The public website may already name Agensi Pekerjaan TerrerHR Sdn Bhd. The withdrawn strict non-inference rule no longer conflicts with the bundle or metadata. Formal terms must identify the verified legal employer. | **READY WITH INCORPORATION CONDITION** |
 | `jobs` content | Existing fields support title, public company, location, description, responsibilities, qualifications, seniority and operational metadata. Approved hours, pay, duration, schedule, equipment, expenses and conditions can be stated verbatim in `job_description_text`. | **SUPPORTED, UNSTRUCTURED** |
 | `candidate_web_jobs` | Existing status and publication timestamp can gate initial publication. It has no expiry field, so the approved 30-day review must initially be an operational control. | **READY WITH MANUAL CONTROL** |
-| Edge Function / DTO | Draft backend PR #7 adds nullable authoritative `compensation_text` and exposes it unchanged as `salaryText`. It is not merged or deployed. | **REPAIR IN DRAFT; BLOCKED UNTIL MERGED AND VALIDATED** |
-| Candidate detail | When `salary` is absent, `buildCompensationFields` generates and labels an `Estimated Market Range`. The canonical DTO does not supply salary, so this role would show an invented range instead of the approved RM1,000/month. | **BLOCKED** |
+| Edge Function / DTO | Backend PR #7 merged at `be0157bb2fecb9ce9fe3d4e49227ced54a4cbadd`. Migration `20260802074653_add_canonical_compensation_text.sql` adds nullable `public.jobs.compensation_text` with no default, exposed unchanged as `CandidateOpportunity.salaryText: string | null`. | **TECHNICALLY COMPLETE; PRODUCTION ACTIVATION SEPARATELY GATED** |
+| Candidate detail | Web PR #12 merged at `e0026aa9da3c0c5986fd8f0570ec7910d5ac1621`. Authoritative salary text is preserved exactly; null and invalid values use localized undisclosed states. Generated title, role-family, seniority, company, location and description-based estimates were removed. | **COMPLETE** |
 | Responsibilities/qualifications | The unified mapping currently reduces canonical content to a summary and sets these fields to null. The approved description can still carry the copy, but detail quality is degraded. | **ENHANCEMENT, NOT A SAFETY BLOCKER** |
 | Canonical action | Candidate interest remains candidate-owned and does not automatically create an application or submission. | **READY** |
 
-### Mandatory repair before publication
+### Salary-truthfulness implementation evidence
 
-The current schema can store the approved role safely in supported fields, but the current end-to-end UI cannot publish it truthfully because it invents salary information. The smallest mandatory repair is web/API-contract scoped:
+The mandatory salary repair is complete:
 
-1. For canonical opportunities, never generate an estimated salary when the employer has supplied compensation terms.
-2. Carry the approved compensation value (`RM1,000 per month`) explicitly through the canonical response/DTO into the detail model, or implement an equally explicit canonical no-estimate rule while rendering the approved compensation from the canonical description.
-3. Add a regression test proving this role displays the approved pay and never displays `Estimated Market Range`.
+1. Backend PR #7 merged at `be0157bb2fecb9ce9fe3d4e49227ced54a4cbadd` with migration `20260802074653_add_canonical_compensation_text.sql`.
+2. `public.jobs.compensation_text` is nullable text with no default and no generated or inferred value.
+3. `CandidateOpportunity.salaryText: string | null` preserves valid strings and null exactly and rejects invalid canonical values safely.
+4. Web PR #12 merged at `e0026aa9da3c0c5986fd8f0570ec7910d5ac1621`; automatic Vercel production deployment `dpl_5gNNmXCAgqkMhGeHVBpMyRGwuHid` is `READY`.
+5. `RM1,000 per month` is preserved exactly. Null/invalid presentation is `Salary not disclosed` in English and `Gaji tidak dinyatakan` in Bahasa Melayu.
+6. Verified surfaces include catalogue/search cards, opportunity detail, role-details modal, Featured Jobs, opportunity workspace, My Matches, saved opportunities/My Activity non-contradiction, metadata, and action/analytics isolation.
+7. No candidate-facing generated estimate, title/role-family/seniority/company/location heuristic, or description parsing remains.
 
-A structured salary schema is preferable but is **not mandatory solely to publish this first role** if the explicit compensation reaches every candidate detail surface truthfully and is covered by tests.
+Focused evidence: backend compensation/query/auth tests **25 passed**; web salary truthfulness tests **8 passed**; unified opportunity web tests **4 passed**; unified opportunity i18n tests **4 passed**; focused TypeScript and changed-file ESLint passed; production web build passed.
 
-### Repair implementation status
-
-Draft backend PR [#7](https://github.com/saifulshahrin/terrerhr-app/pull/7) implements the smallest contract repair using nullable `public.jobs.compensation_text` and `CandidateOpportunity.salaryText`. Its local migration replay, focused contract/auth tests, build and static ledger validation passed. It does not insert the role or change an environment.
-
-Publication remains blocked because PR #7 is unmerged and undeployed, and the separate `terrer-web` repair must still consume `salaryText`, remove candidate-facing estimated ranges, provide EN/BM undisclosed states and pass cross-surface tests.
+No other mandatory platform technical blocker remains for representing and displaying this role accurately using the approved current fields. This does not authorize production backend activation, remote migration application or role insertion.
 
 ### Later enhancements, not launch blockers
 
@@ -263,6 +264,8 @@ Publication remains blocked because PR #7 is unmerged and undeployed, and the se
 - Add localized English/Bahasa Melayu publication fields rather than embedding both copies in one description.
 - Add internal recruitment-owner and employer-ownership audit fields with appropriate access controls.
 - Build separate confidential-employer publication fields and leak tests for genuine client vacancies. Do not impose that future architecture on this Terrer-owned launch role.
+- Add BD-managed optional employer-confidentiality controls for genuine client vacancies.
+- Build broader payroll or HR administration functionality separately; it is not required for truthful opportunity representation.
 
 ## 4. Exact proposed record mapping (no insert)
 
@@ -317,7 +320,7 @@ Only captured real columns are listed. `RUNTIME` means generated at an approved 
 |---|---|---|
 | Public employer description | Can be embedded in description | Later structured projection enhancement |
 | Work arrangement/employment type | Can be embedded in description | Later structured schema/API enhancement |
-| Compensation/currency/visibility | Can be embedded, but current detail UI invents a market estimate | Explicit API/DTO/web compensation or canonical no-estimate repair — **mandatory** |
+| Compensation/currency/visibility | Authoritative text is supported by nullable `compensation_text` and exposed as `salaryText`; the web renders it truthfully | Complete for launch; structured amount/currency/cadence remains a later enhancement |
 | Hours min/target/max | Can be embedded in description | Later structured schema/API enhancement |
 | Duration/start condition | Can be embedded in description | Later structured schema/API enhancement |
 | Publication expiry/review date | Absent | Manual 30-day review initially; later schema/automation enhancement |
@@ -335,7 +338,7 @@ No insert SQL is supplied. The role must remain absent until incorporation, cont
 | Seniority is proportionate | Pass: coordinator/early-career; banned leadership titles excluded. |
 | Workload is genuinely part-time | Pass with condition: duties are scoped to 10 hours target/12-hour ceiling; channel and campaign priorities must be limited. |
 | Outcomes are realistic | Pass: no leadership or career promise. |
-| Compensation is visible | Content passes, current product fails because DTO lacks pay and detail estimates a market range. |
+| Compensation is visible | Pass: authoritative `RM1,000 per month` can flow through `salaryText` unchanged; undisclosed values use truthful EN/BM states and no estimate remains. |
 | Employer wording is honest | Pass: public employer is TerrerHR and the copy explicitly says this is not a confidential third-party client vacancy. |
 | Readiness is not overstated | Pass: start and offer remain conditional. |
 | Work sample is fair | Pass with condition: brief/non-productive only. |
@@ -360,24 +363,33 @@ No insert SQL is supplied. The role must remain absent until incorporation, cont
 | 12 | Employer identity truthful | **READY WITH INCORPORATION CONDITION** | Public TerrerHR display; verified legal entity in formal terms |
 | 13 | Public employer is TerrerHR | **READY** | User decision recorded |
 | 14 | Confidentiality architecture | **NOT APPLICABLE TO THIS ROLE** | Preserve as a later feature for genuine confidential-client vacancies |
-| 15 | Salary display is employer-supplied | **BLOCKED** | Remove canonical estimate fallback and display approved RM1,000/month; regression test required |
+| 15 | Salary display is employer-supplied | **READY** | Backend `be0157b`; web `e0026aa`; exact value/null/invalid and cross-surface regression tests passed |
 | 16 | Canonical action lifecycle truthful | **READY** | Static API/action audit; runtime acceptance still required |
 | 17 | EN/BM candidate copy available | **READY WITH CONDITION** | Both copies prepared; structured localization remains an enhancement |
 | 18 | Publication period approved | **READY WITH MANUAL CONTROL** | 30 days initially; record publication date and review before renewal |
 | 19 | Internal recruitment owner assigned | **READY** | Founder / S Shahrin |
 | 20 | Final publication approval recorded | **BLOCKED** | Approval after all gates pass |
+| 21 | Unified Opportunity production backend activation | **SEPARATELY GATED; NOT AUTHORIZED** | Requires an explicit production activation task; this document changes no environment |
 
 ## 7. Unresolved user decisions
 
-1. Confirm Agensi Pekerjaan TerrerHR Sdn Bhd is legally incorporated and provide/verify the SSM details.
-2. Confirm an authorized signatory exists and the company can issue written employment terms.
-3. Obtain qualified Malaysian payroll/employment review of the actual contract-of-service agreement, RM1,000 monthly pay basis, 10-hour target/12-hour ceiling and working-time controls.
-4. Confirm payroll, payslip, tax/PCB, timekeeping and required employer registrations are ready or scheduled before the employee starts.
-5. Confirm EPF/KWSP, SOCSO, EIS, leave, public-holiday, rest-day, overtime and recordkeeping treatment for the selected employee and arrangement.
-6. Review and merge backend PR #7, then implement and approve the separate web no-estimate repair before any deployment, insertion or publication.
-7. Select the actual publication date; schedule review 30 days later before any renewal.
-8. Give final publication approval only after every mandatory gate is READY.
+1. Confirm Agensi Pekerjaan TerrerHR Sdn Bhd is legally incorporated.
+2. Verify the legal name and SSM details against authoritative company records.
+3. Confirm an authorized signatory exists.
+4. Confirm readiness to issue written employment terms.
+5. Complete qualified Malaysian payroll/employment review of the actual contract-of-service arrangement.
+6. Confirm the RM1,000 monthly wage basis, 10-hour target/12-hour ceiling and enforceable working-time controls.
+7. Confirm payroll, payslips, tax/PCB and timekeeping readiness.
+8. Confirm EPF/KWSP, SOCSO and EIS treatment for the selected employee and arrangement.
+9. Confirm leave, public-holiday, rest-day, overtime and recordkeeping treatment.
+10. Select the actual publication date.
+11. Set the review date 30 days after publication before any renewal.
+12. Record final publication approval only after every mandatory gate is READY.
 
 ## Final classification
 
-**BLOCKED — NOT PUBLICATION-READY.** The title, three-month duration, hours, pay, location, schedule, reporting line, language requirements, equipment, expenses, outside-work rule and public TerrerHR identity are approved. Strict employer confidentiality is not a blocker for this vacancy. Publication must still wait for explicit incorporation/signatory readiness, qualified contract/payroll/statutory confirmation, written employment terms, and the narrow salary-truthfulness repair that prevents an invented market estimate. Production activation remains blocked.
+**BLOCKED — NOT PUBLICATION-READY.** Platform technical readiness for salary truthfulness is **COMPLETE**, and no other mandatory platform technical blocker remains for accurately representing and displaying the approved role with the current fields. The title, three-month duration, hours, pay, location, schedule, reporting line, language requirements, equipment, expenses, outside-work rule and public TerrerHR identity are approved. Strict employer confidentiality is not a blocker for this vacancy.
+
+Publication must still wait for verified incorporation/legal name/SSM details, authorized signatory, readiness to issue written employment terms, qualified Malaysian payroll/employment review, confirmed wage basis and working-time controls, payroll/payslip/tax/PCB/timekeeping readiness, EPF/KWSP/SOCSO/EIS treatment, leave/public-holiday/rest-day/overtime/recordkeeping treatment, the actual publication date, the 30-day review date, and recorded final publication approval.
+
+Unified Opportunity production backend activation remains separately gated and unauthorized by this documentation task. No production or staging migration, Edge Function deployment, opportunity insertion, Auth, secret, CORS, Supabase or Vercel configuration change is authorized.
