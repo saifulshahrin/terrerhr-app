@@ -8,6 +8,7 @@ const canonical = {
   company_name: 'Terrer client',
   location: 'Kuala Lumpur',
   job_description_text: 'Canonical summary',
+  compensation_text: 'RM1,000 per month',
   external_job_url: null,
   posted_date: null,
   created_at: '2026-07-30T00:00:00Z',
@@ -48,6 +49,21 @@ test('returns a consistent shape while preserving both origins', async () => {
   assert.deepEqual(Object.keys(results[0]).sort(), Object.keys(results[1]).sort());
   assert.equal(results.find((item) => item.origin === 'canonical_terrer').matchScore, 91);
   assert.equal(results.find((item) => item.origin === 'external').matchScore, 88);
+  assert.equal(results.find((item) => item.origin === 'canonical_terrer').salaryText, 'RM1,000 per month');
+  assert.equal(results.find((item) => item.origin === 'external').salaryText, null);
+});
+
+test('preserves undisclosed canonical compensation as null without generating a value', async () => {
+  const results = await loadUnifiedOpportunities(source([{ ...canonical, compensation_text: null }], []));
+  assert.equal(results[0].salaryText, null);
+  assert.equal(JSON.stringify(results).includes('Estimated Market Range'), false);
+});
+
+test('rejects a clearly invalid canonical compensation payload', async () => {
+  await assert.rejects(
+    loadUnifiedOpportunities(source([{ ...canonical, compensation_text: 1000 }], [])),
+    /must be a string or null/,
+  );
 });
 
 test('keeps canonical and external action capabilities isolated', async () => {
