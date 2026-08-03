@@ -4,6 +4,8 @@ import test from 'node:test';
 
 const migrationPath = new URL('../supabase/migrations/20260803140228_provision_authenticated_candidate_profile.sql', import.meta.url);
 const sql = (await readFile(migrationPath, 'utf8')).toLowerCase();
+const repairPath = new URL('../supabase/migrations/20260803140507_repair_candidate_provisioning_uuid_lookup.sql', import.meta.url);
+const repairSql = (await readFile(repairPath, 'utf8')).toLowerCase();
 
 test('provisioning derives identity and confirmation server-side', () => {
   assert.match(sql, /v_auth_user_id uuid := auth\.uid\(\)/);
@@ -39,4 +41,12 @@ test('provenance tables are private and immutable', () => {
   assert.match(sql, /candidate_profile_audit_immutable/);
   assert.match(sql, /candidate provisioning provenance is immutable/);
   assert.match(sql, /revoke all on schema private from public, anon, authenticated/);
+});
+
+test('forward repair avoids unsupported UUID aggregates while preserving the boundary', () => {
+  assert.doesNotMatch(repairSql, /min\s*\(\s*c\.candidate_id\s*\)/);
+  assert.match(repairSql, /select count\(\*\) into v_matches/);
+  assert.match(repairSql, /if v_matches = 1/);
+  assert.match(repairSql, /security definer/);
+  assert.match(repairSql, /grant execute on function public\.provision_authenticated_candidate_v1\(\) to authenticated/);
 });
