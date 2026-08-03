@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { APPROVED_PRODUCTION_ONLY_EVENT } from "./lib/production-ledger-exception.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = join(scriptDirectory, "..");
@@ -140,6 +141,16 @@ if (
   failures.push(
     `${evidence.production_only_event.version} must remain audit-only and must not exist as a replay migration`,
   );
+}
+
+const approvedEvent = evidence.production_only_event;
+for (const [field, expected] of Object.entries(APPROVED_PRODUCTION_ONLY_EVENT)) {
+  if (JSON.stringify(approvedEvent?.[field]) !== JSON.stringify(expected)) {
+    failures.push(`production-only event evidence ${field} mismatch`);
+  }
+}
+if (Object.keys(evidence).filter((key) => key === "production_only_event").length !== 1) {
+  failures.push("exactly one production-only event evidence record is required");
 }
 
 const indexOf = (version) => expectedVersions.indexOf(version);

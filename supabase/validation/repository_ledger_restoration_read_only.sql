@@ -1,5 +1,8 @@
 -- READ-ONLY VALIDATION MATERIAL.
 -- Do not run until separately authorized.
+-- 20260723143425 is the sole approved production-only, non-replayable event.
+-- Its exact statement count is 37 and normalized SQL MD5 is
+-- f07c7ee2e1eaf811f0337b108bdc6e12. Any other exception is a hard NO-GO.
 
 with expected(version, name, normalized_sql_md5, expected_in_staging, expected_in_production) as (
   values
@@ -58,6 +61,37 @@ from expected
 left join actual using (version)
 order by expected.version;
 
+-- Must return no rows. This rejects every unexpected ledger entry in the
+-- audited range rather than silently skipping production-only migrations.
+with expected(version) as (
+  values
+    ('20260416100300'), ('20260425000000'), ('20260604090000'),
+    ('20260708000000'), ('20260708000100'), ('20260708000200'),
+    ('20260709000100'), ('20260709000200'), ('20260709000300'),
+    ('20260709000400'), ('20260709000500'), ('20260711000100'),
+    ('20260711000200'), ('20260711000300'), ('20260711000400'),
+    ('20260711000500'), ('20260723110000'), ('20260723110554'),
+    ('20260723133303'), ('20260723134205'), ('20260723135237'),
+    ('20260723140703'), ('20260723143425')
+)
+select ledger.version, ledger.name
+from supabase_migrations.schema_migrations ledger
+left join expected using (version)
+where ledger.version between '20260416100300' and '20260723143425'
+  and expected.version is null;
+
+-- Production must return exactly one row with the exact values below. Staging
+-- must return zero rows. The historical file SHA-256 and provenance are checked
+-- by scripts/validate-ledger-restoration.mjs and the Gate 1 validator.
+select
+  version,
+  name,
+  cardinality(statements) as statement_count,
+  md5(regexp_replace(array_to_string(statements, ';') || ';', '\s+', '', 'g'))
+    as normalized_sql_md5
+from supabase_migrations.schema_migrations
+where version = '20260723143425';
+
 select version, count(*) as row_count
 from supabase_migrations.schema_migrations
 group by version
@@ -86,6 +120,13 @@ select
   ) as service_role_helper_execute;
 
 select
+  has_function_privilege(
+    'public',
+    'private.is_current_user_active_staff()',
+    'EXECUTE'
+  ) as public_helper_execute;
+
+select
   schemaname,
   tablename,
   policyname,
@@ -97,3 +138,43 @@ from pg_policies
 where schemaname = 'public'
   and tablename in ('applications', 'submissions', 'activity_log')
 order by tablename, policyname;
+
+-- Must return exactly the nine expected authenticated staff policies and no
+-- DELETE/ALL, legacy anonymous, or broad authenticated policy.
+with expected(tablename, policyname, cmd) as (
+  values
+    ('applications', 'applications_select_staff', 'SELECT'),
+    ('applications', 'applications_insert_staff', 'INSERT'),
+    ('applications', 'applications_update_staff', 'UPDATE'),
+    ('submissions', 'submissions_select_staff', 'SELECT'),
+    ('submissions', 'submissions_insert_staff', 'INSERT'),
+    ('submissions', 'submissions_update_staff', 'UPDATE'),
+    ('activity_log', 'activity_log_select_staff', 'SELECT'),
+    ('activity_log', 'activity_log_insert_staff', 'INSERT'),
+    ('activity_log', 'activity_log_update_staff', 'UPDATE')
+), actual as (
+  select tablename, policyname, cmd, roles, qual, with_check
+  from pg_policies
+  where schemaname = 'public'
+    and tablename in ('applications', 'submissions', 'activity_log')
+)
+select
+  count(*) = 9 as exactly_nine_staff_policies,
+  count(*) filter (
+    where expected.policyname is not null
+      and actual.roles = array['authenticated']::name[]
+      and coalesce(actual.qual, actual.with_check, '') ilike '%private.is_current_user_active_staff%'
+  ) = 9 as all_expected_policies_are_narrow,
+  count(*) filter (where expected.policyname is null) = 0 as no_unexpected_policy,
+  count(*) filter (where actual.cmd in ('DELETE', 'ALL')) = 0 as delete_and_all_denied
+from actual
+left join expected using (tablename, policyname, cmd);
+
+-- Must return no rows. Anonymous/PUBLIC table privileges would weaken the
+-- intended candidate denial boundary even if the staff policies remain intact.
+select grantee, table_name, privilege_type
+from information_schema.role_table_grants
+where table_schema = 'public'
+  and table_name in ('applications', 'submissions', 'activity_log')
+  and grantee in ('anon', 'PUBLIC')
+order by table_name, grantee, privilege_type;

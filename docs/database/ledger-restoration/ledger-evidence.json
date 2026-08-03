@@ -238,7 +238,18 @@
     "version": "20260723143425",
     "name": "reconcile_candidate_engine_production_authorization",
     "normalized_sql_md5": "f07c7ee2e1eaf811f0337b108bdc6e12",
+    "corrected_historical_sql_sha256": "9d7d4331c58a482c6f25e2369d0a289f611139b0125b23c29b90577ed0b4ee77",
     "statement_count": 37,
-    "replay_migration_generated": false
+    "replayable": false,
+    "production_only": true,
+    "semantic_equivalence_required": true,
+    "replay_migration_generated": false,
+    "provenance": {
+      "source_branch": "repair/candidate-engine-production-ledger-plan-2026-07",
+      "original_commit": "680b351766a7bf8a809ec968a09af4fbc874b48a",
+      "corrected_authoritative_commit": "ae27965cd7a4c07bbee5c713040b61eff470200a",
+      "historical_path": "supabase/migrations/20260723143425_reconcile_candidate_engine_production_authorization.sql"
+    },
+    "reason": "Production-specific reconciliation wrapper applied against legacy production state; the shared replay chain now provides the same final authorization state and replaying this wrapper would fail historical preconditions and collide with final policies."
   }
 }
