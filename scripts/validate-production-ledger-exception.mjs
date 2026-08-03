@@ -30,6 +30,11 @@ const pendingUnifiedOpportunityMigrations = [
     name: "add_canonical_compensation_text",
     normalized_sql_md5: "pending-local-file",
   },
+  {
+    version: "20260803070251",
+    name: "revoke_candidate_engine_anonymous_table_privileges",
+    normalized_sql_md5: "pending-local-file",
+  },
 ];
 
 const shared = evidence.shared_migrations.map((migration) => ({

@@ -55,6 +55,7 @@ Only these repository migrations sort after the audited production endpoint and 
 | 1 | `20260731035000_unified_opportunity_surface_schema.sql` | Required for activation. Creates the two tables, normalizer, constraints, indexes, triggers, RLS, grants, trusted creation RPC, guarded staff-note RPC, and staff queue RPC. | **Unsafe to skip.** All backend contracts depend on it. |
 | 2 | `20260801085404_allow_employer_job_detail_external_source.sql` | Required for exact app-main ledger/schema alignment. Extends the constrained source taxonomy with `employer_job_detail`. | **Unsafe to skip in the ordered deployment.** It depends on migration 1 and prevents future direct employer detail pages being misclassified. |
 | 3 | `20260802074653_add_canonical_compensation_text.sql` | Required for the authoritative canonical salary contract. Adds nullable `jobs.compensation_text` without a default. | **Unsafe to skip in the ordered deployment.** The merged candidate contract depends on truthful `salaryText`. |
+| 4 | `20260803070251_revoke_candidate_engine_anonymous_table_privileges.sql` | Required by Gate 1 security validation. Removes all direct `anon`/`PUBLIC` table privileges from `applications` and `submissions` without changing authenticated grants or RLS policies. | **Unsafe to skip.** Gate 1 remains fail-closed while either table is directly reachable by unauthenticated roles. |
 
 There are no already-functionally-present, unrelated ordered dependencies, or safe-to-defer migrations in this gap. Apply in filename order through the normal reviewed migration workflow; do not edit the migration ledger and do not selectively copy DDL.
 
@@ -102,7 +103,7 @@ select
 commit;
 ```
 
-Preflight passes only if the project identity is independently confirmed as `tlufttnmwtjbuhjcrqmp`, the exception-aware validator proves the exact `20260723143425` evidence and semantic state, all normal migrations align exactly, the pending sequence is exactly `20260731035000`, `20260801085404`, and `20260802074653`, dependencies are true, target relations are absent, and baseline counts are recorded. Any mismatch stops the run.
+Preflight passes only if the project identity is independently confirmed as `tlufttnmwtjbuhjcrqmp`, the exception-aware validator proves the exact `20260723143425` evidence and semantic state, all normal migrations align exactly, the pending sequence is exactly `20260731035000`, `20260801085404`, `20260802074653`, and `20260803070251`, dependencies are true, target relations are absent, and baseline counts are recorded. Any mismatch stops the run.
 
 ### Execution specification
 
