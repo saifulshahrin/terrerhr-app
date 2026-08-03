@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const migrationPath = new URL('../supabase/migrations/20260803133742_provision_authenticated_candidate_profile.sql', import.meta.url);
+const migrationPath = new URL('../supabase/migrations/20260803140228_provision_authenticated_candidate_profile.sql', import.meta.url);
 const sql = (await readFile(migrationPath, 'utf8')).toLowerCase();
 
 test('provisioning derives identity and confirmation server-side', () => {
