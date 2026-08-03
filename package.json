@@ -12,6 +12,10 @@
     "test:canonical-compensation": "node --experimental-strip-types --test --test-isolation=none tests/canonicalCompensationContract.test.mjs tests/unifiedOpportunityQuery.test.mjs tests/unifiedOpportunityAuthApi.test.mjs",
     "test:unified-opportunities": "node --experimental-strip-types --test --test-isolation=none tests/unifiedOpportunityQuery.test.mjs",
     "test:unified-opportunity-api": "node --experimental-strip-types --test --test-isolation=none tests/unifiedOpportunityAuthApi.test.mjs",
+    "test:production-ledger-exception": "node --test --test-isolation=none tests/productionLedgerException.test.mjs",
+    "test:candidate-engine-authorization": "node --test --test-isolation=none tests/candidateEngineAuthorization.test.mjs",
+    "validate:ledger-restoration": "node scripts/validate-ledger-restoration.mjs",
+    "validate:unified-opportunity-gate1": "node scripts/validate-production-ledger-exception.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.app.json"
   },
   "dependencies": {

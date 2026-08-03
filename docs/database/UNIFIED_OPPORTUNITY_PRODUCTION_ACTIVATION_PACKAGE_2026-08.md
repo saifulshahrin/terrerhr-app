@@ -40,14 +40,21 @@ The audit facts are unchanged:
 
 ## 2. Exact migration execution package
 
+### Exception-aware ledger gate
+
+Production ledger alignment is exact except for explicitly audited, non-replayable production-only events. The sole approved event is `20260723143425_reconcile_candidate_engine_production_authorization`; it is accepted only when its name, 37-statement count, normalized MD5 `f07c7ee2e1eaf811f0337b108bdc6e12`, corrected historical SQL SHA-256, approved provenance, production-only classification, and current semantic authorization state all match. Any mismatch, any future production-only event, or any other missing/unexpected normal migration is a hard NO-GO.
+
+The historical SQL must remain outside `supabase/migrations`, and no production ledger row may be edited or removed. After the exception validator is merged, resume only at Gate 1 and rerun the complete pre-mutation baseline. This rule does not authorize Gates 2–9.
+
 ### Complete ordered gap
 
-Only these repository migrations sort after the production endpoint and exist on audited app main:
+Only these repository migrations sort after the audited production endpoint and exist on current app main after accounting for the approved non-replayable event:
 
 | Order | Migration | Classification | Skip decision |
 |---:|---|---|---|
 | 1 | `20260731035000_unified_opportunity_surface_schema.sql` | Required for activation. Creates the two tables, normalizer, constraints, indexes, triggers, RLS, grants, trusted creation RPC, guarded staff-note RPC, and staff queue RPC. | **Unsafe to skip.** All backend contracts depend on it. |
 | 2 | `20260801085404_allow_employer_job_detail_external_source.sql` | Required for exact app-main ledger/schema alignment. Extends the constrained source taxonomy with `employer_job_detail`. | **Unsafe to skip in the ordered deployment.** It depends on migration 1 and prevents future direct employer detail pages being misclassified. |
+| 3 | `20260802074653_add_canonical_compensation_text.sql` | Required for the authoritative canonical salary contract. Adds nullable `jobs.compensation_text` without a default. | **Unsafe to skip in the ordered deployment.** The merged candidate contract depends on truthful `salaryText`. |
 
 There are no already-functionally-present, unrelated ordered dependencies, or safe-to-defer migrations in this gap. Apply in filename order through the normal reviewed migration workflow; do not edit the migration ledger and do not selectively copy DDL.
 
@@ -95,7 +102,7 @@ select
 commit;
 ```
 
-Preflight passes only if the project identity is independently confirmed as `tlufttnmwtjbuhjcrqmp`, the ledger endpoint is exactly `20260723143425`, dependencies are true, target relations are absent, and baseline counts are recorded in the change record. Any mismatch stops the run.
+Preflight passes only if the project identity is independently confirmed as `tlufttnmwtjbuhjcrqmp`, the exception-aware validator proves the exact `20260723143425` evidence and semantic state, all normal migrations align exactly, the pending sequence is exactly `20260731035000`, `20260801085404`, and `20260802074653`, dependencies are true, target relations are absent, and baseline counts are recorded. Any mismatch stops the run.
 
 ### Execution specification
 
