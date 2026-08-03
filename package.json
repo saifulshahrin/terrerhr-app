@@ -11,6 +11,7 @@
     "test:pilot-guard": "node --test --test-isolation=none tests/pilotTargetGuard.test.mjs",
     "test:canonical-compensation": "node --experimental-strip-types --test --test-isolation=none tests/canonicalCompensationContract.test.mjs tests/unifiedOpportunityQuery.test.mjs tests/unifiedOpportunityAuthApi.test.mjs",
     "test:unified-opportunities": "node --experimental-strip-types --test --test-isolation=none tests/unifiedOpportunityQuery.test.mjs",
+    "test:candidate-self-provisioning": "node --test --test-isolation=none tests/candidateSelfProvisioning.test.mjs",
     "test:unified-opportunity-api": "node --experimental-strip-types --test --test-isolation=none tests/unifiedOpportunityAuthApi.test.mjs",
     "test:production-ledger-exception": "node --test --test-isolation=none tests/productionLedgerException.test.mjs",
     "test:candidate-engine-authorization": "node --test --test-isolation=none tests/candidateEngineAuthorization.test.mjs",
