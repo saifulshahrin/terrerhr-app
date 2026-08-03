@@ -1,6 +1,6 @@
 create or replace function public.list_public_external_opportunities_v1()
 returns table (
-  id uuid,
+  id text,
   job_title text,
   company_name text,
   location text,
