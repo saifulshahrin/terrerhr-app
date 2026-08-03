@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const migrationPath = new URL('../supabase/migrations/20260803140228_provision_authenticated_candidate_profile.sql', import.meta.url);
 const sql = (await readFile(migrationPath, 'utf8')).toLowerCase();
-const repairPath = new URL('../supabase/migrations/20260803140507_repair_candidate_provisioning_uuid_lookup.sql', import.meta.url);
+const repairPath = new URL('../supabase/migrations/20260803140636_repair_candidate_provisioning_uuid_lookup.sql', import.meta.url);
 const repairSql = (await readFile(repairPath, 'utf8')).toLowerCase();
 
 test('provisioning derives identity and confirmation server-side', () => {
