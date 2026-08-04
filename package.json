@@ -13,6 +13,8 @@
     "test:unified-opportunities": "node --experimental-strip-types --test --test-isolation=none tests/unifiedOpportunityQuery.test.mjs",
     "test:candidate-self-provisioning": "node --test --test-isolation=none tests/candidateSelfProvisioning.test.mjs",
     "test:public-opportunity-catalogue": "node --test --test-isolation=none tests/publicOpportunityCatalogue.test.mjs",
+    "test:jooble-pilot": "node --experimental-strip-types --test --test-isolation=none tests/joobleSuitabilityPilot.test.mjs",
+    "pilot:jooble": "node --experimental-strip-types scripts/jooble-suitability-pilot.ts",
     "test:unified-opportunity-api": "node --experimental-strip-types --test --test-isolation=none tests/unifiedOpportunityAuthApi.test.mjs",
     "test:production-ledger-exception": "node --test --test-isolation=none tests/productionLedgerException.test.mjs",
     "test:candidate-engine-authorization": "node --test --test-isolation=none tests/candidateEngineAuthorization.test.mjs",
