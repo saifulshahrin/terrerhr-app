@@ -16,6 +16,7 @@
     "test:unified-opportunity-api": "node --experimental-strip-types --test --test-isolation=none tests/unifiedOpportunityAuthApi.test.mjs",
     "test:production-ledger-exception": "node --test --test-isolation=none tests/productionLedgerException.test.mjs",
     "test:candidate-engine-authorization": "node --test --test-isolation=none tests/candidateEngineAuthorization.test.mjs",
+    "test:job-description-file": "node --experimental-strip-types --test --test-isolation=none tests/jobDescriptionFile.test.mjs",
     "validate:ledger-restoration": "node scripts/validate-ledger-restoration.mjs",
     "validate:unified-opportunity-gate1": "node scripts/validate-production-ledger-exception.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.app.json"
@@ -23,6 +24,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
     "lucide-react": "^0.344.0",
+    "mammoth": "^1.12.2",
     "pdfjs-dist": "^5.7.284",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { CheckCircle2, Briefcase, MapPin, Users, Clock, Tag } from 'lucide-react';
+import { CheckCircle2, Briefcase, MapPin, Users, Clock, Tag, FileText, UploadCloud } from 'lucide-react';
 import { createJob } from '../lib/jobs';
 import { useRole } from '../store/RoleContext';
 import {
@@ -8,6 +8,10 @@ import {
   type ParsedJob,
   type JobIntakeParseResult,
 } from '../lib/jobIntakeParser';
+import {
+  extractJobDescriptionFile,
+  JOB_DESCRIPTION_FILE_ACCEPT,
+} from '../lib/jobDescriptionFile';
 
 const EXAMPLE_INPUT = `We're looking for a Senior Backend Engineer to join our platform team at Acme Corp. The role is based in San Francisco (hybrid) with a salary range of $160k-$200k. The candidate should have 5+ years of experience with Node.js, PostgreSQL, and cloud infrastructure (AWS preferred). They will own the design and implementation of core API services and work closely with product and frontend teams. Nice to have: experience with Kafka or similar message queue systems. Start date is flexible, targeting Q3 2026. Reporting to the VP of Engineering.`;
 
@@ -26,7 +30,51 @@ export default function JobIntake({ onNavigate }: Props) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [parseResult, setParseResult] = useState<JobIntakeParseResult | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+  const [fileWarning, setFileWarning] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [extractingFile, setExtractingFile] = useState(false);
   const parseRequestRef = useRef(0);
+  const fileRequestRef = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const resetParsedOutput = () => {
+    parseRequestRef.current += 1;
+    setParsed(null);
+    setDraft(null);
+    setEditing(false);
+    setSaveError(null);
+    setParseResult(null);
+    setParseError(null);
+  };
+
+  const handleFileSelected = async (file: File | undefined) => {
+    if (!file) return;
+
+    const requestId = fileRequestRef.current + 1;
+    fileRequestRef.current = requestId;
+    resetParsedOutput();
+    setSelectedFileName(null);
+    setFileWarning(null);
+    setFileError(null);
+    setExtractingFile(true);
+
+    try {
+      const result = await extractJobDescriptionFile(file);
+      if (fileRequestRef.current !== requestId) return;
+
+      setInput(result.text);
+      setSelectedFileName(file.name);
+      setFileWarning(result.warning);
+    } catch (error) {
+      if (fileRequestRef.current !== requestId) return;
+      setFileError(error instanceof Error ? error.message : 'Unable to read this file.');
+    } finally {
+      if (fileRequestRef.current === requestId) {
+        setExtractingFile(false);
+      }
+    }
+  };
 
   const handleParse = () => {
     if (!input.trim()) return;
@@ -71,6 +119,7 @@ export default function JobIntake({ onNavigate }: Props) {
   };
 
   const handleExample = () => {
+    fileRequestRef.current += 1;
     parseRequestRef.current += 1;
     setInput(EXAMPLE_INPUT);
     setParsed(null);
@@ -79,6 +128,11 @@ export default function JobIntake({ onNavigate }: Props) {
     setSaveError(null);
     setParseResult(null);
     setParseError(null);
+    setSelectedFileName(null);
+    setFileWarning(null);
+    setFileError(null);
+    setExtractingFile(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleEditDetails = () => {
@@ -156,7 +210,7 @@ export default function JobIntake({ onNavigate }: Props) {
         <div className="mt-4 bg-gray-50 rounded-lg p-4">
           <h2 className="text-base font-semibold text-gray-800">Add a Job via Intake</h2>
           <p className="text-sm text-gray-600 mt-1.5">
-            Paste a job description, email, or link — Terrer will structure it for you.
+            Paste or upload a job description — Terrer will structure it for you.
           </p>
         </div>
       </div>
@@ -172,16 +226,51 @@ export default function JobIntake({ onNavigate }: Props) {
               Load example
             </button>
           </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={JOB_DESCRIPTION_FILE_ACCEPT}
+            className="hidden"
+            onChange={event => {
+              const file = event.currentTarget.files?.[0];
+              void handleFileSelected(file);
+              event.currentTarget.value = '';
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={extractingFile || loading}
+            className="mb-4 flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-blue-300 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700 transition-colors hover:border-blue-400 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <UploadCloud size={18} />
+            {extractingFile ? 'Reading document...' : 'Upload job description'}
+          </button>
+          <p className="-mt-2 mb-4 text-center text-xs text-gray-400">
+            PDF, Word (.docx), or text file · maximum 10 MB
+          </p>
+          {selectedFileName && (
+            <div className="mb-4 flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
+              <FileText size={15} className="flex-shrink-0" />
+              <span className="truncate">{selectedFileName} loaded into the text box</span>
+            </div>
+          )}
+          {fileWarning && (
+            <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {fileWarning}
+            </p>
+          )}
+          {fileError && (
+            <p className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              {fileError}
+            </p>
+          )}
           <textarea
             value={input}
+            disabled={extractingFile}
             onChange={e => {
-              parseRequestRef.current += 1;
+              resetParsedOutput();
               setInput(e.target.value);
-              setParsed(null);
-              setDraft(null);
-              setEditing(false);
-              setParseResult(null);
-              setParseError(null);
             }}
             rows={14}
             placeholder="Paste the full job description here - title, location, salary range, skills, requirements, team context, etc."
@@ -191,7 +280,7 @@ export default function JobIntake({ onNavigate }: Props) {
             <span className="text-xs text-gray-400">{input.length} characters</span>
             <button
               onClick={handleParse}
-              disabled={!input.trim() || loading}
+              disabled={!input.trim() || loading || extractingFile}
               className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {loading ? 'Parsing...' : 'Extract Details'}
