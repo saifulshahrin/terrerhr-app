@@ -10,6 +10,7 @@ import {
   type JobUrgency,
 } from '../lib/jobQueue';
 import { Badge, Panel, SectionHeader } from './visualSystem';
+import PlacementOrderCard from './PlacementOrderCard';
 
 const OPERATIONAL_STATUS_OPTIONS: JobOperationalStatus[] = [
   'not_started',
@@ -345,6 +346,7 @@ function JobDetailPanel({
         <BarChart2 size={15} />
         View Top Matches
       </button>
+      <PlacementOrderCard job={job} />
     </Panel>
   );
 }
