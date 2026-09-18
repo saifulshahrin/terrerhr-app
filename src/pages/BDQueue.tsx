@@ -11,6 +11,7 @@ import type { Candidate } from '../store/types';
 import { useRole } from '../store/RoleContext';
 import { useStore } from '../store/StoreContext';
 import { buildCandidateMap, createFallbackCandidate, fetchCandidatesByIds } from '../lib/candidates';
+import { fetchCandidateSubmissionConsents, recordCandidateSubmissionConsent, type CandidateSubmissionConsent, type ConsentChannel } from '../lib/candidateSubmissionConsent';
 
 interface Job {
   id: string;
@@ -39,6 +40,7 @@ interface BDItem {
   sentAt: string;
   aiScore: number | null;
   aiRecommendation: string | null;
+  consent: CandidateSubmissionConsent | null;
 }
 
 type ActionState = 'idle' | 'approving' | 'rejecting' | 'holding';
@@ -112,7 +114,82 @@ function ScoreBadge({ score, recommendation }: { score: number | null; recommend
   );
 }
 
-function BDCard({ item, onAction, canAct }: { item: BDItem; onAction: (id: string, action: 'approve' | 'reject' | 'hold') => Promise<void>; canAct: boolean }) {
+
+function ConsentCapture({
+  item,
+  onSaved,
+}: {
+  item: BDItem;
+  onSaved: (submissionId: string, consent: CandidateSubmissionConsent) => void;
+}) {
+  const [channel, setChannel] = useState<ConsentChannel>('email');
+  const [evidenceRef, setEvidenceRef] = useState('');
+  const [confirmed, setConfirmed] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (item.consent) {
+    return (
+      <div className="mx-6 mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Candidate consent recorded</p>
+        <p className="mt-1 text-xs text-emerald-800">
+          Exact consent for {item.job.company_name} · {item.job.job_title}. Evidence: {item.consent.consent_evidence_ref}.
+        </p>
+      </div>
+    );
+  }
+
+  const save = async () => {
+    if (!confirmed || !evidenceRef.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const consent = await recordCandidateSubmissionConsent({
+        submission_id: item.submissionId,
+        job_id: item.jobId,
+        candidate_id: item.candidateId,
+        client_company_name: item.job.company_name,
+        job_title: item.job.job_title,
+        consent_channel: channel,
+        consent_evidence_ref: evidenceRef.trim(),
+      });
+      onSaved(item.submissionId, consent);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Could not save consent evidence.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mx-6 mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">Required before client submission</p>
+      <p className="mt-1 text-xs leading-relaxed text-amber-900">
+        Record the candidate's explicit consent to be presented to {item.job.company_name} for {item.job.job_title}.
+      </p>
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[150px_1fr]">
+        <select value={channel} onChange={e => setChannel(e.target.value as ConsentChannel)} className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs text-gray-700">
+          <option value="email">Email</option>
+          <option value="whatsapp">WhatsApp</option>
+          <option value="phone">Phone call</option>
+          <option value="in_person">In person</option>
+          <option value="other">Other</option>
+        </select>
+        <input value={evidenceRef} onChange={e => setEvidenceRef(e.target.value)} placeholder="Evidence reference or link (required)" className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs text-gray-700" />
+      </div>
+      <label className="mt-3 flex items-start gap-2 text-xs text-amber-900">
+        <input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} className="mt-0.5" />
+        <span>I confirm the candidate agreed to this exact client and role.</span>
+      </label>
+      {error ? <p className="mt-2 text-xs text-red-700">{error}</p> : null}
+      <button type="button" onClick={() => void save()} disabled={saving || !confirmed || !evidenceRef.trim()} className="mt-3 rounded-lg bg-amber-700 px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+        {saving ? 'Saving…' : 'Record candidate consent'}
+      </button>
+    </div>
+  );
+}
+
+function BDCard({ item, onAction, onConsentSaved, canAct }: { item: BDItem; onAction: (id: string, action: 'approve' | 'reject' | 'hold') => Promise<void>; onConsentSaved: (submissionId: string, consent: CandidateSubmissionConsent) => void; canAct: boolean }) {
   const [actionState, setActionState] = useState<ActionState>('idle');
   const [detailsOpen, setDetailsOpen] = useState(true);
 
@@ -282,9 +359,11 @@ function BDCard({ item, onAction, canAct }: { item: BDItem; onAction: (id: strin
         )}
       </div>
 
+      {canAct ? <ConsentCapture item={item} onSaved={onConsentSaved} /> : null}
+
       <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-3 flex-wrap">
         <p className="text-xs text-gray-400">
-          {canAct ? 'BD action required - not yet submitted to client' : 'Awaiting BD approval before client submission'}
+          {canAct ? (item.consent ? 'Consent recorded — ready for client submission' : 'Candidate consent is required before client submission') : 'Awaiting BD approval before client submission'}
         </p>
         {canAct && (
           <div className="flex items-center gap-2">
@@ -314,7 +393,7 @@ function BDCard({ item, onAction, canAct }: { item: BDItem; onAction: (id: strin
             </button>
             <button
               onClick={() => handleAction('approve')}
-              disabled={busy}
+              disabled={busy || !item.consent}
               className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
                 actionState === 'approving'
                   ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-default'
@@ -322,7 +401,7 @@ function BDCard({ item, onAction, canAct }: { item: BDItem; onAction: (id: strin
               }`}
             >
               <Send size={12} />
-              {actionState === 'approving' ? 'Submitting...' : 'Approve & Submit to Client'}
+              {actionState === 'approving' ? 'Submitting...' : item.consent ? 'Approve & Submit to Client' : 'Capture Consent First'}
             </button>
           </div>
         )}
@@ -347,6 +426,8 @@ export default function BDQueue() {
     ]);
 
     const subs = submissionsResult;
+    const consentRows = await fetchCandidateSubmissionConsents(subs.map(sub => sub.id));
+    const consentBySubmissionId = new Map(consentRows.map(consent => [consent.submission_id, consent]));
     const candidateMap = buildCandidateMap(
       await fetchCandidatesByIds(subs.map(sub => sub.candidate_id))
     );
@@ -375,6 +456,7 @@ export default function BDQueue() {
         sentAt: sub.submission_generated_at ?? sub.stage_updated_at,
         aiScore: assessment?.ai_score ?? null,
         aiRecommendation: assessment?.overall_recommendation ?? null,
+        consent: consentBySubmissionId.get(sub.id) ?? null,
       });
     }
 
@@ -384,6 +466,10 @@ export default function BDQueue() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleConsentSaved = (submissionId: string, consent: CandidateSubmissionConsent) => {
+    setItems(prev => prev.map(item => item.submissionId === submissionId ? { ...item, consent } : item));
+  };
 
   const handleAction = async (submissionId: string, action: 'approve' | 'reject' | 'hold') => {
     const stageMap: Record<'approve' | 'reject' | 'hold', SubmissionStage> = {
@@ -453,7 +539,7 @@ export default function BDQueue() {
           </div>
           <div className="space-y-5">
             {items.map(item => (
-              <BDCard key={item.submissionId} item={item} onAction={handleAction} canAct={canAct} />
+              <BDCard key={item.submissionId} item={item} onAction={handleAction} onConsentSaved={handleConsentSaved} canAct={canAct} />
             ))}
           </div>
         </>
