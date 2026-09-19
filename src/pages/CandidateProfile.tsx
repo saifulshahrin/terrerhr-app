@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, Briefcase, Mail, MapPin, Phone, User } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchCandidatesByIds } from '../lib/candidates';
@@ -52,18 +52,33 @@ export default function CandidateProfile({ candidateId, jobId, onNavigate }: Pro
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [candidateDetails, setCandidateDetails] = useState<CandidateDetailsRow | null>(null);
   const [submission, setSubmission] = useState<SubmissionRow | null>(null);
+  const [job, setJob] = useState<Awaited<ReturnType<typeof getJobById>>>(null);
   const [resumeHref, setResumeHref] = useState<string | null>(null);
   const [resumeFileName, setResumeFileName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const job = useMemo(() => {
-    if (!jobId) return null;
-    try {
-      return getJobById(jobId);
-    } catch {
-      return null;
+  useEffect(() => {
+    let active = true;
+
+    async function loadJob() {
+      if (!jobId) {
+        setJob(null);
+        return;
+      }
+      setJob(null);
+      try {
+        const nextJob = await getJobById(jobId);
+        if (active) setJob(nextJob);
+      } catch {
+        if (active) setJob(null);
+      }
     }
+
+    void loadJob();
+    return () => {
+      active = false;
+    };
   }, [jobId]);
 
   useEffect(() => {
@@ -126,8 +141,7 @@ export default function CandidateProfile({ candidateId, jobId, onNavigate }: Pro
         if (!alive) return;
         setError(loadError instanceof Error ? loadError.message : 'Failed to load candidate profile');
       } finally {
-        if (!alive) return;
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     }
 
@@ -145,7 +159,7 @@ export default function CandidateProfile({ candidateId, jobId, onNavigate }: Pro
       setResumeFileName(null);
       if (!candidateId) return;
 
-      let rawPath: string | null = candidateDetails?.resume_file_path ?? null;
+      const rawPath: string | null = candidateDetails?.resume_file_path ?? null;
       let rawUrl: string | null = candidateDetails?.resume_url ?? null;
 
       try {
@@ -158,7 +172,7 @@ export default function CandidateProfile({ candidateId, jobId, onNavigate }: Pro
 
         if (!rawUrl) {
           const sourceUrl = (sourceProfiles ?? [])
-            .map((row: any) => (row?.source_profile_url as string | null) ?? null)
+            .map((row: { source_profile_url?: string | null }) => row.source_profile_url ?? null)
             .find((value: string | null) => typeof value === 'string' && value.startsWith('storage:candidate-resumes/'));
           rawUrl = sourceUrl ?? rawUrl;
         }

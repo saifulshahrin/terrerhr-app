@@ -17,6 +17,7 @@
     "test:production-ledger-exception": "node --test --test-isolation=none tests/productionLedgerException.test.mjs",
     "test:candidate-engine-authorization": "node --test --test-isolation=none tests/candidateEngineAuthorization.test.mjs",
     "test:job-description-file": "node --experimental-strip-types --test --test-isolation=none tests/jobDescriptionFile.test.mjs",
+    "test:business-ready-gates": "node --test --test-isolation=none tests/businessReadySubmissionGates.test.mjs",
     "validate:ledger-restoration": "node scripts/validate-ledger-restoration.mjs",
     "validate:unified-opportunity-gate1": "node scripts/validate-production-ledger-exception.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.app.json"

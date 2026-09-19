@@ -36,14 +36,6 @@ interface AppStore {
     output: SubmissionOutput,
     notes?: string
   ) => Promise<Submission | null>;
-  approveAndSubmitToClient: (candidateId: string, jobId: string) => Promise<void>;
-  submitToClient: (candidateId: string, jobId: string) => Promise<void>;
-  submitToClientWithOutput: (
-    candidateId: string,
-    jobId: string,
-    output: SubmissionOutput,
-    notes?: string
-  ) => Promise<Submission | null>;
 }
 
 const StoreContext = createContext<AppStore | null>(null);
@@ -155,79 +147,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (result) {
       setSubmissions(prev => mergeSubmission(prev, result, candidateId, jobId));
       console.log('[StoreContext][shortlist:merged]', { candidateId, jobId, submissionId: result.id });
-    }
-  }, []);
-
-  const submitToClient = useCallback(async (candidateId: string, jobId: string) => {
-    const result = await upsertSubmission(candidateId, jobId, 'submitted_to_client');
-    if (result) {
-      setSubmissions(prev => mergeSubmission(prev, result, candidateId, jobId));
-    }
-  }, []);
-
-  const submitToClientWithOutput = useCallback(
-    async (
-      candidateId: string,
-      jobId: string,
-      output: SubmissionOutput,
-      notes?: string
-    ): Promise<Submission | null> => {
-      try {
-        const finalOutput = mergeRecruiterNotesIntoOutput(output, notes);
-
-        console.log('[StoreContext][submitToClientWithOutput:start]', {
-          candidateId,
-          jobId,
-          notes,
-          output: finalOutput,
-        });
-        const result = await upsertSubmissionDB({
-          candidate_id: candidateId,
-          job_id: jobId,
-          submission_stage: 'submitted_to_client',
-          next_action_date: getTodayIsoDate(),
-          submission_summary: finalOutput.submission_summary,
-          submission_strengths: finalOutput.submission_strengths,
-          submission_concerns: finalOutput.submission_concerns,
-          submission_full_text: finalOutput.submission_full_text,
-          submission_generated_at: finalOutput.submission_generated_at,
-          notes: notes ?? null,
-        });
-
-        console.log('[StoreContext][submitToClientWithOutput:result]', {
-          candidateId,
-          jobId,
-          result,
-        });
-
-        setSubmissions(prev =>
-          mergeSubmission(prev, result as Submission, candidateId, jobId)
-        );
-
-        console.log('[StoreContext][submitToClientWithOutput:merged]', {
-          candidateId,
-          jobId,
-          submissionId: (result as Submission).id,
-        });
-
-        return result as Submission;
-      } catch (error) {
-        console.error('[submitToClientWithOutput] error:', error);
-        console.log('[StoreContext][submitToClientWithOutput:error]', {
-          candidateId,
-          jobId,
-          error,
-        });
-        return null;
-      }
-    },
-    []
-  );
-
-  const approveAndSubmitToClient = useCallback(async (candidateId: string, jobId: string) => {
-    const result = await upsertSubmission(candidateId, jobId, 'submitted_to_client');
-    if (result) {
-      setSubmissions(prev => mergeSubmission(prev, result, candidateId, jobId));
     }
   }, []);
 
@@ -408,9 +327,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         updateSubmissionInStore,
         sendSubmissionToBdReviewInStore,
         sendToBdReviewWithOutput,
-        approveAndSubmitToClient,
-        submitToClient,
-        submitToClientWithOutput,
       }}
     >
       {children}

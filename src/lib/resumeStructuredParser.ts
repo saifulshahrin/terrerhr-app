@@ -67,6 +67,11 @@ function isNamePolluted(value: string | null | undefined): boolean {
   return false;
 }
 
+// Retained as a compatibility helper while the structured parser migration is
+// completed. Referencing it keeps the helper type-checked without changing the
+// current parsing path.
+void isNamePolluted;
+
 function extractFirstStrongName(lines: string[], fallbackFileName: string): string {
   const cleanedFallback = fallbackFileName
     .replace(/\.[^/.]+$/, '')
@@ -168,6 +173,8 @@ function extractWorkLineRole(lines: string[]): string | null {
   }
   return null;
 }
+
+void extractWorkLineRole;
 
 interface ExperienceEstimate {
   total: number | null;
@@ -301,6 +308,8 @@ function inferExperienceFromRanges(lines: string[], targetRole: string | null): 
     hasFutureDatedRole,
   };
 }
+
+void inferExperienceFromRanges;
 
 export type RoleFamily =
   | 'software_engineering'

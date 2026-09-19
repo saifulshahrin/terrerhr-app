@@ -123,7 +123,6 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
   const [opportunities, setOpportunities] = useState<OpportunityItem[]>([]);
   const [bdQueue, setBdQueue] = useState<BdQueueItem[]>([]);
   const [expandedBd, setExpandedBd] = useState<string | null>(null);
-  const [approvingBd, setApprovingBd] = useState<Record<string, boolean>>({});
   const [rejectingBd, setRejectingBd] = useState<Record<string, boolean>>({});
   const [holdingBd, setHoldingBd] = useState<Record<string, boolean>>({});
 
@@ -169,17 +168,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
     };
   }, []);
 
-  const handleApprove = async (item: BdQueueItem) => {
-    setApprovingBd(p => ({ ...p, [item.submissionId]: true }));
-    try {
-      const updatedSubmission = await updateSubmissionInStore(item.submissionId, 'submitted_to_client');
-      if (updatedSubmission) {
-        setBdQueue(prev => prev.filter(i => i.submissionId !== updatedSubmission.id));
-      }
-    } finally {
-      setApprovingBd(p => ({ ...p, [item.submissionId]: false }));
-    }
-  };
+  const openBdSubmissionReview = () => onNavigate?.('bd-queue');
 
   const handleReject = async (item: BdQueueItem) => {
     setRejectingBd(p => ({ ...p, [item.submissionId]: true }));
@@ -568,7 +557,6 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                     <div className="divide-y divide-slate-100">
                       {filteredBdQueue.map(item => {
                       const isExpanded = expandedBd === item.submissionId;
-                      const isApproving = approvingBd[item.submissionId];
                       const isRejecting = rejectingBd[item.submissionId];
                       const isHolding = holdingBd[item.submissionId];
                       const sentDate = new Date(item.sentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -623,7 +611,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                 <>
                                   <button
                                     onClick={() => handleHold(item)}
-                                    disabled={isHolding || isRejecting || isApproving}
+                                    disabled={isHolding || isRejecting}
                                     className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                                       isHolding
                                         ? 'cursor-default border-slate-200 bg-slate-50 text-slate-400'
@@ -635,7 +623,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                   </button>
                                   <button
                                     onClick={() => handleReject(item)}
-                                    disabled={isRejecting || isApproving || isHolding}
+                                    disabled={isRejecting || isHolding}
                                     className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                                       isRejecting
                                         ? 'cursor-default border-slate-200 bg-slate-50 text-slate-400'
@@ -646,16 +634,12 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                     {isRejecting ? 'Rejecting...' : 'Reject'}
                                   </button>
                                   <button
-                                    onClick={() => handleApprove(item)}
-                                    disabled={isApproving || isRejecting || isHolding}
-                                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                                      isApproving
-                                        ? 'cursor-default border-slate-200 bg-slate-50 text-slate-400'
-                                        : 'border-teal-600 bg-teal-600 text-white hover:bg-teal-700'
-                                    }`}
+                                    onClick={openBdSubmissionReview}
+                                    disabled={isRejecting || isHolding}
+                                    className="flex items-center gap-1.5 rounded-lg border border-teal-600 bg-teal-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-teal-700"
                                   >
                                     <Send size={11} />
-                                    {isApproving ? 'Submitting...' : 'Approve & Submit to Client'}
+                                    Complete checks
                                   </button>
                                 </>
                               )}
@@ -725,7 +709,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                 <div className="flex items-center justify-end gap-2 border-t border-slate-200/70 pt-1">
                                   <button
                                     onClick={() => handleHold(item)}
-                                    disabled={isHolding || isRejecting || isApproving}
+                                    disabled={isHolding || isRejecting}
                                     className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                                       isHolding
                                         ? 'cursor-default border-slate-200 bg-slate-50 text-slate-400'
@@ -737,7 +721,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                   </button>
                                   <button
                                     onClick={() => handleReject(item)}
-                                    disabled={isRejecting || isApproving || isHolding}
+                                    disabled={isRejecting || isHolding}
                                     className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                                       isRejecting
                                         ? 'cursor-default border-slate-200 bg-slate-50 text-slate-400'
@@ -748,16 +732,12 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
                                     {isRejecting ? 'Rejecting...' : 'Reject'}
                                   </button>
                                   <button
-                                    onClick={() => handleApprove(item)}
-                                    disabled={isApproving || isRejecting || isHolding}
-                                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                                      isApproving
-                                        ? 'cursor-default border-slate-200 bg-slate-50 text-slate-400'
-                                        : 'border-teal-600 bg-teal-600 text-white hover:bg-teal-700'
-                                    }`}
+                                    onClick={openBdSubmissionReview}
+                                    disabled={isRejecting || isHolding}
+                                    className="flex items-center gap-1.5 rounded-lg border border-teal-600 bg-teal-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-teal-700"
                                   >
                                     <Send size={11} />
-                                    {isApproving ? 'Submitting...' : 'Approve & Submit to Client'}
+                                    Complete checks
                                   </button>
                                 </div>
                               )}
