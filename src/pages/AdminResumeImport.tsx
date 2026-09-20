@@ -203,7 +203,6 @@ async function extractTextFromFile(file: File): Promise<string> {
       const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
       const loadingTask = pdfjs.getDocument({
         data: pdfBytes,
-        disableWorker: true,
       });
       const pdfDocument = await loadingTask.promise;
       const pagesText: string[] = [];
@@ -701,8 +700,19 @@ function parseResumeIntoCandidate(rawText: string, fallbackFileName: string, res
       current_role: detectedRole || null,
       target_role: targetRole || null,
       years_experience: detectYearsExperience(rawText),
+      total_work_experience_years: detectYearsExperience(rawText),
+      role_relevant_experience_years: null,
+      experience_confidence: 'low',
+      normalized_current_role: detectedRole || null,
+      normalized_target_role: targetRole || null,
       location,
       key_skills: skills.length > 0 ? skills : base.skills,
+      hard_skills: skills.length > 0 ? skills : base.skills,
+      soft_skills: [],
+      tools: [],
+      languages: [],
+      education_level: null,
+      field_of_study: null,
       education: detectEducation(lines),
       notice_period: detectNoticePeriod(rawText),
       summary: base.notes || detectSummary(lines),
@@ -714,6 +724,8 @@ function parseResumeIntoCandidate(rawText: string, fallbackFileName: string, res
     warning: emailDetected.warning,
   };
 }
+
+void parseResumeIntoCandidate;
 
 function mergeMissing(existing: string | null | undefined, incoming: string | null | undefined): string | null {
   const current = existing?.trim();
@@ -735,7 +747,7 @@ function preserveEditedFields(
   const merged = { ...next };
   (Object.keys(edited) as Array<keyof ParsedResumeCandidate>).forEach(key => {
     if (edited[key]) {
-      merged[key] = existing[key];
+      Object.assign(merged, { [key]: existing[key] });
     }
   });
   return merged;
@@ -1011,7 +1023,7 @@ export default function AdminResumeImport() {
             .slice(0, 20);
         } else {
           const normalized = value.trim();
-          (next as Record<string, string | null>)[field] = normalized || null;
+          (next as unknown as Record<string, string | null>)[field] = normalized || null;
         }
 
         return {

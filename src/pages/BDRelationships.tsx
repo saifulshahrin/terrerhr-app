@@ -1069,14 +1069,14 @@ export default function BDRelationships({ onNavigate }: Props) {
       if (sortBy === 'activity') {
         const aContacts = contactsByCompanyId.get(a.id) ?? [];
         const bContacts = contactsByCompanyId.get(b.id) ?? [];
-        const aLatest = aContacts
+        const aActivityDates = aContacts
           .map((contact) => contact.last_contacted_at ?? contact.updated_at ?? contact.created_at ?? '')
-          .sort()
-          .at(-1) ?? '';
-        const bLatest = bContacts
+          .sort();
+        const bActivityDates = bContacts
           .map((contact) => contact.last_contacted_at ?? contact.updated_at ?? contact.created_at ?? '')
-          .sort()
-          .at(-1) ?? '';
+          .sort();
+        const aLatest = aActivityDates[aActivityDates.length - 1] ?? '';
+        const bLatest = bActivityDates[bActivityDates.length - 1] ?? '';
         return bLatest.localeCompare(aLatest);
       }
       return a.company_name.localeCompare(b.company_name);

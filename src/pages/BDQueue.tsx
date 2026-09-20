@@ -12,6 +12,7 @@ import { useRole } from '../store/RoleContext';
 import { useStore } from '../store/StoreContext';
 import { buildCandidateMap, createFallbackCandidate, fetchCandidatesByIds } from '../lib/candidates';
 import { fetchCandidateSubmissionConsents, recordCandidateSubmissionConsent, type CandidateSubmissionConsent, type ConsentChannel } from '../lib/candidateSubmissionConsent';
+import { supabase } from '../lib/supabase';
 
 interface Job {
   id: string;
@@ -41,6 +42,7 @@ interface BDItem {
   aiScore: number | null;
   aiRecommendation: string | null;
   consent: CandidateSubmissionConsent | null;
+  orderApproved: boolean;
 }
 
 type ActionState = 'idle' | 'approving' | 'rejecting' | 'holding';
@@ -189,9 +191,10 @@ function ConsentCapture({
   );
 }
 
-function BDCard({ item, onAction, onConsentSaved, canAct }: { item: BDItem; onAction: (id: string, action: 'approve' | 'reject' | 'hold') => Promise<void>; onConsentSaved: (submissionId: string, consent: CandidateSubmissionConsent) => void; canAct: boolean }) {
+function BDCard({ item, onAction, onConsentSaved, canAct }: { item: BDItem; onAction: (id: string, action: 'approve' | 'reject' | 'hold') => Promise<boolean>; onConsentSaved: (submissionId: string, consent: CandidateSubmissionConsent) => void; canAct: boolean }) {
   const [actionState, setActionState] = useState<ActionState>('idle');
   const [detailsOpen, setDetailsOpen] = useState(true);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const sentDate = new Date(item.sentAt).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
@@ -199,8 +202,10 @@ function BDCard({ item, onAction, onConsentSaved, canAct }: { item: BDItem; onAc
 
   const handleAction = async (action: 'approve' | 'reject' | 'hold') => {
     setActionState(action === 'approve' ? 'approving' : action === 'reject' ? 'rejecting' : 'holding');
+    setActionError(null);
     try {
-      await onAction(item.submissionId, action);
+      const succeeded = await onAction(item.submissionId, action);
+      if (!succeeded) setActionError('The stage change was not saved. Review the prerequisites and try again.');
     } finally {
       setActionState('idle');
     }
@@ -363,7 +368,13 @@ function BDCard({ item, onAction, onConsentSaved, canAct }: { item: BDItem; onAc
 
       <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-3 flex-wrap">
         <p className="text-xs text-gray-400">
-          {canAct ? (item.consent ? 'Consent recorded — ready for client submission' : 'Candidate consent is required before client submission') : 'Awaiting BD approval before client submission'}
+          {canAct
+            ? !item.orderApproved
+              ? 'An approved Placement Order is required before client submission'
+              : item.consent
+                ? 'Consent and Placement Order confirmed — ready for client submission'
+                : 'Candidate consent is required before client submission'
+            : 'Awaiting BD approval before client submission'}
         </p>
         {canAct && (
           <div className="flex items-center gap-2">
@@ -393,7 +404,7 @@ function BDCard({ item, onAction, onConsentSaved, canAct }: { item: BDItem; onAc
             </button>
             <button
               onClick={() => handleAction('approve')}
-              disabled={busy || !item.consent}
+              disabled={busy || !item.consent || !item.orderApproved}
               className={`flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
                 actionState === 'approving'
                   ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-default'
@@ -401,10 +412,17 @@ function BDCard({ item, onAction, onConsentSaved, canAct }: { item: BDItem; onAc
               }`}
             >
               <Send size={12} />
-              {actionState === 'approving' ? 'Submitting...' : item.consent ? 'Approve & Submit to Client' : 'Capture Consent First'}
+              {actionState === 'approving'
+                ? 'Submitting...'
+                : !item.orderApproved
+                  ? 'Approve Placement Order First'
+                  : item.consent
+                    ? 'Approve & Submit to Client'
+                    : 'Capture Consent First'}
             </button>
           </div>
         )}
+        {actionError ? <p className="w-full text-xs text-red-700">{actionError}</p> : null}
       </div>
     </div>
   );
@@ -433,6 +451,17 @@ export default function BDQueue() {
     );
 
     const jobMap = new Map((jobsData ?? []).map((j: Job) => [j.id, j]));
+    const jobIds = [...new Set(subs.map(sub => sub.job_id))];
+    const approvedOrderJobIds = new Set<string>();
+    if (jobIds.length > 0) {
+      const { data: approvedOrders, error: approvedOrdersError } = await supabase
+        .from('placement_job_orders')
+        .select('job_id')
+        .in('job_id', jobIds)
+        .eq('approval_status', 'approved');
+      if (approvedOrdersError) throw approvedOrdersError;
+      for (const order of approvedOrders ?? []) approvedOrderJobIds.add(order.job_id as string);
+    }
     const assessmentMap = new Map(
       (assessmentsResult as Assessment[]).map(a => [`${a.candidate_id}-${a.job_id}`, a])
     );
@@ -457,6 +486,7 @@ export default function BDQueue() {
         aiScore: assessment?.ai_score ?? null,
         aiRecommendation: assessment?.overall_recommendation ?? null,
         consent: consentBySubmissionId.get(sub.id) ?? null,
+        orderApproved: approvedOrderJobIds.has(sub.job_id),
       });
     }
 
@@ -471,7 +501,7 @@ export default function BDQueue() {
     setItems(prev => prev.map(item => item.submissionId === submissionId ? { ...item, consent } : item));
   };
 
-  const handleAction = async (submissionId: string, action: 'approve' | 'reject' | 'hold') => {
+  const handleAction = async (submissionId: string, action: 'approve' | 'reject' | 'hold'): Promise<boolean> => {
     const stageMap: Record<'approve' | 'reject' | 'hold', SubmissionStage> = {
       approve: 'submitted_to_client',
       reject: 'rejected',
@@ -482,7 +512,9 @@ export default function BDQueue() {
 
     if (updatedSubmission) {
       setItems(prev => prev.filter(i => i.submissionId !== updatedSubmission.id));
+      return true;
     }
+    return false;
   };
 
   return (

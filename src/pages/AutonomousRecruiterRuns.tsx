@@ -66,11 +66,6 @@ function formatDate(value: string | null | undefined) {
   return d.toLocaleString();
 }
 
-function stringifySkills(skills: string | null | undefined) {
-  if (!skills) return '-';
-  return skills;
-}
-
 function toBulletItems(value: unknown): string[] {
   if (value == null) return [];
   if (Array.isArray(value)) {

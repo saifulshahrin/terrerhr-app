@@ -143,7 +143,6 @@ function bdPriorityTone(priority: BdPriorityLevel): Parameters<typeof Badge>[0][
 }
 
 function computeCompanyIntel(
-  company: CompanyIntelligenceRow,
   companyContacts: ContactRow[],
   companyJobs: JobListRow[]
 ): CompanyIntel {
@@ -350,7 +349,7 @@ export default function Opportunities({ onNavigate }: Props) {
       return {
         company,
         contacts: contactsForCompany,
-        intel: computeCompanyIntel(company, contactsForCompany, jobsForCompany),
+        intel: computeCompanyIntel(contactsForCompany, jobsForCompany),
         score: computeRelationshipWinScore(company, contactsForCompany),
       };
     });

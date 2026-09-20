@@ -278,7 +278,7 @@ export default function BDTasksFollowUps({ onNavigate }: Props) {
           urgencyTone: toneForBucket(bucket),
           sourceLabel: 'BD Contact',
           reason,
-          meta: contact.job_title ?? null,
+          meta: contact.job_title ?? undefined,
           contactId: contact.id,
           companyId: contact.company_id,
         };
@@ -305,7 +305,7 @@ export default function BDTasksFollowUps({ onNavigate }: Props) {
           urgencyTone: toneForBucket(bucket),
           sourceLabel: 'Submission',
           reason: `${stage} follow-up due`,
-          meta: job?.location ?? null,
+          meta: job?.location ?? undefined,
           submissionId: sub.id,
           submissionStage: sub.submission_stage,
         };
@@ -333,7 +333,7 @@ export default function BDTasksFollowUps({ onNavigate }: Props) {
           urgencyTone: 'amber',
           sourceLabel: 'Submission',
           reason: `${stage} flagged in notes`,
-          meta: job?.location ?? null,
+          meta: job?.location ?? undefined,
           submissionId: sub.id,
           submissionStage: sub.submission_stage,
         };
@@ -635,4 +635,3 @@ export default function BDTasksFollowUps({ onNavigate }: Props) {
     </div>
   );
 }
-
