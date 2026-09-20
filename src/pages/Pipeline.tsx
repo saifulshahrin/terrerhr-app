@@ -6,6 +6,7 @@ import { useRole } from '../store/RoleContext';
 import { buildCandidateMap, createFallbackCandidate, fetchCandidatesByIds } from '../lib/candidates';
 import { fetchAllJobsBasic } from '../lib/jobs';
 import { Badge, MetricTile, PageHeader, Panel, SectionHeader } from '../components/visualSystem';
+import PlacementCommercialCard from '../components/PlacementCommercialCard';
 
 const PIPELINE_STAGES: { key: SubmissionStage; name: string; color: string; headerColor: string }[] = [
   { key: 'new',                 name: 'New',           color: 'border-gray-300',   headerColor: 'bg-gray-100' },
@@ -287,7 +288,10 @@ export default function Pipeline() {
   const handleStageMove = async (submissionId: string, stage: SubmissionStage) => {
     setBusy(prev => ({ ...prev, [submissionId]: true }));
     try {
-      await moveSubmissionStage(submissionId, stage);
+      const moved = await moveSubmissionStage(submissionId, stage);
+      if (!moved && stage === 'hired') {
+        window.alert('A confirmed start record is required before marking a candidate as hired.');
+      }
     } finally {
       setBusy(prev => ({ ...prev, [submissionId]: false }));
     }
@@ -696,6 +700,13 @@ export default function Pipeline() {
                 <p className="mt-0.5 text-sm text-slate-600">{selectedJobContext?.company_name ?? ''}</p>
                 <p className="mt-1 text-xs text-slate-500">{selectedJobContext?.location ?? ''}</p>
               </div>
+
+              <PlacementCommercialCard
+                submissionId={selectedSubmission.id}
+                candidateName={selectedCandidate.name}
+                jobTitle={selectedJobContext?.job_title ?? `Job ${selectedSubmission.job_id}`}
+                companyName={selectedJobContext?.company_name ?? 'Client not recorded'}
+              />
 
               <div className="mt-4 rounded-xl bg-slate-50/70 px-3 py-3 ring-1 ring-inset ring-slate-200/60">
                 <div className="flex items-start justify-between gap-3">
