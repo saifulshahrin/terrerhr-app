@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm install --no-save --ignore-scripts @rollup/rollup-linux-x64-gnu && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test:pilot-guard": "node --test --test-isolation=none tests/pilotTargetGuard.test.mjs",
