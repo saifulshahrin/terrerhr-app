@@ -7,6 +7,7 @@ import { buildCandidateMap, createFallbackCandidate, fetchCandidatesByIds } from
 import { fetchAllJobsBasic } from '../lib/jobs';
 import { Badge, MetricTile, PageHeader, Panel, SectionHeader } from '../components/visualSystem';
 import PlacementCommercialCard from '../components/PlacementCommercialCard';
+import PlacementGuaranteeCard from '../components/PlacementGuaranteeCard';
 
 const PIPELINE_STAGES: { key: SubmissionStage; name: string; color: string; headerColor: string }[] = [
   { key: 'new',                 name: 'New',           color: 'border-gray-300',   headerColor: 'bg-gray-100' },
@@ -707,6 +708,8 @@ export default function Pipeline() {
                 jobTitle={selectedJobContext?.job_title ?? `Job ${selectedSubmission.job_id}`}
                 companyName={selectedJobContext?.company_name ?? 'Client not recorded'}
               />
+
+              <PlacementGuaranteeCard submissionId={selectedSubmission.id} />
 
               <div className="mt-4 rounded-xl bg-slate-50/70 px-3 py-3 ring-1 ring-inset ring-slate-200/60">
                 <div className="flex items-start justify-between gap-3">
