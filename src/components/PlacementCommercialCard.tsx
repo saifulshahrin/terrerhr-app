@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BriefcaseBusiness, CircleCheck, ReceiptText } from 'lucide-react';
+import { Briefcase, CircleCheck, ReceiptText } from 'lucide-react';
 import {
   fetchPlacementCommercialRecord,
   savePlacementCommercialRecord,
