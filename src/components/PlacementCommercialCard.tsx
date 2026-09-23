@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Briefcase, CircleCheck, ReceiptText } from 'lucide-react';
+import { Briefcase, CheckCircle, FileText } from 'lucide-react';
 import {
   fetchPlacementCommercialRecord,
   savePlacementCommercialRecord,
@@ -152,7 +152,7 @@ export default function PlacementCommercialCard({
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <BriefcaseBusiness size={14} className="text-slate-500" />
+            <Briefcase size={14} className="text-slate-500" />
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Placement & Commercial Record</p>
           </div>
           <p className="mt-1 text-sm font-semibold text-slate-900">
