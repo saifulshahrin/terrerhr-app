@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, CircleHelp, Search, UserPlus, XCircle } from 'lucide-react';
+import { CheckCircle2, HelpCircle, Search, UserPlus, XCircle } from 'lucide-react';
 import { fetchExternalProspects, setProspectDecision, type ExternalProspect, type RecruiterDecision } from '../lib/externalProspects';
 
 const decisionStyle: Record<RecruiterDecision, string> = {
@@ -161,7 +161,7 @@ export default function ExternalProspects() {
                 </div>
                 <div className="flex gap-1.5">
                   <button disabled={busyId === row.prospect_id} onClick={() => void decide(row, 'good')} title="Good" className="rounded-lg border border-emerald-200 p-2 text-emerald-700 hover:bg-emerald-50"><CheckCircle2 size={17}/></button>
-                  <button disabled={busyId === row.prospect_id} onClick={() => void decide(row, 'maybe')} title="Maybe" className="rounded-lg border border-amber-200 p-2 text-amber-700 hover:bg-amber-50"><CircleHelp size={17}/></button>
+                  <button disabled={busyId === row.prospect_id} onClick={() => void decide(row, 'maybe')} title="Maybe" className="rounded-lg border border-amber-200 p-2 text-amber-700 hover:bg-amber-50"><HelpCircle size={17}/></button>
                   <button disabled={busyId === row.prospect_id} onClick={() => void decide(row, 'reject')} title="Reject for current review" className="rounded-lg border border-rose-200 p-2 text-rose-700 hover:bg-rose-50"><XCircle size={17}/></button>
                 </div>
               </div>
