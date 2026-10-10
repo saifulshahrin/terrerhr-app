@@ -10,6 +10,7 @@ import Jobs from './pages/Jobs';
 import ActiveJobs from './pages/ActiveJobs';
 import HiringIntelligence from './pages/HiringIntelligence';
 import Candidates from './pages/Candidates';
+import ExternalProspects from './pages/ExternalProspects';
 import AdminResumeImport from './pages/AdminResumeImport';
 import Pipeline from './pages/Pipeline';
 import TopMatches from './pages/TopMatches';
@@ -28,6 +29,7 @@ type Page =
   | 'active-jobs'
   | 'hiring-intelligence'
   | 'candidates'
+  | 'external-prospects'
   | 'admin-resume-import'
   | 'pipeline'
   | 'top-matches'
@@ -60,6 +62,7 @@ const PAGE_TO_PATH: Record<Page, string> = {
   'active-jobs': '/active-jobs',
   'hiring-intelligence': '/hiring-intelligence',
   candidates: '/candidates',
+  'external-prospects': '/external-prospects',
   'admin-resume-import': '/admin-resume-import',
   pipeline: '/pipeline',
   'top-matches': '/top-matches',
@@ -170,6 +173,7 @@ function AppShell() {
       case 'active-jobs': return <ActiveJobs onViewTopMatches={(id) => navigate('top-matches', id)} />;
       case 'hiring-intelligence': return <HiringIntelligence onViewTopMatches={(id) => navigate('top-matches', id)} />;
       case 'candidates':  return <Candidates sourcingContext={sourcingContext} />;
+      case 'external-prospects': return <ExternalProspects />;
       case 'admin-resume-import':
         return role === 'admin' ? <AdminResumeImport /> : (
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
