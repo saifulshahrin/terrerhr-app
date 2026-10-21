@@ -118,7 +118,7 @@ begin
   v_profile_id := gen_random_uuid();
 
   insert into public.candidates (
-    candidate_id, display_name, full_name, city, primary_role, current_role,
+    candidate_id, display_name, full_name, city, primary_role, "current_role",
     linkedin_url, email, phone, source_type, notes, candidate_status,
     key_skills, years_experience, created_at, updated_at
   ) values (
