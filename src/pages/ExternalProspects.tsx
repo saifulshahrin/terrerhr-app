@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, HelpCircle, Search, UserPlus, XCircle } from 'lucide-react';
-import { fetchExternalProspects, setProspectDecision, type ExternalProspect, type RecruiterDecision } from '../lib/externalProspects';
+import { fetchExternalProspects, markProspectResponded, promoteProspectToCandidate, setProspectDecision, type ExternalProspect, type RecruiterDecision } from '../lib/externalProspects';
 
 const decisionStyle: Record<RecruiterDecision, string> = {
   unreviewed: 'border-slate-200 bg-slate-50 text-slate-600',
@@ -51,6 +51,22 @@ export default function ExternalProspects() {
     maybe: rows.filter(row => row.recruiter_status === 'maybe').length,
     reject: rows.filter(row => row.recruiter_status === 'reject').length,
   }), [rows]);
+
+  async function markResponded(row: ExternalProspect) {
+    setBusyId(row.prospect_id);
+    try {
+      await markProspectResponded(row.prospect_id);
+      setRows(current => current.map(item => item.prospect_id === row.prospect_id ? { ...item, engagement_status: 'responded' } : item));
+    } finally { setBusyId(null); }
+  }
+
+  async function promote(row: ExternalProspect) {
+    setBusyId(row.prospect_id);
+    try {
+      const candidateId = await promoteProspectToCandidate(row.prospect_id);
+      setRows(current => current.map(item => item.prospect_id === row.prospect_id ? { ...item, engagement_status: 'promoted', promoted_candidate_id: candidateId } : item));
+    } finally { setBusyId(null); }
+  }
 
   async function decide(row: ExternalProspect, decision: RecruiterDecision) {
     setBusyId(row.prospect_id);
@@ -158,6 +174,17 @@ export default function ExternalProspects() {
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Engagement</p>
                   <p className="mt-1 text-sm font-medium capitalize text-slate-700">{row.engagement_status.replace('_', ' ')}</p>
                   <p className="mt-1 text-xs text-slate-500">Enrich only when a recruiter decides the prospect is worth pursuing.</p>
+                  {row.engagement_status === 'reviewed' && row.recruiter_status === 'good' ? (
+                    <button type="button" disabled={busyId === row.prospect_id} onClick={() => void markResponded(row)} className="mt-2 rounded-lg border border-blue-200 px-2.5 py-1.5 text-[11px] font-semibold text-blue-700 hover:bg-blue-50">
+                      Mark responded
+                    </button>
+                  ) : null}
+                  {row.engagement_status === 'responded' ? (
+                    <button type="button" disabled={busyId === row.prospect_id} onClick={() => void promote(row)} className="mt-2 rounded-lg bg-slate-950 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-slate-800">
+                      Promote to Terrer Candidate
+                    </button>
+                  ) : null}
+                  {row.engagement_status === 'promoted' ? <p className="mt-2 text-[11px] font-semibold text-emerald-700">Terrer Candidate created</p> : null}
                 </div>
                 <div className="flex gap-1.5">
                   <button disabled={busyId === row.prospect_id} onClick={() => void decide(row, 'good')} title="Good" className="rounded-lg border border-emerald-200 p-2 text-emerald-700 hover:bg-emerald-50"><CheckCircle2 size={17}/></button>
