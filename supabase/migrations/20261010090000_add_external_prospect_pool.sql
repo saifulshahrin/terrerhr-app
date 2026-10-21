@@ -70,3 +70,82 @@ create policy "prospect_job_matches_staff_read" on public.prospect_job_matches f
 create policy "prospect_job_matches_staff_write" on public.prospect_job_matches for all to authenticated
   using ((select private.is_current_user_active_staff()))
   with check ((select private.is_current_user_active_staff()));
+
+
+-- Paid sourcing/enrichment actions are explicit so Terrer can measure sourcing economics.
+create table if not exists public.prospect_source_actions (
+  action_id uuid primary key default gen_random_uuid(),
+  prospect_id uuid not null references public.external_prospects(prospect_id) on delete cascade,
+  job_id uuid references public.jobs(id) on delete set null,
+  action text not null check (action in ('export','email_reveal','phone_reveal','outreach','other')),
+  credit_type text,
+  credits_used integer not null default 0 check (credits_used >= 0),
+  reason text,
+  result text,
+  source_platform text not null,
+  performed_at timestamptz not null default now(),
+  performed_by uuid references auth.users(id) on delete set null
+);
+alter table public.prospect_source_actions enable row level security;
+create policy "prospect_source_actions_staff_read" on public.prospect_source_actions for select to authenticated
+  using ((select private.is_current_user_active_staff()));
+create policy "prospect_source_actions_staff_write" on public.prospect_source_actions for all to authenticated
+  using ((select private.is_current_user_active_staff()))
+  with check ((select private.is_current_user_active_staff()));
+
+-- Promotion is explicit and idempotent: a prospect becomes a Candidate only after response/qualification.
+alter table public.external_prospects add column if not exists promoted_candidate_id uuid references public.candidates(candidate_id) on delete set null;
+
+create or replace function public.promote_external_prospect_to_candidate(p_prospect_id uuid)
+returns uuid
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  p public.external_prospects%rowtype;
+  v_candidate_id uuid;
+  v_profile_id uuid;
+begin
+  select * into p from public.external_prospects where prospect_id = p_prospect_id for update;
+  if not found then raise exception 'External prospect not found'; end if;
+  if p.promoted_candidate_id is not null then return p.promoted_candidate_id; end if;
+  if p.engagement_status <> 'responded' then
+    raise exception 'Prospect must have responded before promotion to Terrer Candidate';
+  end if;
+
+  v_candidate_id := gen_random_uuid();
+  v_profile_id := gen_random_uuid();
+
+  insert into public.candidates (
+    candidate_id, display_name, full_name, city, primary_role, current_role,
+    linkedin_url, email, phone, source_type, notes, candidate_status,
+    key_skills, years_experience, created_at, updated_at
+  ) values (
+    v_candidate_id, p.full_name, p.full_name, p.location, p.current_title, p.current_title,
+    p.linkedin_url, p.email, p.phone, p.source_platform, p.notes, 'active',
+    p.skills, p.years_experience, now(), now()
+  );
+
+  insert into public.source_profiles (
+    profile_id, candidate_id, source_name, source_profile_url, source_handle, scraped_at
+  ) values (
+    v_profile_id, v_candidate_id, p.source_platform, coalesce(p.source_profile_url,p.linkedin_url),
+    null, now()
+  );
+
+  insert into public.candidate_scores (
+    candidate_id, display_name, full_name, city, primary_role, capabilities, score, score_reason, scored_at
+  ) values (
+    v_candidate_id, p.full_name, p.full_name, p.location, p.current_title,
+    array_to_string(p.skills, ', '), 0, 'Promoted from External Prospect Pool', now()
+  );
+
+  update public.external_prospects
+  set promotion_status='candidate', engagement_status='promoted',
+      promoted_candidate_id=v_candidate_id, updated_at=now()
+  where prospect_id=p_prospect_id;
+
+  return v_candidate_id;
+end;
+$$;
