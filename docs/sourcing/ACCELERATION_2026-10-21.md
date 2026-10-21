@@ -93,3 +93,8 @@ Days 15–21: target 5 substantive replies, 3 completed screens and 2 consented 
 Days 22–30: target 2 client-authorised submissions and 1 interview; placement is a stretch outcome dependent on an actual client mandate, employer speed and candidate acceptance. Review channel economics weekly. Scale on cost per qualified conversation and interview; do not optimise raw profile volume.
 
 Expected commercial impact is directional: fewer duplicate imports, less false reporting and faster reuse of existing technical evidence. Revenue cannot be forecast credibly from one outreach event and no approved orders. Illustrative only: at RM6,000 monthly base and 18% of annual base, one placement fee would be RM12,960 before costs/taxes; this is not an employer quote or hiring forecast. Keep new sourcing spend at zero until account access and comparative yield are verified.
+
+## Release reconciliation
+The candidate-engine base landed on main as 48fc59a during this execution. Preserve its original source migration 20261010090000_add_external_prospect_pool.sql; the remote ledger records that base as 20261021112314_add_external_prospect_pool. The hardening migration is 20261021112529_harden_sourcing_prospect_workflow, applied and verified. Do not replay the base twice. Three public benchmark profiles and their job-match evidence were loaded as discovered/unreviewed, with no outreach or candidate promotion.
+
+The second repository, saifulshahrin/terrer-web, was accessible read-only; its package confirms Vite/React, Supabase, candidate provisioning, authenticated/anonymous opportunity tests and a curated catalogue pipeline. No website code was changed in this release. Broader web implementation review remains separate from the sourcing controls audited here.

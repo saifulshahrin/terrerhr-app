@@ -42,7 +42,7 @@ export async function setProspectDecision(prospectId: string, decision: Recruite
       recruiter_status: decision,
       updated_at: new Date().toISOString(),
     })
-    .eq('prospect_id', prospectId);
+    .eq('prospect_id', prospectId).select('prospect_id').single();
   if (error) throw error;
 }
 
@@ -52,7 +52,7 @@ export async function markProspectResponded(prospectId: string, evidence: string
   const { error } = await supabase
     .from('external_prospects')
     .update({ engagement_status: 'responded', response_evidence: evidence.trim(), updated_at: new Date().toISOString() })
-    .eq('prospect_id', prospectId).neq('engagement_status', 'promoted');
+    .eq('prospect_id', prospectId).neq('engagement_status', 'promoted').select('prospect_id').single();
   if (error) throw error;
 }
 

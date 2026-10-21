@@ -124,7 +124,7 @@ export default function ExternalProspects() {
           ['Prospects', counts.total],
           ['Good', counts.good],
           ['Maybe', counts.maybe],
-          ['Rejected for this review', counts.reject],
+          ['Rejected', counts.reject],
         ].map(([label, value]) => (
           <div key={String(label)} className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
             <p className="text-xs font-medium text-slate-500">{label}</p>
@@ -188,6 +188,9 @@ export default function ExternalProspects() {
                   </div>
                   <p className="mt-1 text-sm text-slate-700">{row.current_title || 'Title unknown'}{row.current_company ? ` · ${row.current_company}` : ''}</p>
                   <p className="mt-1 text-xs text-slate-500">{row.location || 'Location unknown'} · {row.source_platform}</p>
+                  {row.source_profile_url && /^https?:\/\//i.test(row.source_profile_url) ? <a href={row.source_profile_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-blue-700 underline">View source profile</a> : null}
+                  <p className="mt-1 text-xs text-slate-500">Last verified: {row.last_verified_at ? new Date(row.last_verified_at).toLocaleDateString('en-MY') : 'Not verified'}</p>
+                  {row.notes ? <p className="mt-2 text-xs text-slate-600">{row.notes}</p> : null}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {(row.skills ?? []).slice(0, 6).map(skill => (
