@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, HelpCircle, Search, UserPlus, XCircle } from 'lucide-react';
-import { fetchExternalProspects, markProspectResponded, promoteProspectToCandidate, setProspectDecision, type ExternalProspect, type RecruiterDecision } from '../lib/externalProspects';
+import { fetchExternalProspects, importExternalProspect, markProspectResponded, promoteProspectToCandidate, setProspectDecision, type ExternalProspect, type RecruiterDecision } from '../lib/externalProspects';
 
 const decisionStyle: Record<RecruiterDecision, string> = {
   unreviewed: 'border-slate-200 bg-slate-50 text-slate-600',
@@ -15,6 +15,11 @@ export default function ExternalProspects() {
   const [status, setStatus] = useState<RecruiterDecision | 'all'>('all');
   const [loading, setLoading] = useState(true);
   const [schemaReady, setSchemaReady] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [importName, setImportName] = useState('');
+  const [importUrl, setImportUrl] = useState('');
+  const [importTitle, setImportTitle] = useState('');
+  const [importSkills, setImportSkills] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -25,9 +30,8 @@ export default function ExternalProspects() {
         const message = error instanceof Error ? error.message : String(error);
         if (message.includes('external_prospects') || message.includes('schema cache') || message.includes('relation')) {
           setSchemaReady(false);
-        } else {
-          console.error(error);
         }
+        setErrorMessage(message);
       } finally {
         setLoading(false);
       }
@@ -53,19 +57,23 @@ export default function ExternalProspects() {
   }), [rows]);
 
   async function markResponded(row: ExternalProspect) {
+    const evidence = window.prompt('Record the actual response evidence: message reference, date and brief summary.');
+    if (!evidence?.trim()) return;
     setBusyId(row.prospect_id);
     try {
-      await markProspectResponded(row.prospect_id);
+      await markProspectResponded(row.prospect_id, evidence);
       setRows(current => current.map(item => item.prospect_id === row.prospect_id ? { ...item, engagement_status: 'responded' } : item));
-    } finally { setBusyId(null); }
+    } catch (error) { setErrorMessage(error instanceof Error ? error.message : String(error)); } finally { setBusyId(null); }
   }
 
   async function promote(row: ExternalProspect) {
     setBusyId(row.prospect_id);
     try {
-      const candidateId = await promoteProspectToCandidate(row.prospect_id);
+      const evidence = window.prompt('Record candidate consent to Terrer processing their profile: evidence reference, date and scope. This does not authorise client submission.');
+      if (!evidence?.trim()) return;
+      const candidateId = await promoteProspectToCandidate(row.prospect_id, evidence);
       setRows(current => current.map(item => item.prospect_id === row.prospect_id ? { ...item, engagement_status: 'promoted', promoted_candidate_id: candidateId } : item));
-    } finally { setBusyId(null); }
+    } catch (error) { setErrorMessage(error instanceof Error ? error.message : String(error)); } finally { setBusyId(null); }
   }
 
   async function decide(row: ExternalProspect, decision: RecruiterDecision) {
@@ -73,9 +81,9 @@ export default function ExternalProspects() {
     try {
       await setProspectDecision(row.prospect_id, decision);
       setRows(current => current.map(item => item.prospect_id === row.prospect_id
-        ? { ...item, recruiter_status: decision, engagement_status: decision === 'unreviewed' ? 'discovered' : 'reviewed' }
+        ? { ...item, recruiter_status: decision }
         : item));
-    } finally {
+    } catch (error) { setErrorMessage(error instanceof Error ? error.message : String(error)); } finally {
       setBusyId(null);
     }
   }
@@ -95,12 +103,28 @@ export default function ExternalProspects() {
         </div>
       </div>
 
+      {errorMessage ? <p role="alert" className="rounded-xl bg-rose-50 p-4 text-sm text-rose-800">{errorMessage}</p> : null}
+      <form className="grid gap-3 rounded-xl border bg-white p-4 sm:grid-cols-2" onSubmit={async event => {
+        event.preventDefault(); setErrorMessage(''); setBusyId('import');
+        try {
+          await importExternalProspect({ full_name: importName, source_profile_url: importUrl, current_title: importTitle, skills: importSkills.split(',').map(s => s.trim()).filter(Boolean) });
+          setRows(await fetchExternalProspects()); setImportName(''); setImportUrl(''); setImportTitle(''); setImportSkills('');
+        } catch (error) { setErrorMessage(error instanceof Error ? error.message : String(error)); }
+        finally { setBusyId(null); }
+      }}>
+        <label className="text-sm">Name<input required value={importName} onChange={e => setImportName(e.target.value)} className="mt-1 block w-full rounded border p-2" /></label>
+        <label className="text-sm">Public profile URL<input required type="url" value={importUrl} onChange={e => setImportUrl(e.target.value)} className="mt-1 block w-full rounded border p-2" /></label>
+        <label className="text-sm">Current title<input value={importTitle} onChange={e => setImportTitle(e.target.value)} className="mt-1 block w-full rounded border p-2" /></label>
+        <label className="text-sm">Skills evidenced on profile, comma separated<input value={importSkills} onChange={e => setImportSkills(e.target.value)} className="mt-1 block w-full rounded border p-2" /></label>
+        <button disabled={busyId !== null || !schemaReady} className="rounded-lg bg-slate-950 p-2 text-sm font-semibold text-white disabled:opacity-50">Add external prospect</button>
+        <p className="text-xs text-slate-500">Creates a prospect only. Source URL prevents duplicate imports. No outreach is sent.</p>
+      </form>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           ['Prospects', counts.total],
           ['Good', counts.good],
           ['Maybe', counts.maybe],
-          ['Rejected for this review', counts.reject],
+          ['Rejected', counts.reject],
         ].map(([label, value]) => (
           <div key={String(label)} className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
             <p className="text-xs font-medium text-slate-500">{label}</p>
@@ -137,9 +161,9 @@ export default function ExternalProspects() {
         {!schemaReady ? (
           <div className="p-8">
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
-              <p className="text-sm font-semibold text-amber-950">Preview UI is ready; production schema is not applied yet.</p>
+              <p className="text-sm font-semibold text-amber-950">Prospect pool is unavailable.</p>
               <p className="mt-2 max-w-3xl text-sm leading-relaxed text-amber-800">
-                This preview deliberately does not create fake candidates. The External Prospect migration will be applied only after this screen and workflow are approved for production.
+                Check access permissions or database availability. No prospect data has been fabricated.
               </p>
             </div>
           </div>
@@ -164,6 +188,9 @@ export default function ExternalProspects() {
                   </div>
                   <p className="mt-1 text-sm text-slate-700">{row.current_title || 'Title unknown'}{row.current_company ? ` · ${row.current_company}` : ''}</p>
                   <p className="mt-1 text-xs text-slate-500">{row.location || 'Location unknown'} · {row.source_platform}</p>
+                  {row.source_profile_url && /^https?:\/\//i.test(row.source_profile_url) ? <a href={row.source_profile_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-blue-700 underline">View source profile</a> : null}
+                  <p className="mt-1 text-xs text-slate-500">Last verified: {row.last_verified_at ? new Date(row.last_verified_at).toLocaleDateString('en-MY') : 'Not verified'}</p>
+                  {row.notes ? <p className="mt-2 text-xs text-slate-600">{row.notes}</p> : null}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {(row.skills ?? []).slice(0, 6).map(skill => (
@@ -174,7 +201,7 @@ export default function ExternalProspects() {
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Engagement</p>
                   <p className="mt-1 text-sm font-medium capitalize text-slate-700">{row.engagement_status.replace('_', ' ')}</p>
                   <p className="mt-1 text-xs text-slate-500">Enrich only when a recruiter decides the prospect is worth pursuing.</p>
-                  {row.engagement_status === 'reviewed' && row.recruiter_status === 'good' ? (
+                  {['discovered', 'reviewed', 'contacted'].includes(row.engagement_status) && row.recruiter_status === 'good' ? (
                     <button type="button" disabled={busyId === row.prospect_id} onClick={() => void markResponded(row)} className="mt-2 rounded-lg border border-blue-200 px-2.5 py-1.5 text-[11px] font-semibold text-blue-700 hover:bg-blue-50">
                       Mark responded
                     </button>

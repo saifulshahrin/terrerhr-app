@@ -63,8 +63,8 @@ interface SourcingChannel {
   priority: ChannelPriority;
   reason: string;
   status: ChannelStatus;
-  leads: number;
-  addedToJob: number;
+  leads: number | null;
+  addedToJob: number | null;
   nextAction: string;
 }
 
@@ -132,9 +132,9 @@ const SOURCING_CHANNELS: SourcingChannel[] = [
     channel: 'Internal Database',
     priority: 'HIGH',
     reason: 'Fastest candidates, already in system',
-    status: 'In progress',
-    leads: 18,
-    addedToJob: 3,
+    status: 'Not started',
+    leads: null,
+    addedToJob: null,
     nextAction: 'Search and shortlist strongest matches',
   },
   {
@@ -142,8 +142,8 @@ const SOURCING_CHANNELS: SourcingChannel[] = [
     priority: 'HIGH',
     reason: 'Best for targeted outreach',
     status: 'Not started',
-    leads: 0,
-    addedToJob: 0,
+    leads: null,
+    addedToJob: null,
     nextAction: 'Build target list by role keywords',
   },
   {
@@ -151,8 +151,8 @@ const SOURCING_CHANNELS: SourcingChannel[] = [
     priority: 'MEDIUM',
     reason: 'Useful for broader inbound reach',
     status: 'Not started',
-    leads: 0,
-    addedToJob: 0,
+    leads: null,
+    addedToJob: null,
     nextAction: 'Post once job requirements are stable',
   },
   {
@@ -160,8 +160,8 @@ const SOURCING_CHANNELS: SourcingChannel[] = [
     priority: 'MEDIUM',
     reason: 'Useful for white-collar / professional inbound',
     status: 'Paused',
-    leads: 0,
-    addedToJob: 0,
+    leads: null,
+    addedToJob: null,
     nextAction: 'Resume if internal search is thin',
   },
   {
@@ -169,8 +169,8 @@ const SOURCING_CHANNELS: SourcingChannel[] = [
     priority: 'LOW',
     reason: 'Useful when warm network access is available',
     status: 'Not started',
-    leads: 0,
-    addedToJob: 0,
+    leads: null,
+    addedToJob: null,
     nextAction: 'Ask team for warm intros if needed',
   },
 ];
@@ -354,7 +354,7 @@ function SourcingPlan({
         <div className="px-5 py-4 border-b border-gray-100">
           <h2 className="text-sm font-semibold text-gray-900">Channel Tracker</h2>
           <p className="text-xs text-gray-500 mt-1">
-            Mock tracker only. Changes are local to this page and are not saved yet.
+            Channel statuses are session notes and are not saved. Internal leads count the loaded candidate pool; external counts and source attribution are unavailable.
           </p>
         </div>
 
@@ -384,8 +384,8 @@ function SourcingPlan({
                   <option key={status} value={status}>{status}</option>
                 ))}
               </select>
-              <p className="text-gray-600">{row.leads}</p>
-              <p className="text-gray-600">{row.addedToJob}</p>
+              <p className="text-gray-600">{row.leads ?? '—'}</p>
+              <p className="text-gray-600">{row.addedToJob ?? '—'}</p>
               <p className="text-gray-600">{row.nextAction}</p>
             </div>
           ))}
@@ -809,10 +809,10 @@ export default function TopMatches({ jobId, onNavigate }: Props) {
 
     return jobChannels.map(row =>
       row.channel === 'Internal Database'
-        ? { ...row, addedToJob: jobSubmissionCount }
+        ? { ...row, leads: liveCandidates.length, addedToJob: null }
         : row
     );
-  }, [job, jobSubmissionCount, sourcingChannelsByJob]);
+  }, [job, liveCandidates.length, sourcingChannelsByJob]);
 
   const supplyAssessment = useMemo<SupplyAssessment>(() => {
     const counts: Record<Decision, number> = {

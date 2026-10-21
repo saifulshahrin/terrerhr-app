@@ -166,7 +166,7 @@ export default function PlacementCommercialCard({
       </div>
 
       {record?.commercial_status === 'payment_cleared' ? (
-        <p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-700"><CircleCheck size={13} /> Cleared payment evidence is recorded.</p>
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-700"><CheckCircle size={13} /> Cleared payment evidence is recorded.</p>
       ) : record?.start_confirmed_at ? (
         <p className="mt-2 text-xs text-blue-700">Start is confirmed. Invoice and payment remain open.</p>
       ) : (
@@ -194,7 +194,7 @@ export default function PlacementCommercialCard({
           </section>
 
           <section className="grid gap-2">
-            <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-700"><ReceiptText size={13} /> Invoice</p>
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-700"><FileText size={13} /> Invoice</p>
             <div className="grid grid-cols-2 gap-2">
               <Field label="Invoice number" value={form.invoice_number} onChange={value => setForm(current => ({ ...current, invoice_number: value }))} />
               <Field label="Invoice amount" type="number" value={form.invoice_amount} onChange={value => setForm(current => ({ ...current, invoice_amount: value }))} />

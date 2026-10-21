@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { normalizeProfileUrl } from './candidateIdentity';
 import type { Candidate } from '../store/types';
 
 export type CandidateSource =
@@ -195,12 +196,29 @@ export async function createCandidateFromIntake(input: CreateCandidateInput): Pr
   const now = new Date().toISOString();
   const name = input.name.trim() || extractCandidateNameFallback(input.sourceUrl, input.source) || 'Unknown Candidate';
   const role = input.role.trim() || 'Unknown Role';
-  const sourceUrl = input.sourceUrl.trim();
+  const sourceUrl = normalizeProfileUrl(input.sourceUrl);
   const location = input.location?.trim() || null;
   const notes = input.notes?.trim() || null;
   const sourceHandle = extractSourceHandle(sourceUrl, input.source);
   const skills = parseSkillText(input.skillsText);
   const capabilityText = skills.length > 0 ? skills.join(', ') : null;
+
+  // Check before writing any rows; never merge candidates based on names alone.
+  if (sourceUrl) {
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await supabase.from('source_profiles')
+        .select('candidate_id, source_profile_url').order('profile_id').range(offset, offset + 999);
+      if (error) throw error;
+      const existing = (data ?? []).find(row => {
+        try { return normalizeProfileUrl(row.source_profile_url ?? '') === sourceUrl; }
+        catch { return false; }
+      });
+      if (existing) {
+        throw new Error(`This profile already exists in Terrer (candidate ${existing.candidate_id}). Open the existing record instead.`);
+      }
+      if (!data || data.length < 1000) break;
+    }
+  }
 
   const candidatePayload = {
     candidate_id: candidateId,
@@ -213,6 +231,7 @@ export async function createCandidateFromIntake(input: CreateCandidateInput): Pr
     linkedin_url: input.source === 'LinkedIn' ? sourceUrl || null : null,
     github_url: input.source === 'GitHub' ? sourceUrl || null : null,
     source_type: input.source,
+    key_skills: skills,
     notes,
     candidate_status: 'active',
   };
@@ -249,19 +268,9 @@ export async function createCandidateFromIntake(input: CreateCandidateInput): Pr
     const { error: sourceError } = await supabase.from('source_profiles').insert(sourceProfilePayload);
     if (sourceError) throw sourceError;
 
-    if (skills.length > 0) {
-      const skillRows = skills.map(skill => ({
-        candidate_id: candidateId,
-        skill,
-        proficiency: 'intermediate',
-      }));
+    // Preserve declared skills on the canonical profile. candidate_skills uses
+    // skill_id references, not the legacy skill/proficiency text columns.
 
-      const { error: skillError } = await supabase.from('candidate_skills').insert(skillRows);
-      if (skillError) {
-        // Skills are helpful for matching, but the candidate record should still be saved.
-        console.error('[candidates] candidate_skills insert error:', skillError);
-      }
-    }
   } catch (error) {
     await supabase.from('source_profiles').delete().eq('candidate_id', candidateId);
     await supabase.from('candidate_scores').delete().eq('candidate_id', candidateId);
