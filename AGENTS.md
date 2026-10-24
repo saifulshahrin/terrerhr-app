@@ -123,3 +123,14 @@ When uncertain, choose the path that:
 - reduces manual work
 - preserves future automation potential
 - aligns with Terrer as a data-driven recruitment engine with a marketplace front
+
+## Supabase Data API grants — effective 30 October 2026
+
+New tables in public no longer receive automatic Data API grants. Every new table migration must explicitly declare its access contract in the same migration as CREATE TABLE and RLS policies:
+- Enable RLS on every public table; grant only the SELECT/INSERT/UPDATE/DELETE operations each required role actually needs.
+- Grant anon access only for a deliberately public operation. Never grant all public tables or restore broad automatic default grants to silence permission errors.
+- Grant authenticated only the intended operations, with existing candidate/staff authorization enforced by RLS. Include service_role privileges explicitly when server-side code uses the table.
+- Include sequence USAGE where required by identity/serial inserts, and explicit function EXECUTE grants when a new RPC is introduced.
+- A table intentionally used only by privileged SQL/RPC must document that no direct Data API grants are intended.
+- Test on a disposable database/reset with automatic table grants disabled: verify intended role access succeeds and forbidden access remains denied. Existing production table grants are not removed by this platform change; do not rewrite historical ACLs or RLS wholesale.
+- Before release, inspect effective privileges with has_table_privilege and test the actual public API/RPC path. Keep SQL and evidence in version control; never commit database secrets.
